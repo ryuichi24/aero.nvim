@@ -1,7 +1,7 @@
 -- The agent panel: a fixed-width column at the edge of the tab that shows the current session
 -- (transcript + prompt for ACP, the terminal otherwise), so the other windows stay free for code.
-local config = require("Aero.config")
-local session = require("Aero.session")
+local config = require("aero.config")
+local session = require("aero.session")
 
 local M = {}
 
@@ -34,7 +34,7 @@ function M.owns(win)
 	if win == M.win() then
 		return true
 	end
-	return vim.b[api.nvim_win_get_buf(win)].Aero_chat_key ~= nil
+	return vim.b[api.nvim_win_get_buf(win)].aero_chat_key ~= nil
 end
 
 local function winbar(win)
@@ -192,6 +192,6 @@ local function update_winbars()
 end
 
 session.on_change(update_winbars)
-require("Aero.spinner").on_frame(update_winbars)
+require("aero.spinner").on_frame(update_winbars)
 
 return M

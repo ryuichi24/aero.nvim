@@ -1,9 +1,9 @@
 -- ACP-backed agent sessions: the transcript is a read-only markdown buffer,
 -- prompts are written in a regular buffer and sent with :w / <C-s>.
-local config = require("Aero.config")
-local store = require("Aero.store")
-local Client = require("Aero.acp.client")
-local spinner = require("Aero.spinner")
+local config = require("aero.config")
+local store = require("aero.store")
+local Client = require("aero.acp.client")
+local spinner = require("aero.spinner")
 
 local M = {}
 
@@ -417,7 +417,7 @@ end
 
 function Chat:changed()
 	self:render()
-	require("Aero.session").emit()
+	require("aero.session").emit()
 end
 
 function Chat:append(kind, text)
@@ -818,8 +818,8 @@ function Chat:get_prompt_buf()
 	map("n", "q", "<cmd>close<cr>", "close prompt (draft is kept)")
 	map({ "n", "i" }, "<C-c>", with_chat("cancel"), "cancel turn")
 	-- complete the agent's slash commands with <C-x><C-o>
-	vim.bo[buf].omnifunc = "v:lua.require'Aero.acp'.omnifunc"
-	vim.b[buf].Aero_chat_key = self.s.key
+	vim.bo[buf].omnifunc = "v:lua.require'aero.acp'.omnifunc"
+	vim.b[buf].aero_chat_key = self.s.key
 	return buf
 end
 
@@ -858,7 +858,7 @@ local function setup_transcript(chat)
 	vim.bo[buf].swapfile = false
 	vim.bo[buf].modifiable = false
 	set_filetype(buf, "markdown")
-	vim.b[buf].Aero_session = chat.s.key
+	vim.b[buf].aero_session = chat.s.key
 	pcall(api.nvim_buf_set_name, buf, ("Aero://%s#%s"):format(chat.s.worktree, chat.s.name))
 	local function map(lhs, fn, desc)
 		vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, desc = "Aero: " .. desc })
@@ -974,7 +974,7 @@ function M.forget(s)
 end
 
 function M.omnifunc(findstart, base)
-	local chat = chats_by_key[vim.b.Aero_chat_key or ""]
+	local chat = chats_by_key[vim.b.aero_chat_key or ""]
 	if findstart == 1 then
 		local line = api.nvim_get_current_line():sub(1, api.nvim_win_get_cursor(0)[2])
 		local start = line:find("/[%w%-_]*$")
