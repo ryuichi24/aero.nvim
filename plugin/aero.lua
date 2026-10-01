@@ -1,0 +1,57 @@
+if vim.g.loaded_Aero then
+	return
+end
+vim.g.loaded_Aero = true
+
+local subcommands = {
+	toggle = function()
+		require("aero").toggle()
+	end,
+	open = function()
+		require("aero").open()
+	end,
+	close = function()
+		require("aero").close()
+	end,
+	refresh = function()
+		require("aero").refresh()
+	end,
+	pick = function()
+		require("aero").pick()
+	end,
+	panel = function()
+		require("aero").panel()
+	end,
+	prompt = function()
+		require("aero").prompt()
+	end,
+	term = function()
+		require("aero").terminal()
+	end,
+	add = function(args)
+		require("aero").add_workspace(args[1])
+	end,
+}
+
+vim.api.nvim_create_user_command("Aero", function(opts)
+	local args = opts.fargs
+	local sub = table.remove(args, 1) or "toggle"
+	local fn = subcommands[sub]
+	if not fn then
+		vim.notify("Aero: unknown subcommand " .. sub, vim.log.levels.ERROR)
+		return
+	end
+	fn(args)
+end, {
+	nargs = "*",
+	complete = function(arglead, cmdline)
+		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if #words >= 2 and words[2] == "add" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.fn.getcompletion(arglead, "dir")
+		end
+		return vim.tbl_filter(function(s)
+			return s:find(arglead, 1, true) == 1
+		end, vim.tbl_keys(subcommands))
+	end,
+	desc = "Aero: workspaces, worktrees and agent sessions",
+})
