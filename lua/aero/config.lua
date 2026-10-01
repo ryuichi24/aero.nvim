@@ -8,6 +8,8 @@ local M = {}
 ---@field env? table<string, string>
 
 M.defaults = {
+	-- lifecycle event name -> function or list of functions
+	events = {},
 	---@type table<string, Aero.Agent>
 	agents = {
 		claude = { cmd = { "claude" }, resume = { "claude", "--continue" }, key = "c" },

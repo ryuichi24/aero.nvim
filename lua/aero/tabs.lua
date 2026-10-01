@@ -1,6 +1,7 @@
 -- One tabpage per worktree: the tab's working directory (:tcd) is the worktree, so its windows,
 -- file pickers and LSP all act on that checkout. The worktree is stored in t:aero_worktree.
 local config = require("aero.config")
+local events = require("aero.events")
 
 local M = {}
 
@@ -49,12 +50,14 @@ function M.enter(worktree)
 		if tab ~= api.nvim_get_current_tabpage() then
 			api.nvim_set_current_tabpage(tab)
 		end
+		events.emit("worktree_entered", { path = worktree, tab = tab, created = false })
 		return false
 	end
 	vim.cmd("$tabnew")
 	vim.t.aero_worktree = worktree
 	vim.cmd.tcd(vim.fn.fnameescape(worktree))
 	vim.cmd.edit(vim.fn.fnameescape(worktree))
+	events.emit("worktree_entered", { path = worktree, tab = api.nvim_get_current_tabpage(), created = true })
 	return true
 end
 

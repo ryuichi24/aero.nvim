@@ -2,6 +2,7 @@
 -- (transcript + prompt for ACP, the terminal otherwise), so the other windows stay free for code.
 local config = require("aero.config")
 local session = require("aero.session")
+local events = require("aero.events")
 
 local M = {}
 
@@ -75,6 +76,7 @@ function M.open()
 	})
 	vim.wo[win].winfixwidth = true
 	tab_state().win = win
+	events.emit("panel_opened", { win = win, tab = api.nvim_get_current_tabpage() })
 	return win
 end
 
@@ -104,8 +106,11 @@ function M.close()
 	end
 	if #api.nvim_tabpage_list_wins(0) > 1 then
 		api.nvim_win_close(win, false)
+	else
+		return
 	end
 	tab_state().win = nil
+	events.emit("panel_closed", { win = win, tab = api.nvim_get_current_tabpage() })
 end
 
 --- The session to show when the panel is toggled open: the last one shown in this tab,

@@ -5,6 +5,7 @@
 -- another instance's changes. Writes go to a temp file that is renamed over the state file, so
 -- a crash mid-write can't leave it truncated.
 local config = require("aero.config")
+local events = require("aero.events")
 
 local M = {}
 
@@ -96,7 +97,7 @@ function M.find_workspace(root)
 end
 
 function M.add_workspace(root)
-	return update(function()
+	local ws, added = update(function()
 		local ws = M.find_workspace(root)
 		if ws then
 			return ws, false
@@ -105,15 +106,23 @@ function M.add_workspace(root)
 		table.insert(M.data.workspaces, ws)
 		return ws, true
 	end)
+	if added then
+		events.emit("workspace_added", { root = ws.root, name = ws.name })
+	end
+	return ws, added
 end
 
 function M.remove_workspace(root)
-	update(function()
-		local _, i = M.find_workspace(root)
+	local removed = update(function()
+		local ws, i = M.find_workspace(root)
 		if i then
 			table.remove(M.data.workspaces, i)
+			return ws
 		end
 	end)
+	if removed then
+		events.emit("workspace_removed", { root = removed.root, name = removed.name })
+	end
 end
 
 function M.set_expanded(root, expanded)

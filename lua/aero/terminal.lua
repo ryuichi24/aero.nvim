@@ -70,6 +70,7 @@ function M.open(worktree, code_win)
 		vim.b[buf].aero_term = worktree
 	end
 	vim.cmd.startinsert()
+	require("aero.events").emit("terminal_opened", { worktree = worktree, win = win, buf = buf, fresh = fresh })
 	return win
 end
 
@@ -77,7 +78,10 @@ end
 function M.hide()
 	local win = M.win()
 	if win and #api.nvim_tabpage_list_wins(0) > 1 then
+		local buf = api.nvim_win_get_buf(win)
+		local worktree = vim.b[buf].aero_term
 		api.nvim_win_close(win, false)
+		require("aero.events").emit("terminal_closed", { worktree = worktree, win = win, buf = buf })
 	end
 end
 

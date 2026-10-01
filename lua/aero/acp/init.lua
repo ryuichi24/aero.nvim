@@ -5,6 +5,7 @@ local store = require("aero.store")
 local Client = require("aero.acp.client")
 local spinner = require("aero.spinner")
 local history = require("aero.history")
+local events = require("aero.events")
 
 local M = {}
 
@@ -702,6 +703,10 @@ function Chat:ready(session_id)
 	self.state = "ready"
 	store.set_session_field(self.s.worktree, self.s.name, "acp_session_id", session_id)
 	self:changed()
+	events.emit(
+		"session_ready",
+		events.session(self.s, { session_id = session_id, resumed = self.resumed == true, type = "acp" })
+	)
 	self:flush_queue()
 end
 
@@ -722,6 +727,7 @@ function Chat:resume_failed(session_id, err)
 	)
 	self:changed()
 	self:stop()
+	events.emit("session_resume_failed", events.session(self.s, { session_id = session_id, type = "acp", error = err }))
 end
 
 function Chat:handshake(resume)
@@ -1071,6 +1077,9 @@ function M.start(s, buf, agent, resume, session_id)
 				chat:info("adapter stderr: " .. stderr:sub(-2000))
 			end
 			chat:changed()
+			if chats_by_key[s.key] == chat then
+				events.emit("session_exited", events.session(s, { exit_code = code, type = "acp" }))
+			end
 		end,
 	})
 	if not client then

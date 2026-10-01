@@ -102,6 +102,12 @@ if phase == "recover-id" or phase == "missing-id" then
 	end
 end
 
+local resume_failure
+if phase == "fail" then
+	require("aero").once("session_resume_failed", function(event)
+		resume_failure = event
+	end)
+end
 assert(sessions.show(acp, 0))
 if phase == "fail" then
 	acp.chat:prompt("queued before load failed")
@@ -113,6 +119,11 @@ if phase == "fail" then
 	end)
 	assert(contains(acp, "code -32603") and contains(acp, "/fixture/rollout.jsonl"), "adapter details were hidden")
 	assert(not sessions.is_running(acp), "failed resume remained busy")
+	assert(resume_failure and resume_failure.session_id == "fixture-session")
+	assert(
+		resume_failure.error.code == -32603
+			and resume_failure.error.data.reason == "fixture: failed to read saved rollout"
+	)
 	assert(
 		store.find_session(acp.worktree, acp.name).acp_session_id == "fixture-session",
 		"failed load replaced the original ID"

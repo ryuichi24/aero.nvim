@@ -352,6 +352,10 @@ function M.open()
 	store.load()
 	state.worktrees = {}
 	M.render()
+	require("aero.events").emit(
+		"dashboard_opened",
+		{ win = state.win, buf = state.buf, tab = api.nvim_get_current_tabpage() }
+	)
 end
 
 function M.close()
@@ -362,11 +366,20 @@ function M.close()
 		local alt = vim.fn.bufnr("#")
 		if alt > 0 and alt ~= state.buf and api.nvim_buf_is_valid(alt) then
 			api.nvim_win_set_buf(state.win, alt)
+		else
+			return
 		end
 	elseif #api.nvim_tabpage_list_wins(0) > 1 then
 		api.nvim_win_close(state.win, false)
+	else
+		return
 	end
+	local win = state.win
 	state.win = nil
+	require("aero.events").emit(
+		"dashboard_closed",
+		{ win = win, buf = state.buf, tab = api.nvim_get_current_tabpage() }
+	)
 end
 
 function M.toggle()
@@ -739,15 +752,23 @@ function actions.cd()
 	end
 end
 
+function M.open_worktree(dir, opener)
+	enter_worktree(dir)
+	local win = target_win()
+	api.nvim_set_current_win(win)
+	state.target = win
+	if opener then
+		opener(dir)
+	else
+		vim.cmd.edit(vim.fn.fnameescape(dir))
+	end
+	return win
+end
+
 function actions.edit()
 	local dir = item_dir(current_item())
 	if dir then
-		-- a workspace's root is its main worktree
-		enter_worktree(dir)
-		local win = target_win()
-		api.nvim_set_current_win(win)
-		state.target = win
-		vim.cmd.edit(vim.fn.fnameescape(dir))
+		M.open_worktree(dir)
 	end
 end
 

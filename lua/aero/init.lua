@@ -4,9 +4,24 @@ local did_setup = false
 
 function M.setup(opts)
 	require("aero.config").setup(opts)
+	require("aero.events").setup(require("aero.config").options.events)
 	require("aero.store").load()
 	require("aero.dashboard").setup_highlights()
 	did_setup = true
+	require("aero.events").emit("setup", {})
+end
+
+--- Register a lifecycle handler. Returns an unsubscribe function.
+function M.on(name, callback, opts)
+	return require("aero.events").on(name, callback, opts)
+end
+
+function M.once(name, callback)
+	return require("aero.events").once(name, callback)
+end
+
+function M.off(name, callback)
+	require("aero.events").off(name, callback)
 end
 
 local function ensure()
@@ -61,6 +76,11 @@ end
 ---@param path? string any path inside a git repository; prompts when omitted
 function M.add_workspace(path)
 	ensure().add_workspace(path)
+end
+
+--- Focus a worktree's code window; optionally use a custom directory opener.
+function M.open_worktree(path, opener)
+	return ensure().open_worktree(path, opener)
 end
 
 --- Short summary for a statusline, e.g. "◐1 ●2"; empty when no session is running.

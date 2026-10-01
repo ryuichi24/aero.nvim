@@ -3,6 +3,7 @@ local config = require("aero.config")
 local store = require("aero.store")
 local spinner = require("aero.spinner")
 local history = require("aero.history")
+local events = require("aero.events")
 
 local M = {}
 
@@ -114,6 +115,7 @@ function M.create(worktree, agent)
 	local s = get(worktree, name)
 	s.fresh = true
 	emit()
+	events.emit("session_created", events.session(s))
 	return s
 end
 
@@ -230,7 +232,9 @@ function M.start(s, win, resume, session_id)
 		on_wipe()
 		cleanup_old()
 		ensure_timer()
+		s.stop_requested = false
 		emit()
+		events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "acp" }))
 		return true
 	end
 
@@ -287,6 +291,7 @@ function M.start(s, win, resume, session_id)
 						end
 						s.status = M.status(s)
 						emit()
+						events.emit("session_exited", events.session(s, { exit_code = code, type = "terminal" }))
 					end
 				end)
 			end,
@@ -347,7 +352,9 @@ function M.start(s, win, resume, session_id)
 	on_wipe()
 	cleanup_old()
 	ensure_timer()
+	s.stop_requested = false
 	emit()
+	events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "terminal" }))
 	return true
 end
 
@@ -391,19 +398,26 @@ function M.show(s, win, reuse)
 	if running(s) and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
 		local visible = reuse ~= false and tab_wins_with(s.buf)[1]
 		if visible then
+			events.emit("session_shown", events.session(s, { win = visible }))
 			return visible
 		end
 		win = M.prepare_win(win)
 		vim.api.nvim_win_set_buf(win, s.buf)
+		events.emit("session_shown", events.session(s, { win = win }))
 		return win
 	end
 	win = M.prepare_win(win)
 	if M.start(s, win, not s.fresh) then
+		events.emit("session_shown", events.session(s, { win = win }))
 		return win
 	end
 end
 
 function M.stop(s)
+	local stopping = running(s) and not s.stop_requested
+	if stopping then
+		s.stop_requested = true
+	end
 	if s.buf and not s.chat then
 		save_terminal(s)
 		history.flush(s)
@@ -413,6 +427,9 @@ function M.stop(s)
 	end
 	if s.job then
 		vim.fn.jobstop(s.job)
+	end
+	if stopping then
+		events.emit("session_stopped", events.session(s))
 	end
 end
 
@@ -436,6 +453,7 @@ function M.is_running(s)
 end
 
 function M.delete(s)
+	local data = events.session(s)
 	M.stop(s)
 	if is_acp(s) then
 		require("aero.acp").forget(s)
@@ -449,6 +467,7 @@ function M.delete(s)
 	store.remove_session(s.worktree, s.name)
 	history.remove(s)
 	emit()
+	events.emit("session_deleted", data)
 end
 
 function M.delete_worktree(worktree)

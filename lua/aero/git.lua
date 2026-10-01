@@ -1,4 +1,5 @@
 local M = {}
+local events = require("aero.events")
 
 local function run(args)
 	local r = vim.system(args, { text = true }):wait()
@@ -75,13 +76,19 @@ end
 
 --- Create a worktree for `branch` at `path`, creating the branch from HEAD when it doesn't exist.
 function M.add(root, branch, path, cb)
+	local event_path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
 	local args = { "git", "-C", root, "worktree", "add" }
 	if branch_exists(root, branch) then
 		vim.list_extend(args, { path, branch })
 	else
 		vim.list_extend(args, { "-b", branch, path })
 	end
-	run_async(args, cb)
+	run_async(args, function(ok, err)
+		cb(ok, err)
+		if ok then
+			events.emit("worktree_created", { root = root, branch = branch, path = event_path })
+		end
+	end)
 end
 
 function M.remove(root, path, force, cb)
@@ -89,7 +96,12 @@ function M.remove(root, path, force, cb)
 	if force then
 		table.insert(args, "--force")
 	end
-	run_async(args, cb)
+	run_async(args, function(ok, err)
+		cb(ok, err)
+		if ok then
+			events.emit("worktree_removed", { root = root, path = path, force = force == true })
+		end
+	end)
 end
 
 return M
