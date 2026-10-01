@@ -99,6 +99,7 @@ function M.remove(root, path, force, cb)
 	run_async(args, function(ok, err)
 		cb(ok, err)
 		if ok then
+			require("aero.buffers").forget(path)
 			events.emit("worktree_removed", { root = root, path = path, force = force == true })
 		end
 	end)

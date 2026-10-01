@@ -1,4 +1,4 @@
--- Persistent state: the workspace list and the session definitions per worktree.
+-- Persistent state: workspaces, sessions and the last code buffer per worktree.
 --
 -- Several nvim instances may share the state file, so every change re-reads the file, applies
 -- just that change and writes the result (see `update`); a stale in-memory copy never overwrites
@@ -9,7 +9,7 @@ local events = require("aero.events")
 
 local M = {}
 
-M.data = { workspaces = {}, sessions = {} }
+M.data = { workspaces = {}, sessions = {}, worktree_buffers = {} }
 
 local function read()
 	local f = io.open(config.options.state_file, "r")
@@ -39,13 +39,19 @@ local function read()
 	return {
 		workspaces = workspaces,
 		sessions = type(data.sessions) == "table" and data.sessions or {},
+		worktree_buffers = type(data.worktree_buffers) == "table" and data.worktree_buffers or {},
 	}
 end
 
 local function write(data)
 	local path = config.options.state_file
 	vim.fn.mkdir(vim.fs.dirname(path), "p")
-	local out = { workspaces = data.workspaces, sessions = vim.empty_dict() }
+	local out = { workspaces = data.workspaces, sessions = vim.empty_dict(), worktree_buffers = vim.empty_dict() }
+	if config.options.persist_buffers then
+		for wt, buffer in pairs(data.worktree_buffers) do
+			out.worktree_buffers[wt] = buffer
+		end
+	end
 	if config.options.persist_sessions then
 		for wt, list in pairs(data.sessions) do
 			if #list > 0 then
@@ -75,6 +81,9 @@ function M.load()
 		return
 	end
 	M.data.workspaces = data.workspaces
+	if config.options.persist_buffers then
+		M.data.worktree_buffers = data.worktree_buffers
+	end
 	if config.options.persist_sessions then
 		M.data.sessions = data.sessions
 	end
@@ -86,6 +95,21 @@ local function update(fn)
 	local result = { fn(M.data) }
 	write(M.data)
 	return unpack(result)
+end
+
+--- Merge only these worktrees' buffer snapshots into the latest shared state.
+function M.set_worktree_buffers(buffers)
+	update(function(data)
+		for wt, buffer in pairs(buffers) do
+			data.worktree_buffers[wt] = buffer
+		end
+	end)
+end
+
+function M.remove_worktree_buffer(worktree)
+	update(function(data)
+		data.worktree_buffers[worktree] = nil
+	end)
 end
 
 function M.find_workspace(root)

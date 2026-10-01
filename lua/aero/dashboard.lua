@@ -291,7 +291,7 @@ local function target_win()
 			and not terminal.is_term_win(w)
 	end
 	local tab_wins = api.nvim_tabpage_list_wins(0)
-	local t = state.target
+	local t = require("aero.buffers").code_win() or state.target
 	if t and api.nvim_win_is_valid(t) and vim.tbl_contains(tab_wins, t) and usable(t) then
 		return t
 	end
@@ -465,6 +465,11 @@ end
 --- Switch to the worktree's tab (with worktree_tabs), bringing the dashboard along to new tabs.
 local function enter_worktree(path)
 	if not tabs.enabled() then
+		local buffers = require("aero.buffers")
+		buffers.remember()
+		vim.t.aero_worktree = path
+		vim.cmd.tcd(vim.fn.fnameescape(path))
+		buffers.restore(path, target_win())
 		return
 	end
 	local had_dashboard = is_open() and config.options.dashboard.position ~= "current"
@@ -702,6 +707,7 @@ function actions.delete()
 			if tabs.enabled() then
 				tabs.close(wt.path)
 			end
+			require("aero.buffers").forget(wt.path)
 			state.worktrees[ws.root] = nil
 			notify("removed " .. vim.fn.fnamemodify(wt.path, ":~"))
 			M.render()
@@ -714,6 +720,7 @@ function actions.delete()
 		end
 		for _, wt in ipairs(worktrees(ws).list or {}) do
 			session.delete_worktree(wt.path)
+			require("aero.buffers").forget(wt.path)
 		end
 		store.remove_workspace(ws.root)
 		state.worktrees[ws.root] = nil
@@ -769,8 +776,9 @@ function M.open_worktree(dir, opener)
 	state.target = win
 	if opener then
 		opener(dir)
+		require("aero.buffers").remember(win)
 	else
-		vim.cmd.edit(vim.fn.fnameescape(dir))
+		require("aero.buffers").restore(dir, win)
 	end
 	return win
 end
@@ -838,7 +846,7 @@ local descriptions = {
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",
 	cd = ":tcd to worktree",
-	edit = "open worktree directory",
+	edit = "open worktree / restore last code buffer",
 	terminal = "open worktree terminal",
 	next_workspace = "next workspace",
 	prev_workspace = "previous workspace",

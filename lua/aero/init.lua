@@ -7,6 +7,7 @@ function M.setup(opts)
 	require("aero.events").setup(require("aero.config").options.events)
 	require("aero.fullscreen").setup()
 	require("aero.store").load()
+	require("aero.buffers").setup()
 	require("aero.dashboard").setup_highlights()
 	did_setup = true
 	require("aero.events").emit("setup", {})

@@ -2,6 +2,7 @@
 -- file pickers and LSP all act on that checkout. The worktree is stored in t:aero_worktree.
 local config = require("aero.config")
 local events = require("aero.events")
+local buffers = require("aero.buffers")
 
 local M = {}
 
@@ -44,13 +45,17 @@ function M.find(worktree)
 	return candidate
 end
 
---- Switch to the worktree's tab, creating it (showing the worktree directory) if needed.
+--- Switch to the worktree's tab, restoring its last code buffer when creating one.
 ---@return boolean created whether a new tab was opened
 function M.enter(worktree)
+	buffers.remember()
 	local tab = M.find(worktree)
 	if tab then
 		if tab ~= api.nvim_get_current_tabpage() then
 			api.nvim_set_current_tabpage(tab)
+		end
+		if not buffers.remember() then
+			buffers.restore(worktree)
 		end
 		events.emit("worktree_entered", { path = worktree, tab = tab, created = false })
 		return false
@@ -58,7 +63,7 @@ function M.enter(worktree)
 	vim.cmd("$tabnew")
 	vim.t.aero_worktree = worktree
 	vim.cmd.tcd(vim.fn.fnameescape(worktree))
-	vim.cmd.edit(vim.fn.fnameescape(worktree))
+	buffers.restore(worktree, api.nvim_get_current_win())
 	events.emit("worktree_entered", { path = worktree, tab = api.nvim_get_current_tabpage(), created = true })
 	return true
 end

@@ -57,6 +57,8 @@ M.defaults = {
 	fullscreen_key = "gF",
 	-- remember sessions across restarts so they can be resumed
 	persist_sessions = true,
+	-- remember the last code file/directory in each worktree across restarts
+	persist_buffers = true,
 	state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
 	icons = {
 		expanded = "▾",
