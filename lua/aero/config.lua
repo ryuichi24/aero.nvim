@@ -14,8 +14,10 @@ M.defaults = {
 	agents = {
 		claude = { cmd = { "claude" }, resume = { "claude", "--continue" }, key = "c" },
 		codex = { cmd = { "codex" }, resume = { "codex", "resume", "--last" }, key = "x" },
+		opencode = { cmd = { "opencode" }, resume = { "opencode", "--continue" }, key = "o" },
 		["claude-acp"] = { type = "acp", cmd = { "npx", "-y", "@agentclientprotocol/claude-agent-acp" }, key = "C" },
 		["codex-acp"] = { type = "acp", cmd = { "npx", "-y", "@agentclientprotocol/codex-acp" }, key = "X" },
+		["opencode-acp"] = { type = "acp", cmd = { "opencode", "acp" }, key = "O" },
 	},
 	acp = {
 		-- tool call output longer than this is truncated in the chat buffer
