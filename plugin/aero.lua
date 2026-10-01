@@ -25,6 +25,9 @@ local subcommands = {
 	panel = function()
 		require("aero").panel()
 	end,
+	fullscreen = function()
+		require("aero").fullscreen()
+	end,
 	prompt = function()
 		require("aero").prompt()
 	end,

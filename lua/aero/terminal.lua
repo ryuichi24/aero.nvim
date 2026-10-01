@@ -68,6 +68,7 @@ function M.open(worktree, code_win)
 		vim.fn.jobstart(config.options.terminal.cmd or { vim.o.shell }, { term = true, cwd = worktree })
 		vim.bo[buf].bufhidden = "hide"
 		vim.b[buf].aero_term = worktree
+		require("aero.fullscreen").bind(buf)
 	end
 	vim.cmd.startinsert()
 	require("aero.events").emit("terminal_opened", { worktree = worktree, win = win, buf = buf, fresh = fresh })
@@ -76,6 +77,9 @@ end
 
 --- Hide the terminal window in this tab (the shell keeps running).
 function M.hide()
+	if require("aero.fullscreen").close("terminal") then
+		return
+	end
 	local win = M.win()
 	if win and #api.nvim_tabpage_list_wins(0) > 1 then
 		local buf = api.nvim_win_get_buf(win)

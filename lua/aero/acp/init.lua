@@ -930,6 +930,7 @@ function Chat:get_prompt_buf()
 	-- complete the agent's slash commands with <C-x><C-o>
 	vim.bo[buf].omnifunc = "v:lua.require'aero.acp'.omnifunc"
 	vim.b[buf].aero_chat_key = self.s.key
+	require("aero.fullscreen").bind(buf)
 	return buf
 end
 
@@ -963,6 +964,7 @@ end
 
 local function setup_transcript(chat)
 	local buf = chat.buf
+	require("aero.fullscreen").bind(buf)
 	vim.bo[buf].buftype = "nofile"
 	vim.bo[buf].bufhidden = "hide"
 	vim.bo[buf].swapfile = false

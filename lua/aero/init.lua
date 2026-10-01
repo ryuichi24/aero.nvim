@@ -5,6 +5,7 @@ local did_setup = false
 function M.setup(opts)
 	require("aero.config").setup(opts)
 	require("aero.events").setup(require("aero.config").options.events)
+	require("aero.fullscreen").setup()
 	require("aero.store").load()
 	require("aero.dashboard").setup_highlights()
 	did_setup = true
@@ -60,6 +61,12 @@ end
 function M.panel()
 	ensure()
 	require("aero.panel").toggle()
+end
+
+--- Toggle fullscreen for the focused pane, including the code window.
+function M.fullscreen()
+	ensure()
+	require("aero.fullscreen").toggle()
 end
 
 --- Toggle the current worktree's terminal below the code window.

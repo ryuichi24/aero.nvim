@@ -313,6 +313,7 @@ function M.start(s, win, resume, session_id)
 	s.last_output = vim.uv.now()
 	s.status = M.status(s)
 	vim.b[buf].aero_session = s.key
+	require("aero.fullscreen").bind(buf)
 	pcall(vim.api.nvim_buf_set_name, buf, ("aero://%s#%s"):format(s.worktree, s.name))
 	vim.api.nvim_buf_attach(buf, false, {
 		on_lines = function()

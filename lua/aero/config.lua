@@ -53,6 +53,8 @@ M.defaults = {
 	start_insert = true,
 	-- spin the icon of busy sessions (dashboard, panel winbar, transcript footer, running tools)
 	animation = true,
+	-- normal-mode key in every pane, including code; false disables the mapping
+	fullscreen_key = "gF",
 	-- remember sessions across restarts so they can be resumed
 	persist_sessions = true,
 	state_file = vim.fn.stdpath("data") .. "/Aero/state.json",

@@ -89,7 +89,16 @@ function M.shown(s)
 	end
 end
 
+--- Register a fullscreen window as this tab's agent panel.
+function M.attach(win, s)
+	tab_state().win = win
+	M.shown(s)
+end
+
 function M.close()
+	if require("aero.fullscreen").close("agent") then
+		return
+	end
 	local win = M.win()
 	if not win then
 		return

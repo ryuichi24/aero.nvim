@@ -323,6 +323,7 @@ local function get_buf()
 	vim.bo[buf].modifiable = false
 	pcall(api.nvim_buf_set_name, buf, "Aero://dashboard")
 	M.set_keymaps(buf)
+	require("aero.fullscreen").bind(buf)
 	vim.bo[buf].filetype = "Aero"
 	return buf
 end
@@ -358,7 +359,16 @@ function M.open()
 	)
 end
 
+--- Register a fullscreen window displaying the shared dashboard buffer.
+function M.attach(win)
+	state.win = win
+	set_win_options(win)
+end
+
 function M.close()
+	if require("aero.fullscreen").close("dashboard") then
+		return
+	end
 	if not is_open() then
 		return
 	end
@@ -845,6 +855,9 @@ function actions.help()
 		if keys[name] then
 			table.insert(lines, ("  %-8s %s"):format(keys[name], descriptions[name]))
 		end
+	end
+	if config.options.fullscreen_key then
+		table.insert(lines, ("  %-8s toggle fullscreen"):format(config.options.fullscreen_key))
 	end
 	local agents = vim.tbl_keys(config.options.agents)
 	table.sort(agents)

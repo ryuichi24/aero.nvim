@@ -25,14 +25,16 @@ end
 function M.find(worktree)
 	local candidate
 	for _, tab in ipairs(api.nvim_list_tabpages()) do
-		local assigned = vim.t[tab].aero_worktree
-		if assigned and norm(assigned) == norm(worktree) then
-			return tab
-		end
-		if not assigned and not candidate then
-			local nr = api.nvim_tabpage_get_number(tab)
-			if inside(vim.fn.getcwd(-1, nr), worktree) then
-				candidate = tab
+		if not vim.t[tab].aero_fullscreen then
+			local assigned = vim.t[tab].aero_worktree
+			if assigned and norm(assigned) == norm(worktree) then
+				return tab
+			end
+			if not assigned and not candidate then
+				local nr = api.nvim_tabpage_get_number(tab)
+				if inside(vim.fn.getcwd(-1, nr), worktree) then
+					candidate = tab
+				end
 			end
 		end
 	end
