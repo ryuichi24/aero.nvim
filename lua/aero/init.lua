@@ -36,6 +36,11 @@ function M.pick()
 	ensure().pick()
 end
 
+--- Reconnect the selected ACP session to an existing adapter conversation ID.
+function M.resume(session_id)
+	return ensure().resume(session_id)
+end
+
 --- Toggle the agent panel.
 function M.panel()
 	ensure()

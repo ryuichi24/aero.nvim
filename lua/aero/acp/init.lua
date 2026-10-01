@@ -4,6 +4,7 @@ local config = require("aero.config")
 local store = require("aero.store")
 local Client = require("aero.acp.client")
 local spinner = require("aero.spinner")
+local history = require("aero.history")
 
 local M = {}
 
@@ -28,6 +29,23 @@ Chat.__index = Chat
 local chats_by_key = {}
 
 local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
+
+local function error_text(err)
+	if type(err) ~= "table" then
+		return err and tostring(err) or "unknown error"
+	end
+	local text = tostring(err.message or "unknown error")
+	if err.code ~= nil then
+		text = text .. " (code " .. tostring(err.code) .. ")"
+	end
+	if err.data ~= nil and err.data ~= vim.NIL then
+		local detail = type(err.data) == "string" and err.data or vim.inspect(err.data)
+		if detail ~= "" then
+			text = text .. "\n" .. detail
+		end
+	end
+	return text
+end
 
 local function content_text(c)
 	if type(c) ~= "table" then
@@ -416,8 +434,33 @@ function Chat:goto_permission(focus)
 end
 
 function Chat:changed()
+	self:save_history()
 	self:render()
 	require("aero.session").emit()
+end
+
+function Chat:save_history()
+	if self.replaying or chats_by_key[self.s.key] ~= self then
+		return
+	end
+	history.save(self.s, function()
+		-- Persist protocol data, not typewriter/render caches or live permission callbacks.
+		local blocks = {}
+		for _, block in ipairs(self.blocks) do
+			local b = vim.deepcopy(block)
+			b.cache, b.cache_src, b.shown = nil, nil, nil
+			if b.kind == "permission" and not b.answer then
+				b.answer = "interrupted"
+			end
+			table.insert(blocks, b)
+		end
+		return {
+			type = "acp",
+			blocks = blocks,
+			agent_info = self.agent_info,
+			session_id = self.session_id or self.saved_session_id,
+		}
+	end)
 end
 
 function Chat:append(kind, text)
@@ -445,6 +488,15 @@ end
 
 function Chat:on_update(u)
 	local kind = u.sessionUpdate
+	-- The local transcript already contains the history replayed by session/load.
+	if
+		self.replaying
+		and self.replay_from_cache
+		and kind ~= "available_commands_update"
+		and kind ~= "current_mode_update"
+	then
+		return
+	end
 	if kind == "user_message_chunk" then
 		self:append("user", content_text(u.content))
 	elseif kind == "agent_message_chunk" then
@@ -489,6 +541,7 @@ function Chat:on_update(u)
 	else
 		return
 	end
+	self:save_history()
 	self:render()
 end
 
@@ -653,8 +706,22 @@ function Chat:ready(session_id)
 end
 
 function Chat:fail(what, err)
-	self:info(("%s failed: %s"):format(what, err and (err.message or vim.inspect(err)) or "unknown error"))
+	self:info(("%s failed: %s"):format(what, error_text(err)))
 	self:changed()
+end
+
+function Chat:resume_failed(session_id, err)
+	self.resume_error = err
+	self.state, self.busy = "exited", false
+	self:info(
+		"could not resume session "
+			.. session_id
+			.. ": "
+			.. error_text(err)
+			.. "\nSaved session kept; press r in the dashboard to retry."
+	)
+	self:changed()
+	self:stop()
 end
 
 function Chat:handshake(resume)
@@ -668,31 +735,60 @@ function Chat:handshake(resume)
 		end
 		self.agent_info = res.agentInfo
 		self.caps = res.agentCapabilities or {}
+		store.load()
 		local def = store.find_session(self.s.worktree, self.s.name) or {}
+		local previous_id = def.acp_session_id or self.saved_session_id
+		local session_id = self.requested_session_id or previous_id
+		self.saved_session_id = self.cache_session_id or previous_id or session_id
 		local base = { cwd = self.s.worktree, mcpServers = {} }
-		if resume and def.acp_session_id and self.caps.loadSession then
+		if resume and session_id and self.caps.loadSession then
+			-- Cached errors are not conversation history. A different selected ID must
+			-- replay its own transcript, without relabeling the previous conversation.
+			self.replay_from_cache = self.restored_conversation
+				and (not self.cache_session_id or self.cache_session_id == session_id)
+			local previous_blocks, previous_tools = self.blocks, self.tools
+			if
+				(self.requested_session_id and self.requested_session_id ~= previous_id)
+				or (self.cache_session_id and self.cache_session_id ~= session_id)
+			then
+				self.blocks, self.tools = {}, {}
+				self.replay_from_cache = false
+			end
 			self.replaying = true
 			self.client:request(
 				"session/load",
-				vim.tbl_extend("force", base, { sessionId = def.acp_session_id }),
+				vim.tbl_extend("force", base, { sessionId = session_id }),
 				function(lerr)
 					self.replaying = false
 					if not lerr then
+						self.resumed = true
 						self:info("resumed session")
-						return self:ready(def.acp_session_id)
+						return self:ready(session_id)
 					end
-					self:info("could not resume (" .. (lerr.message or "error") .. "), starting a new session")
-					self.blocks, self.tools = { self.blocks[#self.blocks] }, {}
-					self:new_session(base)
+					-- A transient adapter failure must not replace the original conversation ID.
+					self.blocks, self.tools = previous_blocks, previous_tools
+					self:resume_failed(session_id, lerr)
 				end
 			)
 		else
+			if self.requested_session_id then
+				return self:resume_failed(
+					session_id,
+					{ code = -32601, message = "agent does not advertise session/load support" }
+				)
+			end
+			if resume and self.restored_history then
+				local reason = not session_id and "no saved ACP session ID"
+					or "agent does not advertise session/load support"
+				self:info("saved log restored; could not resume (" .. reason .. "), starting a new session")
+			end
 			self:new_session(base)
 		end
 	end)
 end
 
 function Chat:new_session(params)
+	self.resumed = false
 	self.client:request("session/new", params, function(err, res)
 		if err then
 			return self:fail("session/new", err)
@@ -703,7 +799,9 @@ end
 
 function Chat:prompt(text)
 	if self.state == "exited" then
-		vim.notify("Aero: agent has exited; restart it with r in the dashboard", vim.log.levels.WARN)
+		local message = self.resume_error and "Aero: session could not be resumed; retry with r in the dashboard"
+			or "Aero: agent has exited; restart it with r in the dashboard"
+		vim.notify(message, vim.log.levels.WARN)
 		return
 	end
 	-- queued prompts are shown at the end of the transcript and only become blocks once sent,
@@ -756,6 +854,8 @@ function Chat:cancel()
 end
 
 function Chat:stop()
+	self:save_history()
+	history.flush(self.s)
 	if self.client then
 		self.client:stop()
 	end
@@ -771,9 +871,13 @@ function Chat:send_prompt_buf()
 		return
 	end
 	local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
-	vim.bo[buf].modified = false
 	if text == "" then
+		vim.bo[buf].modified = false
 		return
+	end
+	if self.state == "exited" then
+		-- Report the failed backend without clearing a prompt that cannot be sent.
+		return self:prompt(text)
 	end
 	api.nvim_buf_set_lines(buf, 0, -1, false, {})
 	vim.bo[buf].modified = false
@@ -901,8 +1005,9 @@ end
 ---@param buf integer transcript buffer (already shown in a window)
 ---@param agent Aero.Agent
 ---@param resume boolean
+---@param session_id? string explicit conversation ID for recovery
 ---@return Aero.acp.Chat|nil
-function M.start(s, buf, agent, resume)
+function M.start(s, buf, agent, resume, session_id)
 	local chat = setmetatable({
 		s = s,
 		buf = buf,
@@ -912,10 +1017,30 @@ function M.start(s, buf, agent, resume)
 		tools = {},
 		queue = {},
 		revealing = {},
+		requested_session_id = session_id,
 	}, Chat)
 	local old = chats_by_key[s.key]
+	local saved = resume and history.load(s)
+	if saved and saved.type == "acp" and type(saved.blocks) == "table" then
+		chat.blocks, chat.agent_info = saved.blocks, saved.agent_info
+		chat.saved_session_id = type(saved.session_id) == "string" and saved.session_id ~= "" and saved.session_id
+			or nil
+		chat.cache_session_id = chat.saved_session_id
+		chat.restored_history = #chat.blocks > 0
+		for _, b in ipairs(chat.blocks) do
+			if b.kind ~= "info" then
+				chat.restored_conversation = true
+			end
+			if b.kind == "tool" and b.id then
+				chat.tools[b.id] = b
+			end
+		end
+	end
 	if old then
 		chat.prompt_buf = old.prompt_buf
+		if resume and old.resume_error then
+			chat.queue = old.queue
+		end
 	end
 	chats_by_key[s.key] = chat
 	setup_transcript(chat)
@@ -940,7 +1065,11 @@ function M.start(s, buf, agent, resume)
 			if code ~= 0 and stderr ~= "" then
 				msg = msg .. ": " .. stderr:sub(-500)
 			end
-			chat:info(msg)
+			if not chat.resume_error then
+				chat:info(msg)
+			elseif stderr ~= "" then
+				chat:info("adapter stderr: " .. stderr:sub(-2000))
+			end
 			chat:changed()
 		end,
 	})

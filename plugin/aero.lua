@@ -19,6 +19,9 @@ local subcommands = {
 	pick = function()
 		require("aero").pick()
 	end,
+	resume = function(args)
+		require("aero").resume(args[1])
+	end,
 	panel = function()
 		require("aero").panel()
 	end,

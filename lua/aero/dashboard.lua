@@ -402,6 +402,42 @@ local function current_item()
 	return state.items[api.nvim_win_get_cursor(0)[1]]
 end
 
+function M.resume(session_id)
+	if type(session_id) ~= "string" or vim.trim(session_id) == "" then
+		notify("use :Aero resume <session-id>", vim.log.levels.WARN)
+		return
+	end
+	local s = session.from_buf(0)
+	if not s then
+		local key = vim.b.aero_chat_key
+		for _, candidate in ipairs(session.all()) do
+			if candidate.key == key then
+				s = candidate
+				break
+			end
+		end
+	end
+	if not s and state.buf == api.nvim_get_current_buf() then
+		local item = current_item()
+		s = item and item.session
+	end
+	if not s then
+		local win = panel.win()
+		s = win and session.from_buf(api.nvim_win_get_buf(win))
+	end
+	local agent = s and config.options.agents[s.agent]
+	if not agent or agent.type ~= "acp" then
+		notify("select an ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
+		return
+	end
+	local win = session.prepare_win(panel.win() or target_win())
+	if session.start(s, win, true, vim.trim(session_id)) then
+		panel.shown(s)
+		api.nvim_set_current_win(win)
+	end
+	return s
+end
+
 --- Show `s` in a window chosen by `how` ("default" | "vsplit" | "split" | "tab") and focus it.
 --- Switch to the worktree's tab (with worktree_tabs), bringing the dashboard along to new tabs.
 local function enter_worktree(path)
