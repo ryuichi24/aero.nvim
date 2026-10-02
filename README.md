@@ -320,6 +320,34 @@ Prompt buffer (regular markdown buffer; the draft is kept if you close it):
 | `q`            | close (normal mode)              |
 | `<C-c>`        | cancel the current turn          |
 
+### Changing the model
+
+In an ACP prompt, enter **`/model`** and send it with `:w` or `<C-s>` to open a model picker.
+The picker lists the models exposed by the agent and marks the current selection. The current
+model is also shown in the agent panel's title bar.
+
+You can select a model directly by its ID or an unambiguous display name:
+
+```text
+/model
+/model provider/model-id
+```
+
+Use `<C-x><C-o>` to complete `/model` and the available IDs after `/model `. Aero handles this
+command locally and calls the adapter's model-setting API; it does not send the command as
+an AI prompt or create a new conversation. ACP configuration options are preferred, with
+the older `session/set_model` API supported for agents that expose legacy model metadata.
+
+If the agent is working, the command waits for the current turn to finish and runs before
+later queued prompts. Cancelling the picker or a rejected model change leaves the current
+model unchanged. Model metadata is refreshed when a session is loaded and when the agent
+publishes configuration updates. An agent that does not expose model controls over ACP is
+reported as unsupported.
+
+For terminal agents, use the agent CLI's own model command while in terminal-input mode.
+
+### Permission requests
+
 Permission requests are listed in the transcript, with their options numbered:
 
 ```
@@ -471,6 +499,7 @@ subscribe to all events. A setup entry may be a function or a list of functions;
 | `session_started`                      | Session metadata plus `win`, `type`, `resume`; after launching the backend. `resume` is the requested behavior.                     |
 | `session_ready`                        | ACP only: session metadata plus `session_id`, `type`, `resumed`; after initializing/loading. `resumed` reports actual success.      |
 | `session_resume_failed`                | ACP only: session metadata plus `session_id`, `type`, and the adapter's full `error` object; saved conversation retained for retry. |
+| `session_model_changed`                | ACP only: session metadata plus `session_id`, `model_id`, `model_name`, and `previous_model_id`; confirmed model changes. |
 | `session_shown`                        | Session metadata plus `win`; after showing or reusing its window.                                                                   |
 | `session_stopped`                      | Session metadata; after requesting that a running backend stop.                                                                     |
 | `session_exited`                       | Session metadata plus `exit_code`, `type`; after the current backend exits.                                                         |

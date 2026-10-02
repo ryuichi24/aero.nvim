@@ -48,6 +48,10 @@ local function winbar(win)
 	local hl = ({ busy = "AeroBusy", idle = "AeroIdle", waiting = "AeroWaiting", exited = "AeroExited" })[st]
 		or "AeroStopped"
 	local where = vim.fn.fnamemodify(s.worktree, ":t")
+	local model = s.chat and s.chat:model_title()
+	if model then
+		where = where .. " · " .. model
+	end
 	local bar = (" %%#AeroSession#%s%%* %%#AeroDim#· %s%%*  %%#%s#%s %s%%*"):format(
 		(s.name:gsub("%%", "%%%%")),
 		(where:gsub("%%", "%%%%")),

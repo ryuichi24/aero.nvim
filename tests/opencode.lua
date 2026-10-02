@@ -24,6 +24,12 @@ if not phase then
 			vim.fn.delete(dir, "rf")
 			error(step .. ": " .. (result.stderr or "") .. (result.stdout or ""))
 		end
+		local switched = ((result.stdout or "") .. (result.stderr or "")):match(
+			"OpenCode model switch verified: ([^\n]+)"
+		)
+		if switched then
+			print("OpenCode model switch verified: " .. switched)
+		end
 	end
 	vim.fn.delete(dir, "rf")
 	print("OpenCode smoke tests passed (real ACP new/load across processes, terminal start/continue).")
@@ -95,6 +101,31 @@ assert(s.chat.caps.loadSession, "OpenCode does not advertise session loading")
 assert(type(s.chat.session_id) == "string" and s.chat.session_id ~= "")
 if phase == "resume" then
 	assert(s.chat.resumed and s.chat.session_id == previous, "OpenCode did not load the same persisted conversation")
+end
+local models = require("aero.acp.models")
+local choices = models.options(s.chat).choices
+assert(#choices > 0, "OpenCode did not expose models")
+if phase == "new" then
+	local current = models.current(s.chat)
+	local alternative
+	for _, choice in ipairs(choices) do
+		if choice.id ~= current then
+			alternative = choice
+			break
+		end
+	end
+	if alternative then
+		s.chat:prompt("/model " .. alternative.id)
+		wait(function()
+			return not s.chat.model_pending
+		end)
+		assert(
+			models.current(s.chat) == alternative.id,
+			"OpenCode model switch failed: " .. table.concat(vim.api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+		)
+		assert(s.chat.session_id == store.find_session(worktree, s.name).acp_session_id)
+		print("OpenCode model switch verified: " .. current .. " -> " .. alternative.id)
+	end
 end
 sessions.stop(s)
 wait(function()
