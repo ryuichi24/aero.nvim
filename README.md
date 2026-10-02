@@ -44,6 +44,7 @@ Requires Neovim 0.11+ and git.
 
 - [Install](#install)
 - [Commands](#commands)
+- [Dashboard](#dashboard)
 - [Agent panel and fullscreen](#agent-panel)
 - [Worktree tabs and remembered buffers](#worktree-tabs)
 - [Worktree terminal](#worktree-terminal)
@@ -186,6 +187,20 @@ require("aero").setup({
 | `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
 | `:Aero term`        | toggle the worktree's shell below the code window             |
 | `:Aero refresh`     | re-read worktrees                                             |
+
+## Dashboard
+
+`:Aero` (or `:Aero toggle`) shows or hides the dashboard in the current tab, even when
+you are focused on code, a prompt, or a terminal. Use `:Aero open` to show and focus it
+without hiding an already-visible dashboard, or `:Aero close` to hide it explicitly.
+
+For a keyboard shortcut:
+
+```lua
+vim.keymap.set("n", "<leader>ad", "<cmd>Aero toggle<cr>", { desc = "Toggle Aero dashboard" })
+vim.keymap.set("i", "<leader>ad", "<Esc><cmd>Aero toggle<cr>", { desc = "Toggle Aero dashboard" })
+vim.keymap.set("t", "<leader>ad", "<C-\\><C-n><cmd>Aero toggle<cr>", { desc = "Toggle Aero dashboard" })
+```
 
 ## Agent panel
 

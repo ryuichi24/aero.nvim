@@ -1,0 +1,76 @@
+-- Run from the repository root: nvim --headless -u NONE -l tests/dashboard_toggle.lua
+vim.opt.rtp:prepend(vim.fn.getcwd())
+local api = vim.api
+local dir = vim.fn.tempname()
+vim.fn.mkdir(dir, "p")
+local aero = require("aero")
+aero.setup({ state_file = dir .. "/state.json", animation = false, dashboard = { width = 30 } })
+vim.cmd.runtime("plugin/aero.lua")
+local code = api.nvim_get_current_win()
+local code_buf = api.nvim_get_current_buf()
+local function dashboard_win()
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		if vim.bo[api.nvim_win_get_buf(win)].filetype == "Aero" then
+			return win
+		end
+	end
+end
+vim.cmd.Aero()
+local dw = assert(dashboard_win(), "toggle did not open the dashboard")
+assert(api.nvim_get_current_win() == dw)
+api.nvim_win_set_width(dw, 27)
+api.nvim_set_current_win(code)
+vim.cmd.Aero()
+assert(not dashboard_win(), "toggle from code focused the dashboard instead of hiding it")
+assert(api.nvim_get_current_win() == code and api.nvim_get_current_buf() == code_buf)
+vim.cmd("Aero toggle")
+dw = assert(dashboard_win())
+assert(api.nvim_win_get_width(dw) == 27, "toggle lost the remembered dashboard width")
+api.nvim_set_current_win(code)
+vim.cmd("Aero open")
+assert(api.nvim_get_current_win() == dw, "explicit open did not focus the dashboard")
+vim.cmd("Aero toggle")
+assert(not dashboard_win(), "toggle from the dashboard did not hide it")
+
+-- Toggle must also work from the agent panel, without changing its focus or contents.
+local panel = require("aero.panel")
+local pw = panel.open()
+aero.open()
+api.nvim_set_current_win(pw)
+local panel_buf = api.nvim_win_get_buf(pw)
+aero.toggle()
+assert(not dashboard_win() and api.nvim_get_current_win() == pw)
+assert(api.nvim_win_get_buf(pw) == panel_buf)
+panel.close()
+
+-- Dashboard visibility is independent in each tab.
+api.nvim_set_current_win(code)
+aero.open()
+local origin = api.nvim_get_current_tabpage()
+local original_dashboard = dashboard_win()
+vim.cmd.tabnew()
+aero.toggle()
+assert(dashboard_win())
+aero.toggle()
+assert(not dashboard_win())
+vim.cmd.tabclose()
+assert(api.nvim_get_current_tabpage() == origin and dashboard_win() == original_dashboard)
+aero.close()
+
+-- Current-window mode must use the dashboard window's own alternate buffer.
+aero.setup({ state_file = dir .. "/state.json", animation = false, dashboard = { position = "current" } })
+api.nvim_set_current_win(code)
+api.nvim_win_set_buf(code, code_buf)
+aero.open()
+local dashboard_buf = api.nvim_get_current_buf()
+local other_buf = api.nvim_create_buf(true, false)
+local other = api.nvim_open_win(other_buf, true, { split = "right", win = code })
+local unrelated = api.nvim_create_buf(true, false)
+api.nvim_win_set_buf(other, unrelated)
+aero.toggle()
+assert(api.nvim_win_get_buf(code) == code_buf, "current-window toggle restored the wrong alternate buffer")
+assert(api.nvim_get_current_win() == other and api.nvim_get_current_buf() == unrelated)
+assert(api.nvim_win_get_buf(code) ~= dashboard_buf)
+require("aero.buffers").flush()
+vim.fn.delete(dir, "rf")
+print("Dashboard toggle tests passed (code/panel focus, remembered width, explicit open, tabs, current-window mode).")

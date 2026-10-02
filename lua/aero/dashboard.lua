@@ -381,7 +381,9 @@ function M.close()
 	end
 	require("aero.layout").remember(state.win)
 	if config.options.dashboard.position == "current" then
-		local alt = vim.fn.bufnr("#")
+		local alt = api.nvim_win_call(state.win, function()
+			return vim.fn.bufnr("#")
+		end)
 		if alt > 0 and alt ~= state.buf and api.nvim_buf_is_valid(alt) then
 			api.nvim_win_set_buf(state.win, alt)
 		else
@@ -401,7 +403,7 @@ function M.close()
 end
 
 function M.toggle()
-	if is_open() and api.nvim_get_current_win() == state.win then
+	if is_open() then
 		M.close()
 	else
 		M.open()
