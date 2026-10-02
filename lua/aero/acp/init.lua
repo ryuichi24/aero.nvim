@@ -7,6 +7,7 @@ local spinner = require("aero.spinner")
 local history = require("aero.history")
 local events = require("aero.events")
 local models = require("aero.acp.models")
+local renderer = require("aero.acp.render")
 
 local M = {}
 
@@ -29,8 +30,6 @@ Chat.__index = Chat
 
 ---@type table<string, Aero.acp.Chat> session key -> chat
 local chats_by_key = {}
-
-local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
 
 local function error_text(err)
 	if type(err) ~= "table" then
@@ -146,125 +145,9 @@ function Chat:activity()
 	return what .. (self.turn_started and " · " .. spinner.elapsed(self.turn_started) or "")
 end
 
---- Lines of a text block's revealed part, cached until that text changes.
-local function text_lines(b, prefix)
-	local text = b.shown and b.text:sub(1, b.shown) or b.text
-	if b.cache_src ~= text then
-		b.cache_src, b.cache = text, split(text)
-		if prefix then
-			for i, l in ipairs(b.cache) do
-				b.cache[i] = prefix .. l
-			end
-		end
-	end
-	return b.cache
-end
-
 function Chat:build_lines()
-	local lines = {}
-	-- line number -> permission option shown on it
-	local option_lines = {}
-	self.option_lines = option_lines
-	local function push(list)
-		vim.list_extend(lines, list)
-	end
-	local speaker
-	local max_lines = config.options.acp.max_tool_lines
-	for _, b in ipairs(self.blocks) do
-		if b.kind == "user" then
-			push({ "## You", "" })
-			push(text_lines(b))
-			push({ "" })
-			speaker = "user"
-		else
-			if b.kind ~= "info" and speaker ~= "agent" then
-				push({ "## " .. self:agent_title(), "" })
-				speaker = "agent"
-			end
-			if b.kind == "agent" then
-				push(text_lines(b))
-				push({ "" })
-			elseif b.kind == "thought" then
-				push(text_lines(b, "> "))
-				push({ "" })
-			elseif b.kind == "tool" then
-				local running = self.busy and (b.status == "in_progress" or b.status == "pending" or b.status == nil)
-				local icon = running and spinner.frame() or tool_icons[b.status] or "•"
-				table.insert(
-					lines,
-					("%s **%s** `%s`"):format(icon, one_line(b.title or "tool"), one_line(b.status or "pending"))
-				)
-				for _, item in ipairs(b.content or {}) do
-					if item.type == "diff" then
-						local diff = (vim.text and vim.text.diff or vim.diff)(
-							item.oldText or "",
-							item.newText or "",
-							{ ctxlen = 2 }
-						)
-						push({ "", "```diff", "--- " .. one_line(item.path), "+++ " .. one_line(item.path) })
-						local dl = split(vim.trim(diff or ""))
-						for i = 1, math.min(#dl, max_lines * 3) do
-							table.insert(lines, dl[i])
-						end
-						push({ "```" })
-					elseif item.type == "content" then
-						local tl = split(vim.trim(content_text(item.content)))
-						if #tl > 0 and tl[1] ~= "" then
-							push({ "", "```" })
-							for i = 1, math.min(#tl, max_lines) do
-								table.insert(lines, tl[i])
-							end
-							if #tl > max_lines then
-								table.insert(lines, ("… %d more lines"):format(#tl - max_lines))
-							end
-							push({ "```" })
-						end
-					end
-				end
-				push({ "" })
-			elseif b.kind == "plan" then
-				table.insert(lines, "**Plan**")
-				for _, e in ipairs(b.entries or {}) do
-					local mark = e.status == "completed" and "x" or e.status == "in_progress" and "~" or " "
-					table.insert(lines, ("- [%s] %s"):format(mark, one_line(e.content)))
-				end
-				push({ "" })
-			elseif b.kind == "permission" then
-				if b.answer then
-					table.insert(lines, ("> **Permission** %s → %s"):format(one_line(b.title), one_line(b.answer)))
-				else
-					push({ ("> **Permission requested** %s"):format(one_line(b.title)), "" })
-					for i, o in ipairs(b.options) do
-						table.insert(lines, ("  %d. %s"):format(i, one_line(o.name or o.optionId)))
-						option_lines[#lines] = { index = i, kind = o.kind }
-					end
-					push({ "", ("_<CR> or 1-%d to choose, <C-c> to cancel_"):format(#b.options) })
-				end
-				push({ "" })
-			elseif b.kind == "info" then
-				-- e.g. an agent's multi-line stderr
-				for _, l in ipairs(split(vim.trim(b.text))) do
-					table.insert(lines, l ~= "" and "_" .. l .. "_" or "")
-				end
-				push({ "" })
-			end
-		end
-	end
-	for _, text in ipairs(self.queue) do
-		push({ "## You (queued)", "" })
-		push(split(text))
-		push({ "" })
-	end
-	if self.model_pending then
-		table.insert(lines, ("%s _%s…_"):format(spinner.frame(), self.model_pending))
-	elseif self.busy then
-		local icon = self.permission and config.options.icons.waiting or spinner.frame()
-		table.insert(lines, ("%s _%s_ (<C-c> to cancel)"):format(icon, self:activity()))
-	elseif self.state == "starting" then
-		table.insert(lines, ("%s _starting %s…_"):format(spinner.frame(), one_line(self.s.agent)))
-	elseif self.state == "ready" and #self.blocks == 0 then
-		table.insert(lines, "_Press i to write a prompt, :w or <C-s> to send it._")
-	end
+	local lines, marks, options = renderer.build(self)
+	self.render_marks, self.option_lines = marks, options
 	return lines
 end
 
@@ -327,6 +210,8 @@ function Chat:render()
 		end
 		if first > #old and first > #new then
 			self.lines = new
+			renderer.decorate(buf, new, self.render_marks)
+			self:decorate_options()
 			return
 		end
 		local old_last, new_last = #old, #new
@@ -345,6 +230,7 @@ function Chat:render()
 			return
 		end
 		self.lines = new
+		renderer.decorate(buf, new, self.render_marks, first)
 		for _, win in ipairs(follow) do
 			api.nvim_win_set_cursor(win, { #new, 0 })
 		end
@@ -489,8 +375,8 @@ function Chat:append(kind, text)
 	end
 end
 
-function Chat:info(text)
-	table.insert(self.blocks, { kind = "info", text = text })
+function Chat:info(text, kind)
+	table.insert(self.blocks, { kind = "info", text = text, meta_kind = kind })
 end
 
 ---------------------------------------------------------------------------
@@ -533,7 +419,7 @@ function Chat:on_update(u)
 			self.tools[u.toolCallId] = b
 			table.insert(self.blocks, b)
 		end
-		for _, field in ipairs({ "title", "status", "content", "locations" }) do
+		for _, field in ipairs({ "title", "status", "content", "locations", "rawInput", "rawOutput" }) do
 			if u[field] ~= nil then
 				b[field] = u[field]
 			end
@@ -730,7 +616,7 @@ function Chat:ready(session_id, response)
 end
 
 function Chat:fail(what, err)
-	self:info(("%s failed: %s"):format(what, error_text(err)))
+	self:info(("%s failed: %s"):format(what, error_text(err)), "error")
 	self:changed()
 end
 
@@ -742,7 +628,8 @@ function Chat:resume_failed(session_id, err)
 			.. session_id
 			.. ": "
 			.. error_text(err)
-			.. "\nSaved session kept; press r in the dashboard to retry."
+			.. "\nSaved session kept; press r in the dashboard to retry.",
+		"error"
 	)
 	self:changed()
 	self:stop()
@@ -787,7 +674,7 @@ function Chat:handshake(resume)
 					self.replaying = false
 					if not lerr then
 						self.resumed = true
-						self:info("resumed session")
+						self:info("resumed session", "session")
 						return self:ready(session_id, response)
 					end
 					-- A transient adapter failure must not replace the original conversation ID.
@@ -1002,6 +889,7 @@ end
 
 local function setup_transcript(chat)
 	local buf = chat.buf
+	renderer.setup_highlights()
 	require("aero.fullscreen").bind(buf)
 	vim.bo[buf].buftype = "nofile"
 	vim.bo[buf].bufhidden = "hide"
@@ -1113,9 +1001,9 @@ function M.start(s, buf, agent, resume, session_id)
 				msg = msg .. ": " .. stderr:sub(-500)
 			end
 			if not chat.resume_error then
-				chat:info(msg)
+				chat:info(msg, code == 0 and "session" or "error")
 			elseif stderr ~= "" then
-				chat:info("adapter stderr: " .. stderr:sub(-2000))
+				chat:info("adapter stderr: " .. stderr:sub(-2000), code == 0 and "session" or "error")
 			end
 			chat:changed()
 			if chats_by_key[s.key] == chat then

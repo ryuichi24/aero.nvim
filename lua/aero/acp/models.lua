@@ -155,7 +155,7 @@ function M.handle(chat, text)
 			return finish()
 		end
 		if choice.id == latest.current then
-			chat:info("Current model: " .. choice.name .. " (" .. choice.id .. ")")
+			chat:info("Current model: " .. choice.name .. " (" .. choice.id .. ")", "model")
 			return finish()
 		end
 		chat.model_pending = "switching model"
@@ -181,7 +181,7 @@ function M.handle(chat, text)
 					M.accept(chat, { currentModelId = choice.id })
 				end
 				local id, name = M.current(chat)
-				chat:info("Model: " .. (name or choice.name) .. " (" .. (id or choice.id) .. ")")
+				chat:info("Model: " .. (name or choice.name) .. " (" .. (id or choice.id) .. ")", "model")
 			end
 			finish()
 		end)

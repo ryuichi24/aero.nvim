@@ -448,6 +448,52 @@ quote complete lines. The visual shortcut preserves partial-line and block selec
 
 ## ACP chat buffers
 
+### Transcript layout
+
+ACP logs use an OpenCode-inspired visual hierarchy, rendered with native Neovim
+highlighting and virtual borders:
+
+- **Messages:** separate user and agent headings, with normal Markdown for prose and code.
+- **Thinking:** a labeled, muted section so reasoning is easy to distinguish from the answer.
+- **Tool calls:** typed cards for Read, Edit, Search, Fetch, and other tools, with status icons,
+  file locations, and separate output or diff sections.
+- **Commands:** their own cards with shell input, working directory when available, and output.
+- **Metadata:** consecutive model changes and session events share a compact Session card,
+  rather than appearing as separate italic paragraphs. Earlier saved logs use this layout too.
+- **Errors and permissions:** distinct highlighted sections; permission options remain selectable
+  with `<CR>` or their number keys.
+
+For example (borders are visual decorations, not text in the buffer):
+
+```text
+┌ Session
+│ Model: OpenAI/GPT-6 Luna (openai/gpt-6-luna)
+│ Model: OpenAI/GPT-6.1 Sol (openai/gpt-6.1-sol)
+│ resumed session
+└─
+
+┌ Thinking
+│ Check the existing tests before changing the implementation.
+└─
+
+┌ ✓ Command · completed
+│ Run the tests
+│ Input
+│ $ npm test
+│ Output
+│ All tests passed.
+└─
+```
+
+Tool output still respects `acp.max_tool_lines`, including an explicit count of omitted
+lines. Streaming updates preserve the earlier transcript's view and decorations.
+Virtual borders and shell `$` markers are excluded when you yank or quote text.
+No external Markdown-rendering plugin is required. Disable the extra visual decoration with:
+
+```lua
+require("aero").setup({ acp = { decorations = false } })
+```
+
 Transcript buffer (read-only markdown):
 
 | Key                        | Action                                               |
@@ -499,13 +545,15 @@ For terminal agents, use the agent CLI's own model command while in terminal-inp
 Permission requests are listed in the transcript, with their options numbered:
 
 ```
-> **Permission requested** Edit limiter.lua
-
-  1. Allow once
-▸ 2. Always allow
-  3. Reject
-
-_<CR> or 1-3 to choose, <C-c> to cancel_
+┌ Permission requested
+│ Edit limiter.lua
+│
+│   1. Allow once
+│ ▸ 2. Always allow
+│   3. Reject
+│
+│ <CR> or 1-3 to choose, <C-c> to cancel
+└─
 ```
 
 The transcript's cursor moves to the options when a request arrives. You're only moved into
@@ -708,7 +756,7 @@ require("aero").setup({
   persist_buffers = true,  -- remember each worktree's last code file/directory and cursor
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {},            -- lifecycle event -> function or list of functions; see above
-  acp = { max_tool_lines = 20, prompt_height = 8 },
+  acp = { max_tool_lines = 20, prompt_height = 8, decorations = true },
   keymaps = { --[[ see lua/aero/config.lua; set any to false ]] },
 })
 ```
@@ -717,5 +765,10 @@ Statusline: `require("aero").statusline()` returns e.g. `?1 ◐2 ●1` (waiting 
 
 Highlights (all `default` links): `AeroWorkspace`, `AeroWorktree`, `AeroMain`, `AeroBusy`,
 `AeroIdle`, `AeroWaiting`, `AeroExited`, `AeroStopped`, `AeroDim`, `AeroTitle`.
+
+Transcript highlights: `AeroChatUser`, `AeroChatAgent`, `AeroChatThinking`, `AeroChatTool`,
+`AeroChatCommand`, `AeroChatMeta`, `AeroChatError`, `AeroChatSuccess`, `AeroChatPending`,
+`AeroChatBorder`, `AeroChatHeader`. These are default links to your colorscheme's existing
+groups; override them with `vim.api.nvim_set_hl()` to customize the appearance.
 
 Run `:checkhealth Aero` to check git and the agent executables.

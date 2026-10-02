@@ -24,6 +24,7 @@ M.defaults = {
 		max_tool_lines = 20,
 		-- prompt window height
 		prompt_height = 8,
+		decorations = true, -- native transcript cards, colors, and visual borders
 		-- resize_keys may override the shared shortcuts for prompt buffers
 	},
 	-- where `a` on a workspace creates new worktrees: <repo>/../<repo>.worktrees/<branch>
