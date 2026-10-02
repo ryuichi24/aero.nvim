@@ -291,6 +291,21 @@ Sizes survive hiding and reopening these panes, and sending a prompt. `dashboard
 Fullscreen starts with the current prompt height; resizing there does not change the
 original tab's layout.
 
+#### Default prompt size
+
+The ACP prompt defaults to **8 lines**, and shares the agent panel's default width of
+**70 columns**. Configure both initial dimensions in `setup()`:
+
+```lua
+require("aero").setup({
+  acp = { prompt_height = 12 }, -- prompt height in lines; default: 8
+  panel = { width = 80 },      -- shared transcript/prompt width in columns; default: 70
+})
+```
+
+These defaults apply before a pane has been resized. Afterwards, the remembered size
+takes precedence for that session/tab until Neovim exits.
+
 When a terminal agent exits, the panel returns to normal mode and keeps its scrollback.
 Use regular window navigation, such as `<C-w>w`, to leave the panel; no terminal escape is
 needed after exit.
