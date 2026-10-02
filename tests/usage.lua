@@ -73,12 +73,15 @@ if phase == "save" then
 	assert(text(s):find("Context: 3,000 / 10,000 tokens (30.0%)", 1, true))
 	assert(vim.wo[panel.win()].winbar:find("1.9k tracked tok", 1, true))
 	assert(vim.wo[panel.win()].winbar:find("USD 0.02", 1, true))
+	assert(usage.summary(chat):find("3.0k/10.0k ctx (30.0%)", 1, true))
+	assert(vim.wo[panel.win()].winbar:find("30.0%%", 1, true), "winbar percentage was not escaped correctly")
 	store.add_workspace(cwd)
 	aero.open()
 	local found
 	for _, mark in ipairs(api.nvim_buf_get_extmarks(0, api.nvim_create_namespace("Aero"), 0, -1, { details = true })) do
 		for _, part in ipairs(mark[4].virt_text or {}) do
-			if part[1]:find("1.9k tracked tok", 1, true) and part[1]:find("USD 0.02", 1, true) then found = true end
+			if part[1]:find("1.9k tracked tok", 1, true) and part[1]:find("USD 0.02", 1, true)
+				and part[1]:find("30.0%", 1, true) then found = true end
 		end
 	end
 	assert(found, "dashboard session rows do not show usage")
@@ -119,6 +122,7 @@ local sample = {}
 usage.update(sample, { used = 0, size = 0, cost = { amount = 0, currency = "USD" } })
 assert(table.concat(usage.lines(sample), "\n"):find("USD 0.00", 1, true))
 assert(not table.concat(usage.lines(sample), "\n"):find("nan", 1, true))
+assert(not usage.summary(sample):find("%", 1, true), "zero context capacity produced a percentage")
 usage.update(sample, { used = -1, size = 100, cost = { amount = math.huge, currency = "USD" } })
 assert(sample.usage.context.used == 0 and sample.usage.cost.amount == 0)
 usage.response(sample, { usage = { inputTokens = 100, outputTokens = 50, totalTokens = 130 } }, 1)

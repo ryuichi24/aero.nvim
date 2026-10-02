@@ -534,6 +534,8 @@ Prompt buffer (regular markdown buffer; the draft is kept if you close it):
 
 Aero displays agent-reported usage in a **Usage card** at the end of the ACP transcript,
 in the panel title bar, and alongside the session in the dashboard.
+Compact summaries also include context usage as a percentage, for example
+`3.0k/10.0k ctx (30.0%)`. The percentage is omitted when context capacity is zero.
 
 Use **`:Aero usage`** while focused on an agent log/prompt or a dashboard session row
 for the detailed report:

@@ -99,6 +99,10 @@ local function compact(value)
 	return tostring(value)
 end
 
+local function percentage(context)
+	return context.size > 0 and (" (%.1f%%)"):format(context.used * 100 / context.size) or ""
+end
+
 function M.summary(chat)
 	if config.options.acp.show_usage == false or not chat or not chat.usage then return end
 	local data, parts = chat.usage, {}
@@ -106,7 +110,7 @@ function M.summary(chat)
 		table.insert(parts, compact(data.tokens.totalTokens) .. " tracked tok")
 	end
 	if data.context then
-		table.insert(parts, compact(data.context.used) .. "/" .. compact(data.context.size) .. " ctx")
+		table.insert(parts, compact(data.context.used) .. "/" .. compact(data.context.size) .. " ctx" .. percentage(data.context))
 	end
 	if data.cost then table.insert(parts, fee(data.cost)) end
 	return #parts > 0 and table.concat(parts, " · ") or nil
@@ -126,8 +130,7 @@ function M.lines(chat)
 	if #extras > 0 then table.insert(lines, table.concat(extras, " · ")) end
 	if data.context then
 		local context = data.context
-		local percent = context.size > 0 and (" (%.1f%%)"):format(context.used * 100 / context.size) or ""
-		table.insert(lines, "Context: " .. number(context.used) .. " / " .. number(context.size) .. " tokens" .. percent)
+		table.insert(lines, "Context: " .. number(context.used) .. " / " .. number(context.size) .. " tokens" .. percentage(context))
 	end
 	table.insert(lines, "Total fee (last reported): " .. fee(data.cost))
 	return lines
