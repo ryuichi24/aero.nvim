@@ -21,6 +21,7 @@ local state = {
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
 	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
+	pulling = {}, -- worktree path -> in-flight pull
 }
 
 local function notify(msg, level)
@@ -771,6 +772,45 @@ local function item_dir(item)
 	return item and (item.wt and item.wt.path or item.ws and item.ws.root)
 end
 
+--- Pull the dashboard selection, or the current tab's checkout when called outside it.
+function M.pull(path)
+	if not path then
+		if api.nvim_get_current_buf() == state.buf then
+			path = item_dir(current_item())
+			if not path then
+				notify("move the cursor to a worktree first", vim.log.levels.WARN)
+				return
+			end
+		else
+			local s = session.from_buf(0)
+			path = s and s.worktree or vim.t.aero_worktree or vim.fn.getcwd()
+		end
+	end
+	path = vim.fs.normalize(vim.fn.resolve(path))
+	if state.pulling[path] then
+		notify("a pull is already running for " .. vim.fn.fnamemodify(path, ":~"), vim.log.levels.WARN)
+		return
+	end
+	state.pulling[path] = true
+	notify("pulling " .. vim.fn.fnamemodify(path, ":~") .. " …")
+	return git.pull(path, function(ok, output)
+		state.pulling[path] = nil
+		-- Git may have fetched new refs even if it could not fast-forward the checkout.
+		state.worktrees = {}
+		M.render()
+		if not ok then
+			notify("pull failed: " .. output, vim.log.levels.ERROR)
+			return
+		end
+		vim.cmd("checktime")
+		notify("pulled " .. vim.fn.fnamemodify(path, ":~") .. (output ~= "" and ("\n" .. output) or ""))
+	end)
+end
+
+function actions.pull()
+	M.pull()
+end
+
 function actions.cd()
 	local dir = item_dir(current_item())
 	if dir then
@@ -877,6 +917,7 @@ local descriptions = {
 	stop = "stop session",
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",
+	pull = "pull worktree upstream (fast-forward only)",
 	cd = ":tcd to worktree",
 	edit = "open worktree / restore last code buffer",
 	edit_enter = "open worktree / restore last code buffer",

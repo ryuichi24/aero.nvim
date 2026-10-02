@@ -52,6 +52,11 @@ function M.refresh()
 	ensure().refresh()
 end
 
+--- Pull the selected worktree, current checkout, or an explicit path asynchronously.
+function M.pull(path)
+	return ensure().pull(path)
+end
+
 function M.pick()
 	ensure().pick()
 end

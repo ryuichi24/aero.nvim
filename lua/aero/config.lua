@@ -94,6 +94,7 @@ M.defaults = {
 		stop = "s",
 		restart = "r",
 		refresh = "R",
+		pull = "P",
 		cd = ".",
 		edit = "e",
 		edit_enter = "<C-CR>", -- open the selected worktree in the code pane

@@ -7,9 +7,9 @@ local function run(args)
 end
 
 local function run_async(args, cb)
-	vim.system(args, { text = true }, function(r)
+	return vim.system(args, { text = true }, function(r)
 		vim.schedule(function()
-			cb(r.code == 0, vim.trim(r.stderr or ""))
+			cb(r.code == 0, vim.trim(r.stderr or ""), vim.trim(r.stdout or ""))
 		end)
 	end)
 end
@@ -102,6 +102,17 @@ function M.remove(root, path, force, cb)
 			require("aero.buffers").forget(path)
 			events.emit("worktree_removed", { root = root, path = path, force = force == true })
 		end
+	end)
+end
+
+--- Pull the checkout's configured upstream, fast-forwarding without a merge commit.
+function M.pull(path, cb)
+	return run_async({ "git", "-C", path, "pull", "--ff-only" }, function(ok, err, out)
+		local output = out
+		if err ~= "" then
+			output = output ~= "" and (output .. "\n" .. err) or err
+		end
+		cb(ok, output)
 	end)
 end
 

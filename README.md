@@ -187,6 +187,7 @@ require("aero").setup({
 | `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
 | `:Aero term`        | toggle the worktree's shell below the code window             |
 | `:Aero refresh`     | re-read worktrees                                             |
+| `:Aero pull`        | pull the selected worktree's upstream (fast-forward only)     |
 
 ## Dashboard
 
@@ -368,6 +369,7 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero term<cr>", { desc = "Toggle worktre
 | `<C-LeftMouse>`          | open the clicked worktree in the code pane / restore its last code buffer                                 |
 | `<C-CR>`                | open the selected worktree in the code pane / restore its last code buffer                                |
 | `t`                     | open the worktree's terminal                                                                               |
+| `P`                     | pull the worktree's configured upstream (fast-forward only)                                                |
 | `]]` / `[[`             | next / previous workspace                                                                                  |
 | `R` / `q` / `g?`        | refresh / close / help                                                                                     |
 | `gF`                    | toggle fullscreen                                                                                          |
@@ -384,6 +386,31 @@ require("aero").setup({
   },
 })
 ```
+
+### Pulling a worktree
+
+Place the dashboard cursor on a worktree and run **`:Aero pull`** or press **`P`**.
+Aero runs `git -C <worktree> pull --ff-only` asynchronously, using that checkout's
+configured upstream. Workspace rows pull the main checkout; session rows pull their
+worktree. The dashboard and unmodified open files refresh after a successful pull,
+and Git's output or error is reported in a notification. Pulling does not switch tabs
+or change the working directory. Repeated pulls of the same worktree are ignored
+while a pull is already running.
+
+Outside the dashboard, `:Aero pull` uses the focused agent's worktree, the current tab's
+worktree, or the current working directory. The Lua API also accepts an explicit path:
+`require("aero").pull(path)`.
+
+Customize or disable the dashboard shortcut:
+
+```lua
+require("aero").setup({
+  keymaps = { pull = "P" }, -- e.g. "gp"; false disables the key, not :Aero pull
+})
+```
+
+The pull only fast-forwards: divergent branches, local changes that Git cannot preserve,
+and missing upstreams are reported by Git rather than merged automatically.
 
 ## Quoting code and agent logs
 

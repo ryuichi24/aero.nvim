@@ -16,6 +16,9 @@ local subcommands = {
 	refresh = function()
 		require("aero").refresh()
 	end,
+	pull = function()
+		require("aero").pull()
+	end,
 	pick = function()
 		require("aero").pick()
 	end,
