@@ -20,6 +20,7 @@ local state = {
 	items = {}, ---@type table<integer, table> line number -> item
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
+	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
 }
 
 local function notify(msg, level)
@@ -790,6 +791,28 @@ function actions.edit()
 	end
 end
 
+function actions.edit_enter()
+	actions.edit()
+end
+
+function actions.edit_mouse()
+	local mouse = vim.fn.getmousepos()
+	if mouse.winid == 0 or not api.nvim_win_is_valid(mouse.winid) then
+		return
+	end
+	if api.nvim_win_get_buf(mouse.winid) ~= state.buf or mouse.line < 1 then
+		return
+	end
+	local item = state.items[mouse.line]
+	if not item_dir(item) then
+		return
+	end
+	api.nvim_set_current_win(mouse.winid)
+	state.win = mouse.winid
+	api.nvim_win_set_cursor(mouse.winid, { mouse.line, 0 })
+	actions.edit()
+end
+
 function actions.terminal()
 	local dir = item_dir(current_item())
 	if dir then
@@ -847,6 +870,8 @@ local descriptions = {
 	refresh = "refresh git worktrees",
 	cd = ":tcd to worktree",
 	edit = "open worktree / restore last code buffer",
+	edit_enter = "open worktree / restore last code buffer",
+	edit_mouse = "open clicked worktree / restore last code buffer",
 	terminal = "open worktree terminal",
 	next_workspace = "next workspace",
 	prev_workspace = "previous workspace",
@@ -900,10 +925,26 @@ function actions.help()
 end
 
 function M.set_keymaps(buf)
+	buf = buf or state.buf
+	if not buf or not api.nvim_buf_is_valid(buf) then
+		return
+	end
+	for _, binding in ipairs(state.bindings) do
+		if binding.buf == buf then
+			api.nvim_buf_call(buf, function()
+				local current = vim.fn.maparg(binding.lhs, "n", false, true)
+				if current.callback == binding.callback then
+					vim.keymap.del("n", binding.lhs, { buffer = buf })
+				end
+			end)
+		end
+	end
+	state.bindings = {}
 	local keys = config.options.keymaps
 	local function map(lhs, fn, desc)
 		if lhs then
 			vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true, desc = "Aero: " .. desc })
+			table.insert(state.bindings, { buf = buf, lhs = lhs, callback = fn })
 		end
 	end
 	for name, fn in pairs(actions) do

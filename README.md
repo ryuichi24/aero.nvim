@@ -293,10 +293,25 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero term<cr>", { desc = "Toggle worktre
 | `d`                     | delete session / `git worktree remove` / forget workspace                                                  |
 | `s` / `r`               | stop / restart (resume) session                                                                            |
 | `.` / `e`               | `:tcd` to worktree / restore its last code buffer                                                          |
+| `<C-LeftMouse>`          | open the clicked worktree in the code pane / restore its last code buffer                                 |
+| `<C-CR>`                | open the selected worktree in the code pane / restore its last code buffer                                |
 | `t`                     | open the worktree's terminal                                                                               |
 | `]]` / `[[`             | next / previous workspace                                                                                  |
 | `R` / `q` / `g?`        | refresh / close / help                                                                                     |
 | `gF`                    | toggle fullscreen                                                                                          |
+
+Ctrl-click a worktree name to enter its tab and focus its code pane without starting an
+agent. This also works on workspace and session rows, opening their corresponding worktree.
+Mouse support must be enabled in Neovim (`:set mouse=a`). Customize the shortcut with:
+
+```lua
+require("aero").setup({
+  keymaps = {
+    edit_mouse = "<C-LeftMouse>", -- e.g. "<S-LeftMouse>" or "<2-LeftMouse>"; false disables it
+    edit_enter = "<C-CR>",       -- Ctrl-Enter on the selected row; customizable or false to disable
+  },
+})
+```
 
 ## ACP chat buffers
 
