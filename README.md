@@ -218,12 +218,52 @@ vim.keymap.set("n", "<leader>ai", "<cmd>Aero prompt<cr>", { desc = "Prompt the a
 
 Set `panel = false` to open sessions in the last used window instead.
 
-### Resizing panes
+### Resizing all panes
 
-Drag split borders with `:set mouse=a`, or use normal-mode Neovim resize commands:
-`<C-w>+` / `<C-w>-` for height, `<C-w>>` / `<C-w><` for width,
-`:resize 12` for an exact height, or `:vertical resize 80` for an exact width.
-In a prompt press `<Esc>` first; in a terminal use `<C-\><C-n>`.
+Drag the vertical panel border to change its width, or the horizontal border above an ACP
+prompt to change its height (`:set mouse=a` enables mouse support). You can also resize from
+normal mode in the dashboard, agent transcript, prompt, terminal agent, worktree shell,
+or the code pane in an Aero tab:
+
+| Key / command              | Action                                      |
+| -------------------------- | ------------------------------------------- |
+| `<C-w>+` / `<C-w>-`        | increase / decrease the focused pane's height |
+| `<C-w>j` / `<C-w>k`        | shrink / grow the focused pane by one line |
+| `<C-w>h` / `<C-w>l`        | narrow / widen the focused pane by one column |
+| `<C-w>>` / `<C-w><`        | increase / decrease the focused pane's width  |
+| `:resize 12`               | set the focused prompt to 12 lines          |
+| `:vertical resize 80`      | set the focused agent panel to 80 columns   |
+
+In a prompt or code buffer, press `<Esc>` to leave insert mode; in a terminal, use
+`<C-\><C-n>` to enter normal mode. Counts work with native resize commands too,
+for example `5<C-w>+` adds five lines.
+
+`<C-w>j` means press Ctrl-w, then `j`; `<C-w>k` means press Ctrl-w, then `k`.
+Once resizing starts, keep pressing `j` to shrink or `k` to grow: `<C-w>kkk` adds
+three lines. Use `<C-w>h` to narrow the pane or `<C-w>l` to widen it; `<C-w>lll` adds
+three columns. You can mix `h`, `j`, `k`, and `l` after starting a resize.
+Any other key (including `<Esc>`) or leaving the pane ends resize mode and restores
+normal `h`/`j`/`k`/`l` movement.
+These four shortcuts replace directional window navigation in Aero panes; use `<C-w>w`
+or `<C-w>p` to switch windows. Code buffers outside Aero tabs keep their normal Ctrl-w
+behavior. Ctrl-s in prompts sends immediately in normal and insert mode.
+Customize or disable the resize keys:
+
+```lua
+require("aero").setup({
+  resize = {
+    prefix = "<C-w>", -- e.g. "<leader>r" or "g"
+    keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+  }, -- or false to disable everywhere
+})
+```
+
+Both the prefix and repeat keys are configurable. For example, `prefix = "g"` with
+`grow = "u"` makes `guuu` grow the pane by three lines. Once resizing starts, repeat
+the configured direction keys without pressing the prefix again.
+
+The previous `resize_keys` table of full shortcuts is also supported, and
+`acp.resize_keys` can override full shortcuts for prompt buffers specifically.
 
 Aero remembers dashboard and agent-panel widths per tab, prompt height per session in
 each tab, and shell height per worktree in each tab for the current Neovim instance.
@@ -583,6 +623,7 @@ require("aero").setup({
   start_insert = true,     -- enter insert / the prompt buffer when opening a session
   animation = true,        -- spinner + live activity ("thinking", the running tool, elapsed time)
   fullscreen_key = "gF",   -- normal-mode key in every pane, including code; false disables it
+  resize = { prefix = "<C-w>", keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" } }, -- false disables it
   persist_sessions = true,
   persist_buffers = true,  -- remember each worktree's last code file/directory and cursor
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",

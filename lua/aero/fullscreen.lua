@@ -146,6 +146,7 @@ function M.toggle()
 end
 
 function M.bind(buf)
+	require("aero.layout").bind(buf)
 	local key = require("aero.config").options.fullscreen_key
 	if key then
 		vim.keymap.set("n", key, M.toggle, { buffer = buf, desc = "Aero: toggle fullscreen" })

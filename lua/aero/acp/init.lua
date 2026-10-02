@@ -946,6 +946,20 @@ function Chat:get_prompt_buf()
 		vim.keymap.set(mode, lhs, fn, { buffer = buf, nowait = true, desc = "Aero: " .. desc })
 	end
 	map({ "n", "i" }, "<C-s>", with_chat("send_prompt_buf"), "send prompt")
+	local resize_keys = require("aero.layout").keys(true)
+	-- Allow a customized Ctrl-s resize prefix while keeping the default send immediate.
+	local send_key = api.nvim_replace_termcodes("<C-s>", true, false, true)
+	for _, name in ipairs({ "grow", "shrink", "narrow", "widen" }) do
+		local key = resize_keys and resize_keys[name]
+		if key and vim.startswith(api.nvim_replace_termcodes(key, true, false, true), send_key) then
+			vim.keymap.set("n", "<C-s>", with_chat("send_prompt_buf"), {
+				buffer = buf,
+				nowait = false,
+				desc = "Aero: send prompt",
+			})
+			break
+		end
+	end
 	map("n", "<CR>", with_chat("send_prompt_buf"), "send prompt")
 	map("n", "q", "<cmd>close<cr>", "close prompt (draft is kept)")
 	map({ "n", "i" }, "<C-c>", with_chat("cancel"), "cancel turn")

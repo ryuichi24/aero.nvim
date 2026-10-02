@@ -73,6 +73,7 @@ function M.open()
 	end
 	local opts = config.options.panel
 	local placeholder = api.nvim_create_buf(false, true)
+	layout.bind(placeholder)
 	vim.bo[placeholder].bufhidden = "wipe"
 	win = api.nvim_open_win(placeholder, false, {
 		split = opts.position == "left" and "left" or "right",

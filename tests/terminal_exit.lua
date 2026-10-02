@@ -59,7 +59,13 @@ local ok, err = xpcall(function()
 			"return table.concat(vim.api.nvim_buf_get_lines(_G.exit_test.s.buf, 0, -1, false), '\\n'):find('goodbye', 1, true) ~= nil"
 		)
 	)
-	input("\023h") -- Ctrl-W h must navigate back to the code pane without a terminal escape.
+	local width = lua("return vim.api.nvim_win_get_width(_G.exit_test.panel)")
+	input("\023hhh\027") -- Repeat resizing through the child's real input loop.
+	wait(function()
+		return lua("return vim.api.nvim_win_get_width(_G.exit_test.panel)") == width - 3
+	end)
+	assert(lua("return vim.api.nvim_get_current_win() == _G.exit_test.panel"), "resizing changed focus")
+	input("\023w") -- Ctrl-W w navigates back to code; directional keys now resize Aero panes.
 	wait(function()
 		return lua("return vim.api.nvim_get_current_win() == _G.exit_test.code")
 	end)

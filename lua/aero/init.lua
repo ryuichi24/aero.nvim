@@ -10,6 +10,7 @@ function M.setup(opts)
 	require("aero.buffers").setup()
 	require("aero.dashboard").setup_highlights()
 	require("aero.dashboard").set_keymaps()
+	require("aero.layout").setup()
 	did_setup = true
 	require("aero.events").emit("setup", {})
 end

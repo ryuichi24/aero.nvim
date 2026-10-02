@@ -24,6 +24,7 @@ M.defaults = {
 		max_tool_lines = 20,
 		-- prompt window height
 		prompt_height = 8,
+		-- resize_keys may override the shared shortcuts for prompt buffers
 	},
 	-- where `a` on a workspace creates new worktrees: <repo>/../<repo>.worktrees/<branch>
 	worktree_path = function(ws, branch)
@@ -57,6 +58,11 @@ M.defaults = {
 	animation = true,
 	-- normal-mode key in every pane, including code; false disables the mapping
 	fullscreen_key = "gF",
+	-- normal-mode repeat resizing in every Aero pane; false disables the shortcuts
+	resize = {
+		prefix = "<C-w>",
+		keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+	},
 	-- remember sessions across restarts so they can be resumed
 	persist_sessions = true,
 	-- remember the last code file/directory in each worktree across restarts
