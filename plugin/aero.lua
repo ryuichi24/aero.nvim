@@ -31,6 +31,9 @@ local subcommands = {
 	prompt = function()
 		require("aero").prompt()
 	end,
+	quote = function(_, opts)
+		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
+	end,
 	term = function()
 		require("aero").terminal()
 	end,
@@ -47,9 +50,10 @@ vim.api.nvim_create_user_command("Aero", function(opts)
 		vim.notify("Aero: unknown subcommand " .. sub, vim.log.levels.ERROR)
 		return
 	end
-	fn(args)
+	fn(args, opts)
 end, {
 	nargs = "*",
+	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
 		if #words >= 2 and words[2] == "add" and (#words > 2 or cmdline:match("%s$")) then

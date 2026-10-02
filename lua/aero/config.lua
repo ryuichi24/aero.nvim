@@ -58,6 +58,8 @@ M.defaults = {
 	animation = true,
 	-- normal-mode key in every pane, including code; false disables the mapping
 	fullscreen_key = "gF",
+	-- visual-mode quote action in code and agent logs; false disables the mapping
+	quote_key = "<leader>aq",
 	-- normal-mode repeat resizing in every Aero pane; false disables the shortcuts
 	resize = {
 		prefix = "<C-w>",

@@ -11,6 +11,7 @@ function M.setup(opts)
 	require("aero.dashboard").setup_highlights()
 	require("aero.dashboard").set_keymaps()
 	require("aero.layout").setup()
+	require("aero.quote").setup()
 	did_setup = true
 	require("aero.events").emit("setup", {})
 end
@@ -81,6 +82,12 @@ end
 function M.prompt()
 	ensure()
 	require("aero.panel").prompt()
+end
+
+--- Append the visual selection (or an explicit line range) to an agent's draft.
+function M.quote(range)
+	ensure()
+	return require("aero.quote").quote(range)
 end
 
 ---@param path? string any path inside a git repository; prompts when omitted

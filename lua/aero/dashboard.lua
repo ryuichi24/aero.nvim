@@ -899,6 +899,9 @@ function actions.help()
 	if config.options.fullscreen_key then
 		table.insert(lines, ("  %-8s toggle fullscreen"):format(config.options.fullscreen_key))
 	end
+	if config.options.quote_key then
+		table.insert(lines, ("  %-8s quote selection (Visual mode in code / agent logs)"):format(config.options.quote_key))
+	end
 	local agents = vim.tbl_keys(config.options.agents)
 	table.sort(agents)
 	for _, name in ipairs(agents) do

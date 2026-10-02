@@ -148,6 +148,20 @@ local function default_session()
 	return in_cwd or any
 end
 
+--- The session selected for this tab, including when its panel is hidden.
+function M.current_session()
+	local win = M.win()
+	local shown = win and session.from_buf(api.nvim_win_get_buf(win))
+	if shown then
+		return shown
+	end
+	for _, s in ipairs(session.all()) do
+		if s.key == tab_state().last then
+			return s
+		end
+	end
+end
+
 --- Show `s` in the panel, opening it if needed. Returns the window, or nil on failure.
 function M.show(s)
 	local panel = M.open()

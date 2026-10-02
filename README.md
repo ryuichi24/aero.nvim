@@ -34,6 +34,7 @@ Requires Neovim 0.11+ and git.
 ### Features
 
 - A dashboard for workspaces, Git worktrees, and terminal/ACP agent sessions.
+- Quote visually selected code or agent logs into an agent's next prompt.
 - An agent panel and a shell per worktree, with fullscreen available for every pane, including code.
 - Persistent ACP transcripts, terminal-agent scrollback, and each worktree's last code buffer and cursor.
 - Lifecycle hooks for integrations such as opening new worktrees in Oil.
@@ -47,6 +48,7 @@ Requires Neovim 0.11+ and git.
 - [Worktree tabs and remembered buffers](#worktree-tabs)
 - [Worktree terminal](#worktree-terminal)
 - [Dashboard keys](#dashboard-keys)
+- [Quoting code and agent logs](#quoting-code-and-agent-logs)
 - [ACP chat buffers](#acp-chat-buffers)
 - [Persistence and recovery](#persistence-and-recovery)
 - [Lifecycle events and Oil](#lifecycle-events)
@@ -181,6 +183,7 @@ require("aero").setup({
 | `:Aero panel`       | toggle the agent panel                                        |
 | `:Aero fullscreen`  | toggle fullscreen for the focused pane                        |
 | `:Aero prompt`      | jump to the panel session's prompt (or terminal)              |
+| `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
 | `:Aero term`        | toggle the worktree's shell below the code window             |
 | `:Aero refresh`     | re-read worktrees                                             |
 
@@ -366,6 +369,40 @@ require("aero").setup({
   },
 })
 ```
+
+## Quoting code and agent logs
+
+Select text with `v`, `V`, or `<C-v>`, then press **`<leader>aq`** to quote it into
+an agent's next prompt. This works in code buffers, ACP transcripts, and terminal-agent
+scrollback. In a terminal, first use `<C-\><C-n>` to enter normal mode.
+With Vim's default leader, the shortcut is `\`, then `a`, then `q`.
+
+The quote includes its source and line range, with a fenced block preserving the selected
+text. Code paths inside the target worktree are shown relative to that worktree. Selection
+respects characterwise, linewise, blockwise, and exclusive Visual modes without changing
+the source buffer or your yank registers.
+
+- **From code:** quote to the session shown in the agent panel, or its last session if
+  the panel is hidden. Otherwise, use the current worktree's session or choose one when
+  there are several.
+- **From an agent log:** quote back to that log's session, even if another session is
+  currently shown in the panel.
+- **ACP:** append to the existing prompt draft and focus it. Nothing is submitted;
+  you can add a question or edit the quote before sending.
+- **Terminal agents:** bracketed-paste the quote into the CLI input without adding a
+  submit keystroke.
+
+The shortcut is installed by `setup()` or when you first open Aero. Customize or disable it:
+
+```lua
+require("aero").setup({
+  quote_key = "<leader>aq", -- e.g. "gq"; false disables the visual mapping
+})
+```
+
+The Lua API is `require("aero").quote()` while a Visual selection is active. You can also
+use `:'<,'>Aero quote` or an explicit range such as `:10,15Aero quote`; command ranges
+quote complete lines. The visual shortcut preserves partial-line and block selections.
 
 ## ACP chat buffers
 
@@ -623,6 +660,7 @@ require("aero").setup({
   start_insert = true,     -- enter insert / the prompt buffer when opening a session
   animation = true,        -- spinner + live activity ("thinking", the running tool, elapsed time)
   fullscreen_key = "gF",   -- normal-mode key in every pane, including code; false disables it
+  quote_key = "<leader>aq", -- visual-mode quote from code or agent logs; false disables it
   resize = { prefix = "<C-w>", keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" } }, -- false disables it
   persist_sessions = true,
   persist_buffers = true,  -- remember each worktree's last code file/directory and cursor
