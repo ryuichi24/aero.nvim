@@ -89,6 +89,11 @@ function M.prompt()
 	require("aero.panel").prompt()
 end
 
+--- Show usage for the selected agent and return its latest reported metrics, if any.
+function M.usage()
+	return ensure().usage()
+end
+
 --- Append the visual selection (or an explicit line range) to an agent's draft.
 function M.quote(range)
 	ensure()

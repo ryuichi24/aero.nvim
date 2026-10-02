@@ -2,6 +2,7 @@
 local api = vim.api
 local config = require("aero.config")
 local spinner = require("aero.spinner")
+local usage = require("aero.acp.usage")
 local M = {}
 local ns = api.nvim_create_namespace("Aero.acp.render")
 local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
@@ -284,6 +285,11 @@ function M.build(chat)
 		push("")
 		body(split(text), nil, "AeroChatPending")
 		finish("AeroChatPending")
+	end
+	if chat.usage and config.options.acp.show_usage ~= false then
+		header("Usage", "AeroChatMeta")
+		body(usage.lines(chat), "AeroChatMeta")
+		finish("AeroChatMeta")
 	end
 	if chat.model_pending then
 		push(spinner.frame() .. " " .. chat.model_pending .. "…", "AeroChatPending", "body")

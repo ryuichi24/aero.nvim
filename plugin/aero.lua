@@ -34,6 +34,9 @@ local subcommands = {
 	prompt = function()
 		require("aero").prompt()
 	end,
+	usage = function()
+		require("aero").usage()
+	end,
 	quote = function(_, opts)
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
 	end,

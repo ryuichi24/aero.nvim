@@ -184,6 +184,7 @@ require("aero").setup({
 | `:Aero panel`       | toggle the agent panel                                        |
 | `:Aero fullscreen`  | toggle fullscreen for the focused pane                        |
 | `:Aero prompt`      | jump to the panel session's prompt (or terminal)              |
+| `:Aero usage`       | show reported token usage and fees for the selected agent     |
 | `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
 | `:Aero term`        | toggle the worktree's shell below the code window             |
 | `:Aero refresh`     | re-read worktrees                                             |
@@ -529,6 +530,48 @@ Prompt buffer (regular markdown buffer; the draft is kept if you close it):
 | `q`            | close (normal mode)              |
 | `<C-c>`        | cancel the current turn          |
 
+### Session tokens and fees
+
+Aero displays agent-reported usage in a **Usage card** at the end of the ACP transcript,
+in the panel title bar, and alongside the session in the dashboard.
+
+Use **`:Aero usage`** while focused on an agent log/prompt or a dashboard session row
+for the detailed report:
+
+```text
+Tokens (reported turns): 1,860
+Reported turns: 2 · Input: 1,400 · Output: 340
+Thinking: 60 · Cache read: 50 · Cache write: 10
+Context: 3,000 / 10,000 tokens (30.0%)
+Total fee (last reported): USD 0.02
+```
+
+- **Tokens:** accumulated from prompt-response usage reported by the agent, including
+  reasoning/cache breakdowns when available. The agent's `totalTokens` is authoritative;
+  if absent, Aero uses reported input plus output when both are available. These are
+  tracked reported turns, not an estimate of unreported internal model calls or older
+  conversation activity that Aero never received.
+- **Context:** the latest reported context-window occupancy. It is separate from consumed
+  tokens and can decrease after compaction.
+- **Fee:** the agent's latest cumulative session cost, in the reported currency. Each
+  update replaces the previous snapshot; repeated updates are never added together.
+  Aero does not infer model prices or calculate fees from transcript text.
+
+Availability depends on what the agent/version reports over ACP. Missing data is shown
+as **not reported**, while an explicitly reported zero fee is shown as `USD 0.00`.
+Metrics are saved with session history and restored across restarts. Resuming a session
+keeps its tracked totals; starting a new conversation resets them. `:Aero usage` can also
+read saved metrics for an unopened dashboard session without starting its agent.
+
+To hide the automatic displays while continuing to track usage:
+
+```lua
+require("aero").setup({ acp = { show_usage = false } })
+```
+
+The Lua API `require("aero").usage()` shows the report and returns a copy of the available
+`tokens`, `context`, and `cost` metrics (or `nil` if none have been reported).
+
 ### Changing the model
 
 In an ACP prompt, enter **`/model`** and send it with `:w` or `<C-s>` to open a model picker.
@@ -771,7 +814,7 @@ require("aero").setup({
   persist_buffers = true,  -- remember each worktree's last code file/directory and cursor
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {},            -- lifecycle event -> function or list of functions; see above
-  acp = { max_tool_lines = 20, prompt_height = 8, decorations = true },
+  acp = { max_tool_lines = 20, prompt_height = 8, decorations = true, show_usage = true },
   keymaps = { --[[ see lua/aero/config.lua; set any to false ]] },
 })
 ```

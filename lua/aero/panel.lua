@@ -60,6 +60,10 @@ local function winbar(win)
 		session.icon(s) or "",
 		((session.activity(s) or st):gsub("%%", "%%%%"))
 	)
+	local usage = require("aero.acp.usage").summary(s.chat)
+	if usage then
+		bar = bar .. " %=%#AeroDim#" .. usage:gsub("%%", "%%%%") .. " %*"
+	end
 	if vim.wo[win].winbar ~= bar then
 		vim.wo[win].winbar = bar
 	end

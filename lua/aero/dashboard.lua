@@ -174,6 +174,10 @@ local function build()
 						local st = session.status(s)
 						-- what a busy ACP agent is doing, else its status
 						local virt_s = { { " " .. (session.activity(s) or st), status_hl[st] } }
+						local usage = require("aero.acp.usage").summary(s.chat)
+						if usage then
+							table.insert(virt_s, { " · " .. usage, "AeroDim" })
+						end
 						if s.name ~= s.agent then
 							table.insert(virt_s, { " " .. s.agent, "AeroDim" })
 						end
@@ -470,6 +474,49 @@ function M.resume(session_id)
 		api.nvim_set_current_win(win)
 	end
 	return s
+end
+
+--- Show agent-reported usage for the focused/selected session without starting it.
+function M.usage()
+	local s = session.from_buf(0)
+	local key = vim.b.aero_chat_key
+	if not s and key then
+		for _, candidate in ipairs(session.all()) do
+			if candidate.key == key then
+				s = candidate
+				break
+			end
+		end
+	end
+	if not s and api.nvim_get_current_buf() == state.buf then
+		local item = current_item()
+		s = item and item.session
+		if not s and item and item.wt then
+			local selected = panel.current_session()
+			local candidates = session.list(item.wt.path)
+			if selected and selected.worktree == item.wt.path then
+				s = selected
+			elseif #candidates == 1 then
+				s = candidates[1]
+			end
+		end
+	elseif not s then
+		s = panel.current_session()
+	end
+	if not s then
+		notify("select an agent session in the dashboard or focus its panel first", vim.log.levels.WARN)
+		return
+	end
+	local usage = require("aero.acp.usage")
+	local data = s.chat and s.chat.usage
+	if not s.chat then
+		local saved = require("aero.history").load(s)
+		local restored = {}
+		usage.restore(restored, saved and saved.usage)
+		data = restored.usage
+	end
+	notify("Usage for " .. s.name .. "\n" .. table.concat(usage.lines({ usage = data }), "\n"))
+	return data and vim.deepcopy(data) or nil
 end
 
 --- Show `s` in a window chosen by `how` ("default" | "vsplit" | "split" | "tab") and focus it.

@@ -8,6 +8,7 @@ local history = require("aero.history")
 local events = require("aero.events")
 local models = require("aero.acp.models")
 local renderer = require("aero.acp.render")
+local usage = require("aero.acp.usage")
 
 local M = {}
 
@@ -356,6 +357,7 @@ function Chat:save_history()
 			blocks = blocks,
 			agent_info = self.agent_info,
 			session_id = self.session_id or self.saved_session_id,
+			usage = self.usage,
 		}
 	end)
 end
@@ -393,6 +395,7 @@ function Chat:on_update(u)
 		and kind ~= "current_mode_update"
 		and kind ~= "config_option_update"
 		and kind ~= "current_model_update"
+		and kind ~= "usage_update"
 	then
 		return
 	end
@@ -442,6 +445,9 @@ function Chat:on_update(u)
 		return self:changed()
 	elseif kind == "current_model_update" then
 		models.accept(self, u)
+		return self:changed()
+	elseif kind == "usage_update" then
+		usage.update(self, u)
 		return self:changed()
 	else
 		return
@@ -658,12 +664,13 @@ function Chat:handshake(resume)
 			-- replay its own transcript, without relabeling the previous conversation.
 			self.replay_from_cache = self.restored_conversation
 				and (not self.cache_session_id or self.cache_session_id == session_id)
-			local previous_blocks, previous_tools = self.blocks, self.tools
+			local previous_blocks, previous_tools, previous_usage = self.blocks, self.tools, self.usage
 			if
 				(self.requested_session_id and self.requested_session_id ~= previous_id)
 				or (self.cache_session_id and self.cache_session_id ~= session_id)
 			then
 				self.blocks, self.tools = {}, {}
+				self.usage = nil
 				self.replay_from_cache = false
 			end
 			self.replaying = true
@@ -679,6 +686,7 @@ function Chat:handshake(resume)
 					end
 					-- A transient adapter failure must not replace the original conversation ID.
 					self.blocks, self.tools = previous_blocks, previous_tools
+					self.usage = previous_usage
 					self:resume_failed(session_id, lerr)
 				end
 			)
@@ -701,6 +709,8 @@ end
 
 function Chat:new_session(params)
 	self.resumed = false
+	self.usage = nil
+	self.usage_seen = nil
 	self.client:request("session/new", params, function(err, res)
 		if err then
 			return self:fail("session/new", err)
@@ -727,6 +737,7 @@ function Chat:prompt(text)
 	end
 	table.insert(self.blocks, { kind = "user", text = text })
 	self.turn = (self.turn or 0) + 1
+	local turn = self.turn
 	self.busy = true
 	self.turn_started, self.doing = vim.uv.now(), nil
 	self:changed()
@@ -736,6 +747,7 @@ function Chat:prompt(text)
 		prompt = { { type = "text", text = text } },
 	}, function(err, res)
 		self.busy = false
+		usage.response(self, res, turn)
 		if err then
 			self:fail("prompt", err)
 		elseif res and res.stopReason and res.stopReason ~= "end_turn" then
@@ -957,6 +969,7 @@ function M.start(s, buf, agent, resume, session_id)
 	local saved = resume and history.load(s)
 	if saved and saved.type == "acp" and type(saved.blocks) == "table" then
 		chat.blocks, chat.agent_info = saved.blocks, saved.agent_info
+		usage.restore(chat, saved.usage)
 		chat.saved_session_id = type(saved.session_id) == "string" and saved.session_id ~= "" and saved.session_id
 			or nil
 		chat.cache_session_id = chat.saved_session_id
