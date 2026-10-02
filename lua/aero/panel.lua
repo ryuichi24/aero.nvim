@@ -3,6 +3,7 @@
 local config = require("aero.config")
 local session = require("aero.session")
 local events = require("aero.events")
+local layout = require("aero.layout")
 
 local M = {}
 
@@ -76,10 +77,11 @@ function M.open()
 	win = api.nvim_open_win(placeholder, false, {
 		split = opts.position == "left" and "left" or "right",
 		win = -1,
-		width = opts.width,
+		width = layout.panel_width(),
 	})
 	vim.wo[win].winfixwidth = true
 	tab_state().win = win
+	layout.track(win, "panel")
 	events.emit("panel_opened", { win = win, tab = api.nvim_get_current_tabpage() })
 	return win
 end
@@ -107,6 +109,7 @@ function M.close()
 	if not win then
 		return
 	end
+	layout.remember(win)
 	-- take the prompt window along
 	local s = session.from_buf(api.nvim_win_get_buf(win))
 	local prompt = s and s.chat and s.chat.prompt_buf

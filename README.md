@@ -218,6 +218,20 @@ vim.keymap.set("n", "<leader>ai", "<cmd>Aero prompt<cr>", { desc = "Prompt the a
 
 Set `panel = false` to open sessions in the last used window instead.
 
+### Resizing panes
+
+Drag split borders with `:set mouse=a`, or use normal-mode Neovim resize commands:
+`<C-w>+` / `<C-w>-` for height, `<C-w>>` / `<C-w><` for width,
+`:resize 12` for an exact height, or `:vertical resize 80` for an exact width.
+In a prompt press `<Esc>` first; in a terminal use `<C-\><C-n>`.
+
+Aero remembers dashboard and agent-panel widths per tab, prompt height per session in
+each tab, and shell height per worktree in each tab for the current Neovim instance.
+Sizes survive hiding and reopening these panes, and sending a prompt. `dashboard.width`,
+`panel.width`, `terminal.height`, and `acp.prompt_height` are initial sizes.
+Fullscreen starts with the current prompt height; resizing there does not change the
+original tab's layout.
+
 When a terminal agent exits, the panel returns to normal mode and keeps its scrollback.
 Use regular window navigation, such as `<C-w>w`, to leave the panel; no terminal escape is
 needed after exit.

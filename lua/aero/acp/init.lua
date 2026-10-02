@@ -970,12 +970,14 @@ function Chat:compose()
 		if tw ~= -1 then
 			api.nvim_set_current_win(tw)
 		end
-		vim.cmd(("belowright %dsplit"):format(config.options.acp.prompt_height))
+		local layout = require("aero.layout")
+		vim.cmd(("belowright %dsplit"):format(layout.prompt_height(self.s.key)))
 		api.nvim_win_set_buf(0, buf)
 		if vim.bo[buf].filetype == "" then
 			vim.bo[buf].filetype = "markdown"
 		end
 		chat_win_opts(0, { winfixheight = true })
+		layout.track(api.nvim_get_current_win(), "prompt", self.s.key)
 	end
 	vim.cmd.startinsert({ bang = api.nvim_buf_get_lines(buf, 0, -1, false)[1] ~= "" })
 end

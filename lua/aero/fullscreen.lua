@@ -130,10 +130,11 @@ function M.toggle()
 		local pw = api.nvim_open_win(api.nvim_win_get_buf(prompt), false, {
 			split = "below",
 			win = win,
-			height = require("aero.config").options.acp.prompt_height,
+			height = api.nvim_win_get_height(prompt),
 		})
 		copy_window(prompt, pw)
 		vim.wo[pw].winfixheight = true
+		require("aero.layout").track(pw, "prompt", s.key)
 		if prompt == focus then
 			api.nvim_set_current_win(pw)
 		end

@@ -304,10 +304,10 @@ local function target_win()
 	-- only the dashboard (and maybe the panel) are open: add a window between them
 	local side = config.options.dashboard.position == "right" and "left" or "right"
 	local w = api.nvim_open_win(api.nvim_create_buf(false, true), false, { split = side, win = state.win })
-	api.nvim_win_set_width(state.win, config.options.dashboard.width)
+	api.nvim_win_set_width(state.win, require("aero.layout").dashboard_width())
 	local pw = panel.win()
 	if pw then
-		api.nvim_win_set_width(pw, config.options.panel.width)
+		api.nvim_win_set_width(pw, require("aero.layout").panel_width())
 	end
 	return w
 end
@@ -338,6 +338,7 @@ function M.open()
 	end
 	local buf = get_buf()
 	local pos = config.options.dashboard.position
+	local width = require("aero.layout").dashboard_width()
 	if pos == "current" then
 		state.win = cur
 		api.nvim_win_set_buf(cur, buf)
@@ -346,10 +347,15 @@ function M.open()
 		state.win = api.nvim_open_win(buf, true, {
 			split = pos == "right" and "right" or "left",
 			win = -1,
-			width = config.options.dashboard.width,
+			width = width,
 		})
+		-- Focusing a new window can apply 'winwidth'; restore the requested sidebar size.
+		api.nvim_win_set_width(state.win, width)
 	end
 	set_win_options(state.win)
+	if pos ~= "current" then
+		require("aero.layout").track(state.win, "dashboard")
+	end
 	-- git state (and other nvim instances' changes) may have changed while the dashboard was hidden
 	store.load()
 	state.worktrees = {}
@@ -373,6 +379,7 @@ function M.close()
 	if not is_open() then
 		return
 	end
+	require("aero.layout").remember(state.win)
 	if config.options.dashboard.position == "current" then
 		local alt = vim.fn.bufnr("#")
 		if alt > 0 and alt ~= state.buf and api.nvim_buf_is_valid(alt) then

@@ -1,6 +1,7 @@
 -- A shell per worktree, shown in a split at the bottom of the code window. Hiding it keeps the
 -- shell running; the buffer is marked with b:aero_term = worktree path.
 local config = require("aero.config")
+local layout = require("aero.layout")
 
 local M = {}
 
@@ -56,8 +57,7 @@ function M.open(worktree, code_win)
 		-- another worktree's terminal is showing: reuse its window
 		api.nvim_win_set_buf(win, buf)
 	else
-		win =
-			api.nvim_open_win(buf, false, { split = "below", win = code_win, height = config.options.terminal.height })
+		win = api.nvim_open_win(buf, false, { split = "below", win = code_win, height = layout.terminal_height(worktree) })
 	end
 	vim.wo[win].winfixheight = true
 	vim.wo[win].number = false
@@ -71,6 +71,7 @@ function M.open(worktree, code_win)
 		require("aero.fullscreen").bind(buf)
 	end
 	vim.cmd.startinsert()
+	layout.track(win, "terminal", worktree)
 	require("aero.events").emit("terminal_opened", { worktree = worktree, win = win, buf = buf, fresh = fresh })
 	return win
 end
@@ -82,6 +83,7 @@ function M.hide()
 	end
 	local win = M.win()
 	if win and #api.nvim_tabpage_list_wins(0) > 1 then
+		layout.remember(win)
 		local buf = api.nvim_win_get_buf(win)
 		local worktree = vim.b[buf].aero_term
 		api.nvim_win_close(win, false)
