@@ -339,7 +339,13 @@ layout = function(view, focus, resized)
 	end
 	-- Dedicated board-only tabs own the full editor width, even before Neovim has
 	-- redistributed the existing splits following an external screen resize.
-	if #wins == #api.nvim_tabpage_list_wins(0) then
+	local normal_windows = 0
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		if api.nvim_win_get_config(win).relative == "" then
+			normal_windows = normal_windows + 1
+		end
+	end
+	if #wins == normal_windows then
 		width = vim.o.columns
 	end
 	local count =
@@ -395,6 +401,21 @@ layout = function(view, focus, resized)
 	view.geometry = geometry(view)
 end
 
+local function ticket_float_config(title)
+	local width = math.max(1, math.min(math.floor(vim.o.columns * 0.8), vim.o.columns - 4))
+	local height = math.max(1, math.min(math.floor(vim.o.lines * 0.8), vim.o.lines - 6))
+	return {
+		relative = "editor",
+		width = width,
+		height = height,
+		row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1),
+		col = math.max(0, math.floor((vim.o.columns - width) / 2) - 1),
+		border = "rounded",
+		title = " " .. edit.title(title) .. " ",
+		title_pos = "center",
+	}
+end
+
 local function open_file(view, path)
 	if not path then
 		notify("invalid ticket reference; fix the board source first")
@@ -408,6 +429,31 @@ local function open_file(view, path)
 	end
 	if not doc then
 		notify(err)
+		return
+	end
+	if path ~= view.path then
+		local buf = vim.fn.bufadd(path)
+		vim.fn.bufload(buf)
+		local title = doc.metadata and doc.metadata.title or vim.fs.basename(path)
+		local win = view.ticket_window
+		if win and api.nvim_win_is_valid(win) then
+			api.nvim_set_current_win(win)
+			-- Use :buffer so a different unsaved ticket is not silently abandoned.
+			local ok, buffer_err = pcall(vim.cmd.buffer, buf)
+			if not ok then
+				notify(buffer_err)
+				return
+			end
+			api.nvim_win_set_config(win, ticket_float_config(title))
+		else
+			win = api.nvim_open_win(buf, true, ticket_float_config(title))
+			view.ticket_window = win
+		end
+		vim.bo[buf].filetype = "markdown"
+		vim.b[buf].aero_board_path, vim.b[buf].aero_workspace_root = view.path, view.ws.root
+		vim.wo[win].winbar = ""
+		vim.wo[win].wrap = true
+		vim.wo[win].conceallevel, vim.wo[win].concealcursor = vim.o.conceallevel, vim.o.concealcursor
 		return
 	end
 	-- Use a separate code split so column windows continue to represent states.
@@ -866,6 +912,13 @@ api.nvim_create_autocmd({ "VimResized", "WinResized", "TabEnter" }, {
 			resize_pending = false
 			local tab = api.nvim_get_current_tabpage()
 			for _, view in pairs(sessions) do
+				if view.tab == tab and view.ticket_window and api.nvim_win_is_valid(view.ticket_window) then
+					local win = view.ticket_window
+					local title = api.nvim_win_get_config(win).title
+					local options = ticket_float_config("")
+					options.title = title
+					api.nvim_win_set_config(win, options)
+				end
 				-- Reflow only the displayed board. TabEnter catches inactive-tab resizes.
 				if view.tab == tab and view.geometry ~= geometry(view) then
 					local focused = api.nvim_get_current_win()

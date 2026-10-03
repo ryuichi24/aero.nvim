@@ -44,6 +44,10 @@ local function resize(width, count)
 end
 resize(80, 2)
 local todo = view.columns[1].buf
+viewmod.actions(view).open()
+local ticket_float = api.nvim_get_current_win()
+local initial_float_width = api.nvim_win_get_config(ticket_float).width
+assert(api.nvim_win_get_config(ticket_float).relative == "editor")
 local lines = api.nvim_buf_get_lines(todo, 0, -1, false)
 api.nvim_buf_set_lines(todo, 0, -1, false, { "" })
 api.nvim_buf_set_lines(view.columns[4].buf, 0, -1, false, lines)
@@ -54,7 +58,8 @@ storage.read = function(...)
 	return original_read(...)
 end
 resize(160, 4)
-assert(api.nvim_get_current_buf() == todo, "resize changed focused state")
+assert(api.nvim_get_current_win() == ticket_float, "resize stole ticket editor focus")
+assert(api.nvim_win_get_config(ticket_float).width > initial_float_width, "ticket float did not expand")
 local wide = windows()
 local min, max = 1000, 0
 for _, win in ipairs(wide) do
@@ -63,6 +68,7 @@ for _, win in ipairs(wide) do
 end
 assert(max - min <= 2, "columns not balanced")
 resize(70, 2)
+assert(api.nvim_win_get_config(ticket_float).width < initial_float_width, "ticket float did not shrink")
 assert(vim.deep_equal(lines, api.nvim_buf_get_lines(view.columns[4].buf, 0, -1, false)), "hidden draft lost")
 assert(viewmod.dirty(view) and reads == 0, "resize reloaded/saved Markdown")
 -- An inactive board catches the screen resize when its tab is entered again.
