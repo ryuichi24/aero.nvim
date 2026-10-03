@@ -873,6 +873,14 @@ dashboard or agent panel. Opening the same board again focuses its existing tab.
 the board tab and returns to the originating tab; save or discard pending board edits first.
 Closing the tab retains its state buffers, so reopening restores the board session.
 
+Press `<CR>` on a ticket to edit its real Markdown file in a centered floating window,
+with the board columns visible underneath. Normal `:w` saves, `:wq` saves and closes,
+and `:q` closes the editor. Unsaved changes follow normal Vim buffer behavior: with
+`hidden` enabled, closing keeps the modified buffer and reopening restores its draft;
+otherwise Vim asks you to save first. Use `:e!` to explicitly reload and discard edits.
+The ticket float recenters/resizes with the
+editor. `e` continues to open the source board in a separate code split.
+
 **Move tickets like editing files in Oil:** `dd` cuts a row, `<C-w>h` / `<C-w>l` changes
 column, and `p` / `P` pastes. Visual cut/paste moves multiple tickets. **`:w` in any column
 saves all columns together**, including hidden ones, in one board Markdown update.
@@ -900,7 +908,7 @@ Tabs opening the same board share the editing session. Resizing never replaces d
 | --- | --- |
 | `[s` / `]s` | previous / next state, including hidden columns |
 | `h` / `j` / `k` / `l`, `dd`, `p`, `u`, `<C-r>` | ordinary Vim editing and column-local undo/redo |
-| `<CR>` | open the selected ticket as ordinary Markdown in the code pane |
+| `<CR>` | edit the selected ticket Markdown in a floating window |
 | `e` | edit the source board Markdown |
 | `ga` | create a ticket in the selected state |
 | `m` | stage movement to a chosen state; save with `:w` |
