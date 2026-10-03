@@ -910,7 +910,7 @@ require("aero").setup({
     return vim.fs.joinpath(vim.fs.dirname(ws.root), vim.fs.basename(ws.root) .. ".worktrees", (branch:gsub("/", "-")))
   end,
   dashboard = { position = "left", width = 40 }, -- "left" | "right" | "current" (oil-style)
-  panel = { position = "right", width = 70 },    -- where sessions open; false = last used window
+  panel = { position = "right", width = 80 },    -- where sessions open; false = last used window
   worktree_tabs = true,    -- one tab per worktree, :tcd'd to it
   terminal = { height = 12, cmd = nil }, -- worktree shell; cmd defaults to { vim.o.shell }
   idle_ms = 1500,          -- terminal agents: no output for this long = idle
@@ -924,12 +924,45 @@ require("aero").setup({
   persist_buffers = true,  -- remember each worktree's last code file/directory and cursor
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {},            -- lifecycle event -> function or list of functions; see above
-  acp = { max_tool_lines = 20, prompt_height = 8, decorations = true, show_usage = true },
+  acp = { max_tool_lines = 20, prompt_height = 25, decorations = true, show_usage = true },
   reports = {
     directory = "data", -- "worktree", a custom path, or a directory function
     prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
   },
-  keymaps = { --[[ see lua/aero/config.lua; set any to false ]] },
+  icons = {
+    expanded = "▾",
+    collapsed = "▸",
+    busy = "◐",
+    idle = "●",
+    waiting = "?",
+    exited = "✗",
+    stopped = "○",
+  },
+  keymaps = { -- dashboard keymaps; set any to false to disable it
+    open = "<CR>",
+    expand = "l",
+    collapse = "h",
+    toggle = "<Tab>",
+    open_vsplit = "<C-v>",
+    open_split = "<C-x>",
+    open_tab = "<C-t>",
+    add = "a",
+    add_workspace = "A",
+    delete = "d",
+    stop = "s",
+    restart = "r",
+    refresh = "R",
+    pull = "P",
+    cd = ".",
+    edit = "e",
+    edit_enter = "<C-CR>", -- open the selected worktree in the code pane
+    edit_mouse = "<C-LeftMouse>", -- open the clicked worktree in the code pane
+    terminal = "t",
+    next_workspace = "]]",
+    prev_workspace = "[[",
+    close = "q",
+    help = "g?",
+  },
 })
 ```
 
