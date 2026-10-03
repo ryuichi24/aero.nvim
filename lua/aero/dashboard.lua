@@ -7,6 +7,7 @@ local panel = require("aero.panel")
 local tabs = require("aero.tabs")
 local terminal = require("aero.terminal")
 local spinner = require("aero.spinner")
+local reports = require("aero.reports")
 
 local M = {}
 
@@ -20,6 +21,7 @@ local state = {
 	items = {}, ---@type table<integer, table> line number -> item
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
+	reports_expanded = {}, -- worktree path -> report section expanded
 	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
 	pulling = {}, -- worktree path -> in-flight pull
 }
@@ -186,6 +188,36 @@ local function build()
 							{ session.icon(s), status_hl[st] },
 							{ " " .. s.name, "AeroSession" },
 						}, { kind = "session", id = "s:" .. s.key, ws = ws, wt = wt, session = s }, virt_s)
+					end
+					local report_list, report_err = reports.list(wt.path, ws)
+					local ropen = state.reports_expanded[wt.path] ~= false
+					add(
+						{
+							{ "     " .. (ropen and icons.expanded or icons.collapsed) .. " " },
+							{ "Reports", "AeroWorkspace" },
+						},
+						{ kind = "reports", id = "reports:" .. wt.path, ws = ws, wt = wt },
+						{ { " " .. #report_list, "AeroDim" } }
+					)
+					if ropen then
+						if report_err then
+							add({ { "       ! " .. report_err:gsub("[\r\n]", " "), "AeroExited" } })
+						end
+						for _, report in ipairs(report_list) do
+							add({ { "       " }, { report.name:gsub("[\r\n]", " "), "AeroSession" } }, {
+								kind = "report",
+								id = "report:" .. report.path,
+								ws = ws,
+								wt = wt,
+								report = report,
+							})
+						end
+						add({ { "       New +", "AeroDim" } }, {
+							kind = "report_new",
+							id = "report-new:" .. wt.path,
+							ws = ws,
+							wt = wt,
+						})
 					end
 				end
 			end
@@ -440,6 +472,29 @@ local function current_item()
 	return state.items[api.nvim_win_get_cursor(0)[1]]
 end
 
+--- Attach a report to the focused session, dashboard selection, or this worktree's agent.
+function M.report()
+	local s = session.from_buf(0)
+	local key = vim.b.aero_chat_key
+	if not s and key then
+		for _, candidate in ipairs(session.all()) do
+			if candidate.key == key then
+				s = candidate
+				break
+			end
+		end
+	end
+	local item = api.nvim_get_current_buf() == state.buf and current_item() or nil
+	s = s or item and item.session
+	local path = s and s.worktree or item and item.wt and item.wt.path
+	if item and not path then
+		notify("select a worktree or agent session first", vim.log.levels.WARN)
+		return
+	end
+	path = path or vim.t.aero_worktree or vim.fn.getcwd()
+	return reports.choose_session(path, s or panel.current_session(), item and item.ws)
+end
+
 function M.resume(session_id)
 	if type(session_id) ~= "string" or vim.trim(session_id) == "" then
 		notify("use :Aero resume <session-id>", vim.log.levels.WARN)
@@ -642,6 +697,26 @@ end
 
 local actions = {}
 
+local function open_report(item, how)
+	enter_worktree(item.wt.path)
+	local win = target_win()
+	api.nvim_set_current_win(win)
+	if how and how ~= "default" then
+		vim.cmd(({ vsplit = "vsplit", split = "split", tab = "tab split" })[how])
+	end
+	vim.cmd.edit(vim.fn.fnameescape(item.report.path))
+	state.target = api.nvim_get_current_win()
+	require("aero.buffers").remember(state.target)
+end
+
+local function new_report(item)
+	reports.create(item.wt.path, item.ws, function(report)
+		state.expanded[item.wt.path], state.reports_expanded[item.wt.path] = true, true
+		M.render()
+		open_report(vim.tbl_extend("force", item, { report = report }))
+	end)
+end
+
 function actions.open(how)
 	local item = current_item()
 	if not item then
@@ -649,6 +724,10 @@ function actions.open(how)
 	end
 	if item.kind == "session" then
 		open_session(item.session, how or "default")
+	elseif item.kind == "report" then
+		open_report(item, how)
+	elseif item.kind == "report_new" then
+		new_report(item)
 	else
 		actions.toggle()
 	end
@@ -663,6 +742,8 @@ function actions.toggle()
 		store.set_expanded(item.ws.root, item.ws.expanded == false)
 	elseif item.kind == "worktree" then
 		state.expanded[item.wt.path] = not wt_expanded(item.wt, session.list(item.wt.path))
+	elseif item.kind == "reports" then
+		state.reports_expanded[item.wt.path] = state.reports_expanded[item.wt.path] == false
 	end
 	M.render()
 end
@@ -672,12 +753,14 @@ function actions.expand()
 	if not item then
 		return
 	end
-	if item.kind == "session" then
-		return open_session(item.session, "default")
+	if item.kind == "session" or item.kind == "report" or item.kind == "report_new" then
+		return actions.open("default")
 	end
 	local expanded
 	if item.kind == "workspace" then
 		expanded = item.ws.expanded ~= false
+	elseif item.kind == "reports" then
+		expanded = state.reports_expanded[item.wt.path] ~= false
 	else
 		expanded = wt_expanded(item.wt, session.list(item.wt.path))
 	end
@@ -698,14 +781,17 @@ function actions.collapse()
 		return
 	end
 	local lnum = api.nvim_win_get_cursor(0)[1]
-	local is_header = item.id:match("^ws:") or item.id:match("^wt:")
+	local is_header = item.id:match("^ws:") or item.id:match("^wt:") or item.kind == "reports"
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
+		or item.kind == "reports" and state.reports_expanded[item.wt.path] ~= false
 	if is_header and open then
 		return actions.toggle()
 	end
 	-- jump to the parent line
-	local parent = item.kind == "session" and "wt:" .. item.wt.path or "ws:" .. item.ws.root
+	local parent = (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
+		or (item.kind == "session" or item.kind == "reports") and "wt:" .. item.wt.path
+		or "ws:" .. item.ws.root
 	if item.id == parent then
 		parent = "ws:" .. item.ws.root
 	end
@@ -724,6 +810,8 @@ function actions.add()
 	end
 	if item.kind == "workspace" then
 		add_worktree(item.ws)
+	elseif item.kind == "reports" or item.kind == "report" or item.kind == "report_new" then
+		new_report(item)
 	else
 		choose_agent(item)
 	end
@@ -738,7 +826,16 @@ function actions.delete()
 	if not item then
 		return
 	end
-	if item.kind == "session" then
+	if item.kind == "report" then
+		if vim.fn.confirm("Delete report " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
+			return
+		end
+		local ok, err = vim.uv.fs_unlink(item.report.path)
+		if not ok then
+			notify("could not delete report: " .. err, vim.log.levels.ERROR)
+			return
+		end
+	elseif item.kind == "session" then
 		local s = item.session
 		if s.job and vim.fn.confirm("Kill running session " .. s.name .. "?", "&Yes\n&No", 2) ~= 1 then
 			return
@@ -881,6 +978,13 @@ function M.open_worktree(dir, opener)
 end
 
 function actions.edit()
+	local item = current_item()
+	if item and item.kind == "report" then
+		return open_report(item)
+	end
+	if item and item.kind == "report_new" then
+		return new_report(item)
+	end
 	local dir = item_dir(current_item())
 	if dir then
 		M.open_worktree(dir)
@@ -951,16 +1055,16 @@ function actions.close()
 end
 
 local descriptions = {
-	open = "open session / toggle node",
-	expand = "expand node / open session",
+	open = "open session or report / toggle node",
+	expand = "expand node / open session or report",
 	collapse = "collapse node / go to parent",
 	toggle = "toggle node",
-	open_vsplit = "open session in vsplit",
-	open_split = "open session in split",
-	open_tab = "open session in tab",
-	add = "add: worktree (on workspace) / new agent session (on worktree)",
+	open_vsplit = "open session or report in vsplit",
+	open_split = "open session or report in split",
+	open_tab = "open session or report in tab",
+	add = "add: worktree / agent session / report (on Reports)",
 	add_workspace = "add workspace",
-	delete = "delete session / worktree / workspace",
+	delete = "delete selected item: session / report (confirm) / worktree / workspace",
 	stop = "stop session",
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",

@@ -94,6 +94,11 @@ function M.usage()
 	return ensure().usage()
 end
 
+--- Pick a worktree report and append its path to an agent's draft.
+function M.report()
+	return ensure().report()
+end
+
 --- Append the visual selection (or an explicit line range) to an agent's draft.
 function M.quote(range)
 	ensure()

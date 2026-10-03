@@ -741,6 +741,9 @@ function Chat:prompt(text)
 		vim.notify(message, vim.log.levels.WARN)
 		return
 	end
+	if vim.trim(text) == "/report" then
+		return require("aero.reports").pick(self.s)
+	end
 	-- queued prompts are shown at the end of the transcript and only become blocks once sent,
 	-- so a resumed session's replayed history (or a failed resume) can't bury or drop them
 	if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
@@ -875,6 +878,15 @@ function Chat:get_prompt_buf()
 		end
 	end
 	map("n", "<CR>", with_chat("send_prompt_buf"), "send prompt")
+	-- Enter opens the report picker for an exact /report draft; other drafts keep normal newlines.
+	vim.keymap.set("i", "<CR>", function()
+		local text = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+		if vim.trim(text) == "/report" then
+			with_chat("send_prompt_buf")()
+		else
+			api.nvim_feedkeys(api.nvim_replace_termcodes("<CR>", true, false, true), "in", false)
+		end
+	end, { buffer = buf, desc = "Aero: report picker / newline" })
 	map("n", "q", "<cmd>close<cr>", "close prompt (draft is kept)")
 	map({ "n", "i" }, "<C-c>", with_chat("cancel"), "cancel turn")
 	-- complete the agent's slash commands with <C-x><C-o>
@@ -1099,9 +1111,12 @@ function M.omnifunc(findstart, base)
 	if ("/mode"):sub(1, #base) == base then
 		table.insert(out, { word = "/mode", menu = "Choose the session mode" })
 	end
+	if ("/report"):sub(1, #base) == base then
+		table.insert(out, { word = "/report", menu = "Attach a worktree report to the draft" })
+	end
 	for _, c in ipairs(chat and chat.commands or {}) do
 		local word = "/" .. c.name
-		if word ~= "/model" and word ~= "/mode" and word:find(base, 1, true) == 1 then
+		if word ~= "/model" and word ~= "/mode" and word ~= "/report" and word:find(base, 1, true) == 1 then
 			table.insert(out, { word = word, menu = c.description })
 		end
 	end

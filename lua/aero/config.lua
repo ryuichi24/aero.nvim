@@ -28,6 +28,14 @@ M.defaults = {
 		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
 		-- resize_keys may override the shared shortcuts for prompt buffers
 	},
+	reports = {
+		-- "data": scoped folders in stdpath("data")/Aero/workspaces;
+		-- "worktree": <worktree>/.aero/reports; or a custom storage root.
+		-- A function(worktree, workspace_root) may return an exact directory.
+		directory = "data",
+		-- Text appended to agent drafts; {path} becomes the JSON-quoted absolute report path.
+		prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
+	},
 	-- where `a` on a workspace creates new worktrees: <repo>/../<repo>.worktrees/<branch>
 	worktree_path = function(ws, branch)
 		local parent = vim.fs.dirname(ws.root)

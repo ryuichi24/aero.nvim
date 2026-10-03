@@ -37,6 +37,9 @@ local subcommands = {
 	usage = function()
 		require("aero").usage()
 	end,
+	report = function()
+		require("aero").report()
+	end,
 	quote = function(_, opts)
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
 	end,
