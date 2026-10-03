@@ -21,10 +21,30 @@ local function inside(dir, root)
 	return dir == root or dir:sub(1, #root + 1) == root .. "/"
 end
 
+local function dashboard_only(tab)
+	local dashboard = false
+	for _, win in ipairs(api.nvim_tabpage_list_wins(tab)) do
+		local buf = api.nvim_win_get_buf(win)
+		if api.nvim_buf_get_name(buf) == "Aero://dashboard" then
+			dashboard = true
+		elseif
+			api.nvim_buf_get_name(buf) ~= ""
+			or vim.bo[buf].buftype ~= ""
+			or vim.bo[buf].modified
+			or api.nvim_buf_line_count(buf) ~= 1
+			or api.nvim_buf_get_lines(buf, 0, 1, false)[1] ~= ""
+		then
+			return false
+		end
+	end
+	return dashboard
+end
+
 --- The tab that belongs to `worktree`: one already assigned to it, else an unassigned tab whose
---- working directory is inside it (which is then claimed).
+--- working directory is inside it, or the current dashboard-only tab (which is then claimed).
 function M.find(worktree)
 	local candidate
+	local current = api.nvim_get_current_tabpage()
 	for _, tab in ipairs(api.nvim_list_tabpages()) do
 		if not vim.t[tab].aero_fullscreen then
 			local assigned = vim.t[tab].aero_worktree
@@ -38,6 +58,9 @@ function M.find(worktree)
 				end
 			end
 		end
+	end
+	if not vim.t[current].aero_worktree and not vim.t[current].aero_fullscreen and dashboard_only(current) then
+		candidate = current
 	end
 	if candidate then
 		vim.t[candidate].aero_worktree = worktree
@@ -54,6 +77,7 @@ function M.enter(worktree)
 		if tab ~= api.nvim_get_current_tabpage() then
 			api.nvim_set_current_tabpage(tab)
 		end
+		vim.cmd.tcd(vim.fn.fnameescape(worktree))
 		if not buffers.remember() then
 			buffers.restore(worktree)
 		end
