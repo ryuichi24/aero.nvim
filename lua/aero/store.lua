@@ -196,6 +196,20 @@ function M.set_session_field(worktree, name, field, value)
 	end)
 end
 
+function M.rename_session(worktree, name, new_name, session_key)
+	return update(function()
+		local def = M.find_session(worktree, name)
+		if not def then
+			return nil, "session no longer exists"
+		end
+		if new_name ~= name and M.find_session(worktree, new_name) then
+			return nil, "a session with that name already exists"
+		end
+		def.key, def.name = session_key, new_name
+		return true
+	end)
+end
+
 function M.remove_session(worktree, name)
 	update(function(data)
 		local list = data.sessions[worktree] or {}

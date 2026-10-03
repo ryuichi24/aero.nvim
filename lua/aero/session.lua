@@ -78,15 +78,16 @@ function M.icon(s)
 end
 
 local function get(worktree, name)
-	local k = key(worktree, name)
-	if not runtime[k] then
-		for _, def in ipairs(store.sessions(worktree)) do
-			if def.name == name then
+	for _, def in ipairs(store.sessions(worktree)) do
+		if def.name == name then
+			local k = def.key or key(worktree, name)
+			if not runtime[k] then
 				runtime[k] = { key = k, worktree = worktree, name = name, agent = def.agent }
 			end
+			runtime[k].name = name
+			return runtime[k]
 		end
 	end
-	return runtime[k]
 end
 
 ---@return aero.Session[]
@@ -110,13 +111,33 @@ end
 --- Register a new (not yet started) session of `agent` in `worktree`.
 function M.create(worktree, agent)
 	local name = store.add_session(worktree, agent, function(n)
-		return runtime[key(worktree, n)] ~= nil
+		local k = key(worktree, n)
+		if runtime[k] then
+			return true
+		end
+		for _, def in ipairs(store.sessions(worktree)) do
+			if def.key == k then
+				return true
+			end
+		end
+		return false
 	end)
 	local s = get(worktree, name)
 	s.fresh = true
 	emit()
 	events.emit("session_created", events.session(s))
 	return s
+end
+
+--- Change the display name while retaining runtime and history identity.
+function M.rename(s, name)
+	local ok, err = store.rename_session(s.worktree, s.name, name, s.key)
+	if not ok then
+		return nil, err
+	end
+	s.name = name
+	emit()
+	return true
 end
 
 local function notify_idle(s)

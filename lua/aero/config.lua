@@ -103,6 +103,7 @@ M.defaults = {
 		delete = "d",
 		stop = "s",
 		restart = "r",
+		rename = "N",
 		refresh = "R",
 		pull = "P",
 		cd = ".",

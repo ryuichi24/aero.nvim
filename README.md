@@ -387,6 +387,7 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero term<cr>", { desc = "Toggle worktre
 | `A`                     | add workspace                                                                                              |
 | `d`                     | delete selected item: session / report (both with confirmation) / `git worktree remove` / forget workspace  |
 | `s` / `r`               | stop / restart (resume) session                                                                            |
+| `N`                     | rename selected agent session or report                                                                    |
 | `.` / `e`               | `:tcd` to worktree / restore its last code buffer                                                          |
 | `<C-LeftMouse>`          | open the clicked worktree in the code pane / restore its last code buffer                                 |
 | `<C-CR>`                | open the selected worktree in the code pane / restore its last code buffer                                |
@@ -956,6 +957,7 @@ require("aero").setup({
     delete = "d",
     stop = "s",
     restart = "r",
+    rename = "N",
     refresh = "R",
     pull = "P",
     cd = ".",

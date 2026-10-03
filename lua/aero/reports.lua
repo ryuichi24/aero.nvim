@@ -110,6 +110,45 @@ function M.create(worktree, ws, callback)
 	end)
 end
 
+function M.rename(report, callback)
+	vim.ui.input({ prompt = "Rename report: ", default = report.name }, function(name)
+		if not name or vim.trim(name) == "" then
+			return
+		end
+		name = vim.trim(name)
+		if not name:match("%.md$") then
+			name = name .. ".md"
+		end
+		if name == ".md" or name:find("[/\\%c]") then
+			notify("use a report filename without directory separators or control characters")
+			return
+		end
+		local path = vim.fs.joinpath(vim.fs.dirname(report.path), name)
+		if path == report.path then
+			return
+		end
+		if vim.uv.fs_lstat(path) then
+			notify("a report with that name already exists")
+			return
+		end
+		local buf = vim.fn.bufnr(report.path)
+		local target_buf = vim.fn.bufnr(path)
+		if target_buf ~= -1 then
+			notify("a buffer with that report name already exists")
+			return
+		end
+		local ok, err = vim.uv.fs_rename(report.path, path)
+		if not ok then
+			notify("could not rename report: " .. tostring(err))
+			return
+		end
+		if buf ~= -1 then
+			api.nvim_buf_set_name(buf, path)
+		end
+		callback({ name = name, path = path })
+	end)
+end
+
 function M.attach(s, path)
 	if not vim.tbl_contains(sessions.all(), s) then
 		return

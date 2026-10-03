@@ -847,6 +847,34 @@ function actions.add_workspace()
 	M.add_workspace()
 end
 
+function actions.rename()
+	local item = current_item()
+	if not item then
+		return
+	end
+	if item.kind == "report" then
+		reports.rename(item.report, function(report)
+			item.id = "report:" .. report.path
+			M.render()
+		end)
+	elseif item.kind == "session" then
+		vim.ui.input({ prompt = "Rename session: ", default = item.session.name }, function(name)
+			if not name or vim.trim(name) == "" then
+				return
+			end
+			name = vim.trim(name)
+			if name:find("%c") then
+				notify("use a session name without control characters", vim.log.levels.WARN)
+				return
+			end
+			local ok, err = session.rename(item.session, name)
+			if not ok then
+				notify(err, vim.log.levels.WARN)
+			end
+		end)
+	end
+end
+
 function actions.delete()
 	local item = current_item()
 	if not item then
@@ -1092,6 +1120,7 @@ local descriptions = {
 	add = "add: worktree / agent session / report (on Reports)",
 	add_workspace = "add workspace",
 	delete = "delete selected item: session (confirm) / report (confirm) / worktree / workspace",
+	rename = "rename selected session or report",
 	stop = "stop session",
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",
