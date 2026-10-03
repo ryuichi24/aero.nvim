@@ -84,7 +84,8 @@ decorate = function(view, only)
 			api.nvim_buf_clear_namespace(column.buf, ns, 0, -1)
 			local count = 0
 			for row, line in ipairs(api.nvim_buf_get_lines(column.buf, 0, -1, false)) do
-				local item = view.registry[line:match("^(%S+)  ")]
+				local id = line:match("^(%S+)  ")
+				local item = view.registry[id]
 				if item then
 					count = count + 1
 					api.nvim_buf_set_extmark(column.buf, ns, row - 1, 0, {
@@ -94,6 +95,7 @@ decorate = function(view, only)
 				end
 			end
 			for _, win in ipairs(vim.fn.win_findbuf(column.buf)) do
+				vim.wo[win].conceallevel, vim.wo[win].concealcursor = 2, "nvic"
 				local title = edit.title((view.board.metadata or {}).title or "Board")
 				local archived = (view.board.metadata or {}).archived and " [archived]" or ""
 				local errors = #view.board.diagnostics > 0 and " [diagnostics: g?]" or ""
@@ -184,6 +186,10 @@ local function column_buffer(view, state)
 	local buf = api.nvim_create_buf(true, false)
 	vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].swapfile = "acwrite", "hide", false
 	vim.bo[buf].filetype = "AeroBoard"
+	-- Syntax conceal follows native edits/undo without rebuilding identity extmarks.
+	api.nvim_buf_call(buf, function()
+		vim.cmd([[syntax match AeroTaskIdentity /^\S\+  / conceal]])
+	end)
 	api.nvim_buf_set_name(
 		buf,
 		"Aero://board/" .. vim.fn.sha256(view.path) .. "/" .. vim.fn.sha256(state.name):sub(1, 8)
@@ -199,6 +205,7 @@ local function column_buffer(view, state)
 		buffer = buf,
 		callback = function()
 			active[api.nvim_get_current_tabpage()] = view
+			decorate(view, buf)
 		end,
 	})
 	-- Debounce decoration only: no filesystem work or whole-board parsing while typing.
@@ -295,8 +302,21 @@ function M.render(view, discard, metadata_refresh)
 	decorate(view)
 end
 
+local function geometry(view)
+	local dimensions = { vim.o.columns, vim.o.lines }
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		for _, column in ipairs(view.columns) do
+			if api.nvim_win_get_buf(win) == column.buf then
+				vim.list_extend(dimensions, { win, api.nvim_win_get_width(win), api.nvim_win_get_height(win) })
+				break
+			end
+		end
+	end
+	return table.concat(dimensions, ":")
+end
+
 -- Only manipulate windows owned by this board in the current tab.
-layout = function(view, focus)
+layout = function(view, focus, resized)
 	if #view.columns == 0 then
 		notify("board has no states; edit its source")
 		return
@@ -313,9 +333,14 @@ layout = function(view, focus)
 		end
 	end
 	if #wins == 0 then
-		local win = require("aero.dashboard").code_window()
+		local win = api.nvim_get_current_win()
 		api.nvim_win_set_buf(win, view.columns[1].buf)
 		wins, width = { win }, api.nvim_win_get_width(win)
+	end
+	-- Dedicated board-only tabs own the full editor width, even before Neovim has
+	-- redistributed the existing splits following an external screen resize.
+	if #wins == #api.nvim_tabpage_list_wins(0) then
+		width = vim.o.columns
 	end
 	local count =
 		math.max(1, math.min(#view.columns, math.floor(width / math.max(12, config.options.tasks.column_width))))
@@ -336,9 +361,13 @@ layout = function(view, focus)
 	if target and #wins == count then
 		for _, win in ipairs(wins) do
 			vim.wo[win].wrap, vim.wo[win].number, vim.wo[win].relativenumber = false, false, false
+			if resized then
+				pcall(api.nvim_win_set_width, win, math.max(1, math.floor(width / count) - 1))
+			end
 		end
 		api.nvim_set_current_win(target)
 		decorate(view)
+		view.geometry = geometry(view)
 		return
 	end
 	local first = math.max(1, math.min(focus, #view.columns - count + 1))
@@ -363,6 +392,7 @@ layout = function(view, focus)
 	end
 	api.nvim_set_current_win(displayed[focus - first + 1])
 	decorate(view)
+	view.geometry = geometry(view)
 end
 
 local function open_file(view, path)
@@ -401,6 +431,7 @@ local function open_file(view, path)
 	api.nvim_win_call(win, function()
 		vim.cmd.edit(vim.fn.fnameescape(path))
 	end)
+	vim.wo[win].conceallevel, vim.wo[win].concealcursor = vim.o.conceallevel, vim.o.concealcursor
 	vim.b.aero_board_path, vim.b.aero_workspace_root = view.path, view.ws.root
 end
 
@@ -709,6 +740,16 @@ function M.actions(view)
 			if not clean(view) then
 				return
 			end
+			if view.tab and api.nvim_tabpage_is_valid(view.tab) then
+				api.nvim_set_current_tabpage(view.tab)
+				-- No force: modified ticket/source buffers retain normal tab-close protection.
+				vim.cmd.tabclose()
+				view.tab = nil
+				if view.origin_tab and api.nvim_tabpage_is_valid(view.origin_tab) then
+					api.nvim_set_current_tabpage(view.origin_tab)
+				end
+				return
+			end
 			local windows = {}
 			for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
 				for _, column in ipairs(view.columns) do
@@ -721,6 +762,7 @@ function M.actions(view)
 			if #windows > 0 then
 				api.nvim_set_current_win(windows[1])
 				vim.cmd.edit(vim.fn.fnameescape(view.path))
+				vim.wo.conceallevel, vim.wo.concealcursor = vim.o.conceallevel, vim.o.concealcursor
 				for i = 2, #windows do
 					api.nvim_win_close(windows[i], true)
 				end
@@ -774,6 +816,18 @@ function M.open(ws, path)
 		sessions[path] = nil
 		return
 	end
+	if #view.columns == 0 then
+		notify("board has no states; edit its source")
+		return
+	end
+	if view.tab and api.nvim_tabpage_is_valid(view.tab) then
+		api.nvim_set_current_tabpage(view.tab)
+	else
+		view.origin_tab = api.nvim_get_current_tabpage()
+		vim.cmd.tabnew()
+		view.tab = api.nvim_get_current_tabpage()
+		vim.t.aero_board_path = view.path
+	end
 	active[api.nvim_get_current_tabpage()] = view
 	layout(view, view.state_index)
 	return view
@@ -800,13 +854,43 @@ api.nvim_create_autocmd({ "BufWritePost", "FocusGained" }, {
 		end)
 	end,
 })
-api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+local resize_pending = false
+api.nvim_create_autocmd({ "VimResized", "WinResized", "TabEnter" }, {
 	group = group,
 	callback = function()
-		-- Window resizing never reads files or replaces draft lines.
-		for _, view in pairs(sessions) do
-			decorate(view)
+		if resize_pending then
+			return
 		end
+		resize_pending = true
+		vim.schedule(function()
+			resize_pending = false
+			local tab = api.nvim_get_current_tabpage()
+			for _, view in pairs(sessions) do
+				-- Reflow only the displayed board. TabEnter catches inactive-tab resizes.
+				if view.tab == tab and view.geometry ~= geometry(view) then
+					local focused = api.nvim_get_current_win()
+					local is_column, visible, valid = false, false, true
+					for _, column in ipairs(view.columns) do
+						valid = valid and api.nvim_buf_is_valid(column.buf)
+						for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+							if api.nvim_win_get_buf(win) == column.buf then
+								visible = true
+								if win == focused then
+									is_column = true
+								end
+							end
+						end
+					end
+					if visible and valid then
+						selected(view)
+						layout(view, view.state_index, true)
+						if not is_column and api.nvim_win_is_valid(focused) then
+							api.nvim_set_current_win(focused)
+						end
+					end
+				end
+			end
+		end)
 	end,
 })
 

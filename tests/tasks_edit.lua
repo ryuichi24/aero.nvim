@@ -16,7 +16,6 @@ require("aero").setup({
 	worktree_tabs = false,
 	tasks = { directory = "worktree", states = { "todo", "doing", "done" }, column_width = 20 },
 })
-vim.o.columns = 140
 local tasks, storage = require("aero.tasks"), require("aero.tasks.storage")
 local ws = { root = root }
 local board = assert(tasks.create_board(ws, "Editable"))
@@ -32,6 +31,15 @@ assert(storage.write(board.path, parsed.text, storage.text(lines, parsed.text)))
 local viewmod = require("aero.tasks.view")
 local view = assert(viewmod.open(ws, board.path))
 assert(#view.columns == 3)
+local syntax = api.nvim_buf_call(view.columns[1].buf, function()
+	return vim.fn.execute("syntax list AeroTaskIdentity")
+end)
+assert(syntax:find("conceal", 1, true), "ticket ID prefix was not concealed")
+assert(vim.wo.conceallevel == 2 and vim.wo.concealcursor == "nvic")
+assert(
+	api.nvim_buf_get_lines(view.columns[1].buf, 0, 1, false)[1]:find(first.metadata.id, 1, true),
+	"concealment removed the underlying identity"
+)
 for _, column in ipairs(view.columns) do
 	assert(vim.bo[column.buf].buftype == "acwrite" and vim.bo[column.buf].modifiable)
 	assert(vim.fn.maparg("d", "n", false, true).buffer ~= 1)
@@ -43,13 +51,17 @@ local function focus(index)
 	api.nvim_set_current_win(win)
 end
 local function keys(sequence)
-	vim.cmd.redraw()
-	api.nvim_feedkeys(api.nvim_replace_termcodes(sequence, true, false, true), "xt", false)
+	vim.cmd.normal({ args = { api.nvim_replace_termcodes(sequence, true, false, true) }, bang = true })
 end
 local baseline = storage.read(board.path)
 focus(1)
 api.nvim_win_set_cursor(0, { 1, 0 })
 keys("dd")
+viewmod.actions(view).close()
+assert(
+	api.nvim_tabpage_is_valid(view.tab) and api.nvim_get_current_tabpage() == view.tab,
+	"closing a dirty board discarded its tab"
+)
 assert(not viewmod.save(view), "missing ticket saved")
 assert(storage.read(board.path) == baseline)
 focus(2)
