@@ -94,6 +94,11 @@ function M.usage()
 	return ensure().usage()
 end
 
+--- Cancel the selected ACP agent's turn and discard queued prompts.
+function M.cancel()
+	return ensure().cancel()
+end
+
 --- Pick a worktree report and append its path to an agent's draft.
 function M.report()
 	return ensure().report()

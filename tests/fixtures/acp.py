@@ -3,6 +3,7 @@ import json
 import sys
 
 mode = sys.argv[1]
+pending_prompt = None
 
 
 def send(message):
@@ -42,6 +43,16 @@ for line in sys.stdin:
     elif method == "session/prompt":
         assert mode != "fail", "prompt was sent after a failed session/load"
         assert request["params"]["sessionId"] == "fixture-session"
+        if mode == "cancel":
+            text = request["params"]["prompt"][0]["text"]
+            assert text not in {"queued", "/cancel"}, "cancelled prompt reached agent"
+            if text == "hold":
+                pending_prompt = request["id"]
+                send({"id": "permission", "method": "session/request_permission", "params": {
+                    "toolCall": {"toolCallId": "held-tool", "title": "held tool"},
+                    "options": [{"optionId": "allow", "name": "Allow", "kind": "allow_once"}]
+                }})
+                continue
         if mode == "save":
             update("agent_thought_chunk", "old thought")
             for event in [
@@ -54,5 +65,13 @@ for line in sys.stdin:
                 send({"method": "session/update", "params": {"update": event}})
         update("agent_message_chunk", "old answer" if mode == "save" else "new answer")
         result = {"stopReason": "end_turn"}
+    elif method == "session/cancel":
+        assert mode == "cancel" and pending_prompt is not None
+        send({"id": pending_prompt, "result": {"stopReason": "cancelled"}})
+        pending_prompt = None
+        continue
+    elif request.get("id") == "permission":
+        assert request["result"]["outcome"]["outcome"] == "cancelled"
+        continue
     if "id" in request:
         send({"id": request["id"], "result": result})

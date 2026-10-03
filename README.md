@@ -184,6 +184,7 @@ require("aero").setup({
 | `:Aero panel`       | toggle the agent panel                                        |
 | `:Aero fullscreen`  | toggle fullscreen for the focused pane                        |
 | `:Aero prompt`      | jump to the panel session's prompt (or terminal)              |
+| `:Aero cancel`      | cancel the selected ACP agent's turn and discard queued prompts |
 | `:Aero usage`       | show reported token usage and fees for the selected agent     |
 | `:Aero report`      | pick or create a worktree report and attach it to an agent draft |
 | `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
@@ -229,6 +230,10 @@ while they produce output. Set `animation = false` for static icons.
 
 - `:Aero panel` hides and shows the panel. It remembers the last session shown in each tab.
 - `:Aero prompt` jumps into the prompt (or terminal) from anywhere, opening the panel if needed.
+- `:Aero cancel` stops the focused or dashboard-selected ACP agent, or the current tab's panel
+  session (even when hidden). You can also send `/cancel` from its prompt or press `<C-c>` in
+  its transcript or prompt. Cancellation discards queued prompts and pending permission requests;
+  the conversation stays open. Send a new prompt to continue once the agent acknowledges cancellation.
 - `e` in the dashboard and other file opens never land in the panel.
 - `<C-v>` / `<C-x>` / `<C-t>` still open a session in a split or tab of their own.
 

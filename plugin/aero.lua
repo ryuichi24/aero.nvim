@@ -34,6 +34,9 @@ local subcommands = {
 	prompt = function()
 		require("aero").prompt()
 	end,
+	cancel = function()
+		require("aero").cancel()
+	end,
 	usage = function()
 		require("aero").usage()
 	end,

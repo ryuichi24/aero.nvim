@@ -495,6 +495,32 @@ function M.report()
 	return reports.choose_session(path, s or panel.current_session(), item and item.ws)
 end
 
+--- Cancel the focused ACP session, dashboard selection, or this tab's panel session.
+function M.cancel()
+	local s = session.from_buf(0)
+	local key = vim.b.aero_chat_key
+	if not s and key then
+		for _, candidate in ipairs(session.all()) do
+			if candidate.key == key then
+				s = candidate
+				break
+			end
+		end
+	end
+	if not s and api.nvim_get_current_buf() == state.buf then
+		local item = current_item()
+		s = item and item.session
+	elseif not s then
+		s = panel.current_session()
+	end
+	if not s or not s.chat or not s.chat:alive() then
+		notify("select a running ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
+		return
+	end
+	s.chat:cancel()
+	return s
+end
+
 function M.resume(session_id)
 	if type(session_id) ~= "string" or vim.trim(session_id) == "" then
 		notify("use :Aero resume <session-id>", vim.log.levels.WARN)
