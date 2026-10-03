@@ -837,7 +837,8 @@ function actions.delete()
 		end
 	elseif item.kind == "session" then
 		local s = item.session
-		if s.job and vim.fn.confirm("Kill running session " .. s.name .. "?", "&Yes\n&No", 2) ~= 1 then
+		local prompt = (s.job and "Kill running session " or "Delete session ") .. s.name .. "?"
+		if vim.fn.confirm(prompt, "&Yes\n&No", 2) ~= 1 then
 			return
 		end
 		session.delete(s)
@@ -1064,7 +1065,7 @@ local descriptions = {
 	open_tab = "open session or report in tab",
 	add = "add: worktree / agent session / report (on Reports)",
 	add_workspace = "add workspace",
-	delete = "delete selected item: session / report (confirm) / worktree / workspace",
+	delete = "delete selected item: session (confirm) / report (confirm) / worktree / workspace",
 	stop = "stop session",
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",

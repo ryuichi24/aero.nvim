@@ -257,7 +257,18 @@ for i, line in ipairs(api.nvim_buf_get_lines(dashboard, 0, -1, false)) do
 		session_line = i
 	end
 end
+vim.fn.confirm = function(prompt, choices, default)
+	assert(prompt == "Delete session " .. disposable.name .. "?")
+	assert(choices == "&Yes\n&No" and default == 2)
+	return 2
+end
 action(assert(session_line, "missing disposable session row"), "d")
+assert(vim.tbl_contains(sessions.list(main), disposable), "cancelled deletion removed the session")
+vim.fn.confirm = function()
+	return 1
+end
+action(session_line, "d")
+vim.fn.confirm = old_confirm
 assert(not vim.tbl_contains(sessions.list(main), disposable), "d did not delete selected session")
 assert(vim.uv.fs_stat(first_report.path) and vim.uv.fs_stat(main_dir .. "/investigation.md"))
 assert(#reports.list(main, ws) == 2, "session deletion changed reports")
