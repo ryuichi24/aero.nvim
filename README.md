@@ -185,6 +185,7 @@ require("aero").setup({
 | `:Aero fullscreen`  | toggle fullscreen for the focused pane                        |
 | `:Aero prompt`      | jump to the panel session's prompt (or terminal)              |
 | `:Aero usage`       | show reported token usage and fees for the selected agent     |
+| `:Aero report`      | pick or create a worktree report and attach it to an agent draft |
 | `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
 | `:Aero term`        | toggle the worktree's shell below the code window             |
 | `:Aero refresh`     | re-read worktrees                                             |
@@ -379,7 +380,7 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero term<cr>", { desc = "Toggle worktre
 | `c` / `x` / `C` / `X`   | open claude / codex / claude-acp / codex-acp on the worktree, reusing its existing session if there is one |
 | `o` / `O`               | open opencode / opencode-acp on the worktree, reusing its existing session if there is one                 |
 | `A`                     | add workspace                                                                                              |
-| `d`                     | delete session / `git worktree remove` / forget workspace                                                  |
+| `d`                     | delete selected item: session / report (both with confirmation) / `git worktree remove` / forget workspace  |
 | `s` / `r`               | stop / restart (resume) session                                                                            |
 | `.` / `e`               | `:tcd` to worktree / restore its last code buffer                                                          |
 | `<C-LeftMouse>`          | open the clicked worktree in the code pane / restore its last code buffer                                 |
@@ -600,6 +601,112 @@ reported as unsupported.
 
 For terminal agents, use the agent CLI's own model command while in terminal-input mode.
 
+### Changing the session mode
+
+In an ACP prompt, enter **`/mode`** and send it with `:w` or `<C-s>` to choose a session
+mode, such as OpenCode's Build or Plan. The picker marks the current mode, which is also
+shown in the agent panel's title bar. Available modes and their behavior are defined by
+the agent.
+
+You can switch directly using a mode ID or an unambiguous display name:
+
+```text
+/mode
+/mode plan
+/mode build
+```
+
+Use `<C-x><C-o>` to complete `/mode` and the IDs after `/mode `. Aero handles the command
+locally, preserving the conversation. It prefers ACP session config options and falls back
+to `session/set_mode` for agents exposing legacy session modes. Mode metadata is refreshed
+on session load and agent updates, including automatic mode changes.
+
+While the agent is working, mode changes wait for the current turn and run before later
+queued prompts. Cancelling the picker or a rejected change leaves the current mode unchanged.
+Agents without mode selection over ACP are reported as unsupported. For terminal agents,
+use the agent CLI's own mode controls.
+
+### Reports
+
+Use **`:Aero report`** from an agent log/prompt, a worktree or session row in the sidebar,
+or the worktree's code pane. A floating menu lists that worktree's Markdown reports, with
+**`New +`** as the last item. Move with `j`/`k` or the arrow keys, press `<CR>` to select,
+and use `<Esc>` or `q` to cancel. If multiple agents are available without a selected
+session, Aero asks which one should receive the report.
+
+In ACP prompts, typing **`/report`** and pressing Enter opens the same picker. Sending
+`/report` with `:w` or `<C-s>` also works, and `<C-x><C-o>` completes the command.
+Enter in other drafts continues to insert a newline.
+
+Selecting a report appends its absolute path and a short instruction to read and update
+it to the agent's existing draft. `New +` asks for a filename, adds `.md` if needed,
+creates an empty file, and attaches it. Existing files are never overwritten when creating
+a report. You can add your task to the draft before sending it; selecting a report does
+not submit a prompt. Terminal agents receive the instruction as a bracketed paste.
+
+Customize the inserted text with `reports.prompt`. Every `{path}` placeholder is replaced
+with the JSON-quoted absolute report path; all other text is inserted literally. This applies
+to both ACP and terminal agents. The default preserves the instruction above.
+
+```lua
+require("aero").setup({
+  reports = {
+    prompt = "Report file: {path}\nRead the report and update it with a concise summary of your findings.",
+  },
+})
+```
+
+For a custom keymap:
+
+```lua
+vim.keymap.set("n", "<leader>ar", "<cmd>Aero report<cr>", { desc = "Attach Aero report" })
+vim.keymap.set("i", "<leader>ar", "<cmd>Aero report<cr>", { desc = "Attach Aero report" })
+```
+
+Reports also appear in an expandable **Reports** section beneath each worktree in the
+sidebar. `<CR>` opens a report in the code pane; `<C-v>`, `<C-x>`, and `<C-t>` open it in
+a split or tab. `New +` or `a` within the Reports section creates and opens an empty
+report. Press `d` on a report to delete its file after confirmation; press `d` on a session
+to delete that session independently after confirmation. Use `:Aero report` to attach a report to an agent. Refresh with `R` after external
+file changes; writing Markdown files and agent activity also refresh the list.
+
+#### Report storage
+
+The default is:
+
+```text
+stdpath("data")/Aero/workspaces/<workspace>/<worktree>/reports/*.md
+```
+
+Workspace and worktree folder names use their directory basenames with short path hashes,
+so repositories or worktrees with identical names keep separate reports. Reports are
+discovered from the filesystem and remain available across Neovim restarts.
+
+Set `reports.directory` to choose where reports are stored:
+
+```lua
+-- Default: Aero's data directory, scoped by workspace and worktree.
+require("aero").setup({ reports = { directory = "data" } })
+
+-- Store directly in <target worktree>/.aero/reports/*.md.
+require("aero").setup({ reports = { directory = "worktree" } })
+
+-- A custom absolute root retains the <workspace>/<worktree>/reports hierarchy.
+require("aero").setup({ reports = { directory = "~/Documents/Aero-reports" } })
+
+-- A relative directory is used directly inside each target worktree.
+require("aero").setup({ reports = { directory = ".notes/reports" } })
+
+-- A function returns an exact directory (relative paths resolve inside the worktree).
+require("aero").setup({
+  reports = {
+    directory = function(worktree, workspace_root)
+      return vim.fs.joinpath(worktree, ".aero", "reports")
+    end,
+  },
+})
+```
+
 ### Permission requests
 
 Permission requests are listed in the transcript, with their options numbered:
@@ -756,6 +863,7 @@ subscribe to all events. A setup entry may be a function or a list of functions;
 | `session_ready`                        | ACP only: session metadata plus `session_id`, `type`, `resumed`; after initializing/loading. `resumed` reports actual success.      |
 | `session_resume_failed`                | ACP only: session metadata plus `session_id`, `type`, and the adapter's full `error` object; saved conversation retained for retry. |
 | `session_model_changed`                | ACP only: session metadata plus `session_id`, `model_id`, `model_name`, and `previous_model_id`; confirmed model changes. |
+| `session_mode_changed`                 | ACP only: session metadata plus `session_id`, `mode_id`, `mode_name`, and `previous_mode_id`; confirmed mode changes. |
 | `session_shown`                        | Session metadata plus `win`; after showing or reusing its window.                                                                   |
 | `session_stopped`                      | Session metadata; after requesting that a running backend stop.                                                                     |
 | `session_exited`                       | Session metadata plus `exit_code`, `type`; after the current backend exits.                                                         |
@@ -817,6 +925,10 @@ require("aero").setup({
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {},            -- lifecycle event -> function or list of functions; see above
   acp = { max_tool_lines = 20, prompt_height = 8, decorations = true, show_usage = true },
+  reports = {
+    directory = "data", -- "worktree", a custom path, or a directory function
+    prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
+  },
   keymaps = { --[[ see lua/aero/config.lua; set any to false ]] },
 })
 ```
