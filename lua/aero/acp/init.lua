@@ -7,6 +7,7 @@ local spinner = require("aero.spinner")
 local history = require("aero.history")
 local events = require("aero.events")
 local models = require("aero.acp.models")
+local modes = require("aero.acp.modes")
 local renderer = require("aero.acp.render")
 local usage = require("aero.acp.usage")
 
@@ -113,6 +114,17 @@ function Chat:model_title()
 	return name and one_line(name) or nil
 end
 
+function Chat:mode_title()
+	local _, name = modes.current(self)
+	return name and one_line(name) or nil
+end
+
+function Chat:accept_settings(response)
+	local previous_mode = modes.current(self)
+	models.accept(self, response)
+	modes.accept(self, response, previous_mode)
+end
+
 local function truncate(text, max)
 	return vim.fn.strchars(text) > max and vim.fn.strcharpart(text, 0, max - 1) .. "…" or text
 end
@@ -124,6 +136,8 @@ function Chat:activity()
 		return "starting…"
 	elseif self.model_pending then
 		return self.model_pending
+	elseif self.mode_pending then
+		return self.mode_pending
 	elseif not self.busy then
 		return nil
 	end
@@ -439,12 +453,13 @@ function Chat:on_update(u)
 	elseif kind == "available_commands_update" then
 		self.commands = u.availableCommands
 	elseif kind == "current_mode_update" then
-		self.mode = u.currentModeId
+		self:accept_settings(u)
+		return self:changed()
 	elseif kind == "config_option_update" then
-		models.accept(self, u)
+		self:accept_settings(u)
 		return self:changed()
 	elseif kind == "current_model_update" then
-		models.accept(self, u)
+		self:accept_settings(u)
 		return self:changed()
 	elseif kind == "usage_update" then
 		usage.update(self, u)
@@ -598,7 +613,7 @@ function Chat:status()
 		return "exited"
 	elseif self.permission then
 		return "waiting"
-	elseif self.busy or self.model_pending or self.state == "starting" then
+	elseif self.busy or self.model_pending or self.mode_pending or self.state == "starting" then
 		return "busy"
 	end
 	return "idle"
@@ -612,7 +627,7 @@ function Chat:ready(session_id, response)
 	self.session_id = session_id
 	self.state = "ready"
 	store.set_session_field(self.s.worktree, self.s.name, "acp_session_id", session_id)
-	models.accept(self, response)
+	self:accept_settings(response)
 	self:changed()
 	events.emit(
 		"session_ready",
@@ -728,11 +743,11 @@ function Chat:prompt(text)
 	end
 	-- queued prompts are shown at the end of the transcript and only become blocks once sent,
 	-- so a resumed session's replayed history (or a failed resume) can't bury or drop them
-	if self.state ~= "ready" or self.busy or self.model_pending then
+	if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
 		table.insert(self.queue, text)
 		return self:changed()
 	end
-	if models.handle(self, text) then
+	if models.handle(self, text) or modes.handle(self, text) then
 		return
 	end
 	table.insert(self.blocks, { kind = "user", text = text })
@@ -1006,6 +1021,7 @@ function M.start(s, buf, agent, resume, session_id)
 		on_exit = function(code, stderr)
 			chat.state, chat.busy, chat.permission = "exited", false, nil
 			chat.model_pending = nil
+			chat.mode_pending = nil
 			chat:set_option_keys(false)
 			chat.exit_code = code
 			local msg = ("agent exited (%d)"):format(code)
@@ -1056,17 +1072,18 @@ end
 function M.omnifunc(findstart, base)
 	local chat = chats_by_key[vim.b.aero_chat_key or ""]
 	local line = api.nvim_get_current_line():sub(1, api.nvim_win_get_cursor(0)[2])
-	local model_prefix = line:match("^(%s*/model%s+)")
+	local prefix = line:match("^(%s*/model%s+)") or line:match("^(%s*/mode%s+)")
+	local selector = prefix and (prefix:match("/model%s") and models or modes)
 	if findstart == 1 then
-		if model_prefix then
-			return #model_prefix
+		if prefix then
+			return #prefix
 		end
 		local start = line:find("/[%w%-_]*$")
 		return start and start - 1 or -3
 	end
 	local out = {}
-	if model_prefix then
-		for _, choice in ipairs(models.options(chat).choices) do
+	if prefix then
+		for _, choice in ipairs(selector.options(chat).choices) do
 			if choice.id:sub(1, #base) == base then
 				table.insert(
 					out,
@@ -1079,9 +1096,12 @@ function M.omnifunc(findstart, base)
 	if ("/model"):sub(1, #base) == base then
 		table.insert(out, { word = "/model", menu = "Choose the session's AI model" })
 	end
+	if ("/mode"):sub(1, #base) == base then
+		table.insert(out, { word = "/mode", menu = "Choose the session mode" })
+	end
 	for _, c in ipairs(chat and chat.commands or {}) do
 		local word = "/" .. c.name
-		if word ~= "/model" and word:find(base, 1, true) == 1 then
+		if word ~= "/model" and word ~= "/mode" and word:find(base, 1, true) == 1 then
 			table.insert(out, { word = word, menu = c.description })
 		end
 	end
@@ -1092,7 +1112,10 @@ end
 spinner.on_frame(function()
 	local any = false
 	for _, chat in pairs(chats_by_key) do
-		if (chat.busy or chat.model_pending or chat.state == "starting") and api.nvim_buf_is_valid(chat.buf) then
+		if
+			(chat.busy or chat.model_pending or chat.mode_pending or chat.state == "starting")
+			and api.nvim_buf_is_valid(chat.buf)
+		then
 			any = true
 			if vim.fn.bufwinid(chat.buf) ~= -1 then
 				chat:render()

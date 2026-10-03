@@ -53,6 +53,10 @@ local function winbar(win)
 	if model then
 		where = where .. " · " .. model
 	end
+	local mode = s.chat and s.chat:mode_title()
+	if mode then
+		where = where .. " · " .. mode
+	end
 	local bar = (" %%#AeroSession#%s%%* %%#AeroDim#· %s%%*  %%#%s#%s %s%%*"):format(
 		(s.name:gsub("%%", "%%%%")),
 		(where:gsub("%%", "%%%%")),

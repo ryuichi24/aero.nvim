@@ -291,8 +291,8 @@ function M.build(chat)
 		body(usage.lines(chat), "AeroChatMeta")
 		finish("AeroChatMeta")
 	end
-	if chat.model_pending then
-		push(spinner.frame() .. " " .. chat.model_pending .. "…", "AeroChatPending", "body")
+	if chat.model_pending or chat.mode_pending then
+		push(spinner.frame() .. " " .. (chat.model_pending or chat.mode_pending) .. "…", "AeroChatPending", "body")
 	elseif chat.busy then
 		local icon = chat.permission and config.options.icons.waiting or spinner.frame()
 		push(icon .. " " .. chat:activity() .. " (<C-c> to cancel)", "AeroChatPending", "body")

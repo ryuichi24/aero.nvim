@@ -95,7 +95,7 @@ for _, mode in ipairs(modes) do
 		api.nvim_buf_set_lines(prompt, 0, -1, false, { "/m" })
 		api.nvim_win_set_cursor(0, { 1, 2 })
 		local complete = require("aero.acp").omnifunc(0, "/m")
-		assert(#complete == 1 and complete[1].word == "/model")
+		assert(#complete == 2 and complete[1].word == "/model" and complete[2].word == "/mode")
 		local prefix = legacy and "legacy/" or "provider/"
 		api.nvim_buf_set_lines(prompt, 0, -1, false, { "/model " .. prefix })
 		api.nvim_win_set_cursor(0, { 1, #("/model " .. prefix) })
