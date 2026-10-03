@@ -39,6 +39,7 @@ Requires Neovim 0.11+ and git.
 - Persistent ACP transcripts, terminal-agent scrollback, and each worktree's last code buffer and cursor.
 - Lifecycle hooks for integrations such as opening new worktrees in Oil.
 - ACP conversation recovery by saved session ID.
+- Workspace Kanban boards and tickets stored in ordinary Markdown, shared across worktrees.
 
 ### Contents
 
@@ -52,6 +53,7 @@ Requires Neovim 0.11+ and git.
 - [Quoting code and agent logs](#quoting-code-and-agent-logs)
 - [ACP chat buffers](#acp-chat-buffers)
 - [Persistence and recovery](#persistence-and-recovery)
+- [Kanban task management](#kanban-task-management)
 - [Lifecycle events and Oil](#lifecycle-events)
 - [Configuration](#configuration)
 
@@ -187,6 +189,10 @@ require("aero").setup({
 | `:Aero cancel`      | cancel the selected ACP agent's turn and discard queued prompts |
 | `:Aero usage`       | show reported token usage and fees for the selected agent     |
 | `:Aero report`      | pick or create a worktree report and attach it to an agent draft |
+| `:Aero board`       | pick/open a board in the current workspace                    |
+| `:Aero board new`   | create a workspace board                                      |
+| `:Aero ticket new`  | create a ticket in the selected state of the active board     |
+| `:Aero ticket move` | move the selected ticket to any state of the active board     |
 | `:'<,'>Aero quote`  | quote the selected lines into an agent's draft               |
 | `:Aero term`        | toggle the worktree's shell below the code window             |
 | `:Aero refresh`     | re-read worktrees                                             |
@@ -387,7 +393,7 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero term<cr>", { desc = "Toggle worktre
 | `A`                     | add workspace                                                                                              |
 | `d`                     | delete selected item: session / report (both with confirmation) / `git worktree remove` / forget workspace  |
 | `s` / `r`               | stop / restart (resume) session                                                                            |
-| `N`                     | rename selected agent session or report                                                                    |
+| `N`                     | rename selected agent session, report, or board                                                             |
 | `.` / `e`               | `:tcd` to worktree / restore its last code buffer                                                          |
 | `<C-LeftMouse>`          | open the clicked worktree in the code pane / restore its last code buffer                                 |
 | `<C-CR>`                | open the selected worktree in the code pane / restore its last code buffer                                |
@@ -810,6 +816,248 @@ conversation for the worktree and reconnect with `:Aero resume <session-id>`. Re
 missing ID with `r` cannot recreate its rollout, and the visible Aero log alone is not the
 agent's resumable conversation state.
 
+## Kanban task management
+
+Every workspace has a **Boards** section in the sidebar, independent of its worktrees
+and agent sessions. Press `<CR>` on a board to open its Kanban view in the code pane;
+`e` opens the source Markdown. `a` on a board/Boards row or `<CR>` on its **New +** row
+creates a board. `N` renames a board without changing its folder. `d` explicitly confirms
+permanent deletion of the entire board folder **including its tickets**.
+
+### YAML dependency
+
+Task management uses **[Mike Farah's Go-based `yq` v4](https://github.com/mikefarah/yq)**
+(MIT license) for YAML parsing and round-trip editing. No Python runtime or helper is needed.
+Duplicate keys and unsupported YAML tags are rejected, and metadata types and dates are
+validated before writes. Use this Go implementation; the Python-based `yq` package and
+older `yq` versions are not compatible.
+
+Install it with Homebrew, or use a binary from the project's releases:
+
+```sh
+brew install yq
+yq --version
+```
+
+```lua
+require("aero").setup({
+  tasks = {
+    yq = "yq", -- or an absolute path to Mike Farah's yq v4 executable
+    directory = "data",
+    states = { "backlog", "todo", "in progress", "review", "test", "done" },
+    terminal_states = { "done" },
+    estimate_unit = "points",
+  },
+})
+```
+
+The executable defaults to `yq` (or `AERO_TASKS_YQ` when set).
+`:checkhealth aero` checks the implementation and version. Configured state lists are replaced
+wholesale and apply to new boards; existing boards derive their states from their files.
+`terminal_states` names suppress overdue indicators. A due date before the current UTC
+date is overdue unless the ticket is in one of these states. Estimates use the configured
+workspace-wide unit, **points** by default.
+
+### Board view and keys
+
+Each state is a separate **editable buffer**, displayed in a column window. Each ticket
+occupies one physical line (`ticket-id  title`); metadata is shown as virtual text.
+Column headers show the board, state, counts, and archive/stale status; `g?` shows the
+board summary, tags, mappings, and source diagnostics. IDs and titles are retained in full:
+use normal horizontal scrolling when a column is narrow.
+
+**Move tickets like editing files in Oil:** `dd` cuts a row, `<C-w>h` / `<C-w>l` changes
+column, and `p` / `P` pastes. Visual cut/paste moves multiple tickets. **`:w` in any column
+saves all columns together**, including hidden ones, in one board Markdown update.
+Ticket files are not moved or changed. `m` and reorder shortcuts also stage changes until `:w`.
+
+Missing, duplicate, unknown, or edited ticket rows reject the whole save and retain your draft.
+Do not edit IDs or titles here; use `N` to rename. Cutting without pasting is not deletion;
+use `gd` / `gD` for explicit removal. These actions, ticket creation, and metadata/state edits
+require a clean draft first.
+
+Undo/redo is **column-local**: a cross-column move edits two buffers, so undo in only one
+may temporarily leave a missing or duplicate ticket. After a save, undo produces a new draft;
+persist the reversed placement with another `:w`. External source changes never replace a
+modified draft; stale saves fail. Use `e` to compare source or `R` to explicitly discard all
+pending column edits and reload.
+
+`tasks.column_width` (default `32`) controls how many columns are displayed when opening
+or navigating the board. `[s` / `]s` reveal off-screen states while retaining their buffers.
+Closing a column window keeps its edits; a wiped state buffer blocks saving until reloaded.
+Tabs opening the same board share the editing session. Resizing never replaces draft lines.
+
+| Key | Action |
+| --- | --- |
+| `[s` / `]s` | previous / next state, including hidden columns |
+| `h` / `j` / `k` / `l`, `dd`, `p`, `u`, `<C-r>` | ordinary Vim editing and column-local undo/redo |
+| `<CR>` | open the selected ticket as ordinary Markdown in the code pane |
+| `e` | edit the source board Markdown |
+| `ga` | create a ticket in the selected state |
+| `m` | stage movement to a chosen state; save with `:w` |
+| `gK` / `gJ` | stage movement earlier / later within its state |
+| `N` | rename the selected ticket, or the board on an empty row |
+| `gi` | edit ticket/board metadata; values are entered as JSON |
+| `gs` | add, rename, reorder, or remove a state; populated states require a destination |
+| `gd` | remove a ticket reference, keeping its file for recovery |
+| `gD` | explicitly confirm permanent deletion of the selected ticket file |
+| `go` | recover an orphan ticket into a chosen state of its owning board |
+| `gA` | archive/unarchive the board (all files are kept) |
+| `R` | reload the view; asks before discarding edits across all columns |
+| `q` | leave the view for the source board |
+| `g?` | list mappings |
+
+Override mappings through `tasks.keymaps`; set entries to `false` to disable them.
+Clean views refresh on writes and focus; dirty sessions retain their lines. Cursor movement
+does not read files. Typing updates cached metadata decorations with a short debounce;
+resizing updates decorations without rereading Markdown.
+
+### Storage and format
+
+The default layout is:
+
+```text
+stdpath("data")/Aero/workspaces/<workspace-name-hash>/tasks/
+  <board-title>-board-<stable-id>/
+    board.md
+    tickets/
+      task-<stable-id>.md
+```
+
+All worktrees of a repository share this directory. Each board owns a separate ticket
+folder; cross-board transfers and links are rejected. Directory resolution and discovery
+do not create files. `tasks.directory` supports:
+
+- `"data"`: the default layout above.
+- `"worktree"`: `<workspace.root>/.aero/tasks` **in the main checkout**.
+- An absolute custom root: `<custom-root>/<workspace-name-hash>/tasks`.
+- A relative path: an exact path relative to the workspace root.
+- `function(workspace_root)`: an exact directory, with relative results resolved against that root.
+
+Existing report paths and `state.json` retain their formats. No migration is required,
+and no task metadata is written to `state.json`. Changing the task directory selects a
+different storage location; move whole board folders yourself to migrate existing boards.
+Removing a workspace registration keeps its task files.
+
+Example `board.md`:
+
+```markdown
+---
+aero_type: board
+schema_version: 1
+id: board-example
+title: "Product"
+description: "Release work"
+tags: ["release"]
+archived: false
+---
+
+# Product
+
+Notes and comments remain ordinary Markdown.
+
+## todo
+
+- [Fix startup](tickets/task-example.md)
+
+## done
+```
+
+Example `tickets/task-example.md`:
+
+```markdown
+---
+aero_type: ticket
+schema_version: 1
+id: task-example
+title: "Fix startup"
+priority: high
+assignees: ["ryu"]
+tags: ["performance"]
+due_date: "2026-10-15"
+estimate: 3
+---
+
+# Fix startup
+
+## Description
+
+Investigate startup latency.
+
+## Acceptance criteria
+
+- [ ] Startup stays below the agreed budget.
+```
+
+Both document types require `aero_type`, `schema_version: 1`, a stable nonempty `id`,
+and a nonempty single-line `title`. Optional `created_at` and `updated_at` use quoted
+UTC timestamps (`YYYY-MM-DDTHH:MM:SSZ`); Aero fills them on creation and updates
+`updated_at` on changes. `tags` and `assignees` are string lists; priority is
+`low`, `normal`, `high`, or `urgent`; estimates are finite nonnegative numbers.
+Unknown frontmatter keys are retained. Invalid types, dates, duplicate keys, and unsupported
+versions are diagnosed. Aero does not write through invalid document metadata.
+
+Frontmatter titles are authoritative. Renaming updates a matching body title heading and
+ticket link label; folder names and ticket filenames stay stable. Level-two headings outside
+fenced code blocks define states; heading order, containing section, and link order define
+state order, status, and ticket order. Ticket status is not duplicated in frontmatter.
+References resolve only inside the owning board's direct `tickets/` directory. Generated
+labels escape Markdown brackets/backslashes; destinations are percent-encoded for spaces
+and punctuation. Symlinked board folders and ticket aliases are rejected.
+
+Edit these Markdown files directly, including descriptions, acceptance criteria, and custom
+frontmatter. `yq` performs YAML round-trip edits to frontmatter while Markdown body edits
+remain targeted. Unknown fields, comments, anchors/aliases, and block/flow styles are retained;
+frontmatter whitespace and indentation may normalize, and edited metadata values may change
+style to JSON-compatible YAML. Comments removed with replaced collection elements are kept
+as standalone frontmatter comments. User metadata is passed as data to fixed `yq` expressions,
+and the edited frontmatter is revalidated before any write; edits that would break alias
+dependencies are refused. Both block and flow-style top-level mappings are supported.
+
+### Persistence and conflicts
+
+Mutations take an exclusive workspace lock at `<task-directory>/.aero-tasks.lock`, storing
+host, PID, creation time, and a unique ownership token. Live owners are never displaced.
+A same-host lock whose PID no longer exists is recovered automatically. Remote-owner,
+unreadable, or ambiguous locks require manual removal after verifying the owner is gone.
+
+Aero re-reads sources under the lock, rejects modified Neovim buffers, compares the original
+content before committing, and writes through an exclusively created same-directory temporary
+file followed by atomic rename. Unmodified open buffers are refreshed. External editors do
+not honor Aero locks: detected conflicts stop the update and require refresh/retry; there is
+still a small filesystem race between the final comparison and replacement.
+
+Markdown provides no multi-file transaction. Creating a ticket writes its file before its
+board reference; if the board update fails, the ticket remains an orphan recoverable with `o`.
+Renaming a ticket writes its metadata before updating the board label; a failed label update
+is reported, and the UI continues to use the frontmatter title. Permanent deletion removes
+the reference first; a failure leaves the file as an orphan. No automatic cleanup removes
+user-authored task files.
+
+### Lua APIs
+
+UI APIs are `require("aero").board(action, workspace)`, `.ticket(action)`, and
+`.open_board(workspace, board_path)`. Workspace context comes from the sidebar selection,
+current task buffer, active repository/worktree, or active board; ambiguous registered
+workspaces prompt for a choice. A workspace argument is `{ root = "/path/to/main-checkout" }`.
+
+The headless service is `require("aero.tasks")`; operations return a model/`true` or `nil, error`:
+
+```lua
+local tasks = require("aero.tasks")
+local ws = { root = "/path/to/repository" }
+local board = assert(tasks.create_board(ws, "Product", { tags = { "release" } }))
+local ticket = assert(tasks.create_ticket(ws, board.path, "todo", "Fix startup", { priority = "high" }))
+assert(tasks.move_ticket(ws, board.path, ticket.path, "review", 1))
+assert(tasks.reorder_ticket(ws, board.path, ticket.path, 1))
+assert(tasks.update_metadata(ws, board.path, ticket.path, { estimate = 3 }))
+```
+
+Other operations: `directory`, `list`, `read_board`, `read_ticket`, `rename_board`,
+`rename_ticket`, `add_state`, `rename_state`, `reorder_state`, `remove_state`,
+`remove_ticket` (fourth argument `true` permanently deletes), `archive_board`, and
+`delete_board`. `move_ticket` also recovers an orphan belonging to the same board.
+
 ## Lifecycle events
 
 Register lifecycle handlers in `setup()`. For example, open a newly created worktree in
@@ -934,6 +1182,15 @@ require("aero").setup({
   reports = {
     directory = "data", -- "worktree", a custom path, or a directory function
     prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
+  },
+  tasks = {
+    directory = "data", -- workspace-scoped; "worktree" uses the main checkout
+    yq = "yq", -- Mike Farah's Go-based yq v4 executable
+    states = { "backlog", "todo", "in progress", "review", "test", "done" },
+    terminal_states = { "done" },
+    estimate_unit = "points",
+    -- column_width = 32,
+    -- keymaps = { move = "m", new = "ga", states = "gs", ... },
   },
   icons = {
     expanded = "▾",
