@@ -43,6 +43,12 @@ local subcommands = {
 	report = function()
 		require("aero").report()
 	end,
+	board = function(args)
+		require("aero").board(args[1])
+	end,
+	ticket = function(args)
+		require("aero").ticket(args[1])
+	end,
 	quote = function(_, opts)
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
 	end,
@@ -68,6 +74,12 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if #words >= 2 and (words[2] == "board" or words[2] == "ticket") and (#words > 2 or cmdline:match("%s$")) then
+			local choices = words[2] == "board" and { "new" } or { "new", "move" }
+			return vim.tbl_filter(function(s)
+				return vim.startswith(s, arglead)
+			end, choices)
+		end
 		if #words >= 2 and words[2] == "add" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.fn.getcompletion(arglead, "dir")
 		end

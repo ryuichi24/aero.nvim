@@ -36,6 +36,36 @@ M.defaults = {
 		-- Text appended to agent drafts; {path} becomes the JSON-quoted absolute report path.
 		prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
 	},
+	tasks = {
+		directory = "data", -- workspace scoped; "worktree" means the main checkout
+		states = { "backlog", "todo", "in progress", "review", "test", "done" },
+		terminal_states = { "done" }, -- overdue excludes these states
+		estimate_unit = "points",
+		column_width = 32, -- minimum width; hidden states remain editable through [s / ]s
+		yq = vim.env.AERO_TASKS_YQ or "yq", -- Mike Farah's Go-based yq v4
+		keymaps = {
+			open = "<CR>",
+			source = "e",
+			new = "ga",
+			move = "m",
+			rename = "N",
+			remove = "gd",
+			delete = "gD",
+			metadata = "gi",
+			states = "gs",
+			refresh = "R",
+			previous = "[s",
+			next = "]s",
+			up = false,
+			down = false,
+			earlier = "gK",
+			later = "gJ",
+			recover = "go",
+			archive = "gA",
+			close = "q",
+			help = "g?",
+		},
+	},
 	-- where `a` on a workspace creates new worktrees: <repo>/../<repo>.worktrees/<branch>
 	worktree_path = function(ws, branch)
 		local parent = vim.fs.dirname(ws.root)
@@ -125,6 +155,11 @@ function M.setup(opts)
 	local agents = opts.agents
 	opts.agents = nil
 	M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
+	for _, field in ipairs({ "states", "terminal_states" }) do
+		if opts.tasks and opts.tasks[field] ~= nil then
+			M.options.tasks[field] = vim.deepcopy(opts.tasks[field])
+		end
+	end
 	-- agent definitions are replaced wholesale so list-valued commands never get merged index-by-index
 	for name, agent in pairs(agents or {}) do
 		M.options.agents[name] = agent or nil

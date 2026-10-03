@@ -22,6 +22,7 @@ local state = {
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
 	reports_expanded = {}, -- worktree path -> report section expanded
+	boards_expanded = {}, -- workspace root -> board section expanded
 	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
 	pulling = {}, -- worktree path -> in-flight pull
 }
@@ -221,6 +222,38 @@ local function build()
 					end
 				end
 			end
+			local boards, board_errors = require("aero.tasks").list(ws)
+			local bopen = state.boards_expanded[ws.root] ~= false
+			add(
+				{ { "   " .. (bopen and icons.expanded or icons.collapsed) .. " " }, { "Boards", "AeroWorkspace" } },
+				{ kind = "boards", id = "boards:" .. ws.root, ws = ws },
+				{ { " " .. #boards, "AeroDim" } }
+			)
+			if bopen then
+				for _, board in ipairs(boards) do
+					local data = board.metadata or {}
+					local label = tostring(data.title or vim.fs.basename(vim.fs.dirname(board.path))):gsub("[%c]", " ")
+					local summary_text = " " .. board.count .. " tickets" .. (data.archived and " · archived" or "")
+					if type(data.description) == "string" then
+						summary_text = summary_text .. " · " .. data.description:gsub("[%c]", " ")
+					end
+					if type(data.tags) == "table" then
+						summary_text = summary_text .. " · " .. table.concat(vim.tbl_map(tostring, data.tags), ", ")
+					end
+					if #board.diagnostics > 0 then
+						summary_text = summary_text .. " · ! " .. #board.diagnostics
+					end
+					add(
+						{ { "     " }, { label, "AeroSession" } },
+						{ kind = "board", id = "board:" .. board.path, ws = ws, board = board },
+						{ { summary_text, "AeroDim" } }
+					)
+				end
+				for _, err in ipairs(board_errors) do
+					add({ { "     ! " .. tostring(err):gsub("[%c]", " "), "AeroExited" } })
+				end
+				add({ { "     New +", "AeroDim" } }, { kind = "board_new", id = "board-new:" .. ws.root, ws = ws })
+			end
 		end
 	end
 	return lines, items, marks
@@ -341,7 +374,9 @@ local function target_win()
 	-- only the dashboard (and maybe the panel) are open: add a window between them
 	local side = config.options.dashboard.position == "right" and "left" or "right"
 	local w = api.nvim_open_win(api.nvim_create_buf(false, true), false, { split = side, win = state.win })
-	api.nvim_win_set_width(state.win, require("aero.layout").dashboard_width())
+	if state.win and api.nvim_win_is_valid(state.win) then
+		api.nvim_win_set_width(state.win, require("aero.layout").dashboard_width())
+	end
 	local pw = panel.win()
 	if pw then
 		api.nvim_win_set_width(pw, require("aero.layout").panel_width())
@@ -468,8 +503,35 @@ api.nvim_create_autocmd("FocusGained", {
 -- Actions
 ---------------------------------------------------------------------------
 
+-- Source boards can be edited directly without opening their derived view.
+api.nvim_create_autocmd("BufWritePost", {
+	group = "Aero.dashboard",
+	pattern = "*.md",
+	callback = function(event)
+		if not state.buf or not api.nvim_buf_is_valid(state.buf) or vim.fn.bufwinid(state.buf) == -1 then
+			return
+		end
+		for _, ws in ipairs(store.data.workspaces) do
+			local directory = require("aero.tasks").directory(ws)
+			if directory and require("aero.storage").inside(event.file, directory) then
+				vim.schedule(M.render)
+				return
+			end
+		end
+	end,
+})
+
 local function current_item()
 	return state.items[api.nvim_win_get_cursor(0)[1]]
+end
+
+function M.selected_workspace()
+	local item = api.nvim_get_current_buf() == state.buf and current_item()
+	return item and item.ws or nil
+end
+
+function M.code_window()
+	return target_win() or api.nvim_get_current_win()
 end
 
 --- Attach a report to the focused session, dashboard selection, or this worktree's agent.
@@ -748,7 +810,11 @@ function actions.open(how)
 	if not item then
 		return
 	end
-	if item.kind == "session" then
+	if item.kind == "board" then
+		require("aero.tasks.view").open(item.ws, item.board.path)
+	elseif item.kind == "board_new" then
+		require("aero.tasks.ui").new_board(item.ws)
+	elseif item.kind == "session" then
 		open_session(item.session, how or "default")
 	elseif item.kind == "report" then
 		open_report(item, how)
@@ -770,6 +836,8 @@ function actions.toggle()
 		state.expanded[item.wt.path] = not wt_expanded(item.wt, session.list(item.wt.path))
 	elseif item.kind == "reports" then
 		state.reports_expanded[item.wt.path] = state.reports_expanded[item.wt.path] == false
+	elseif item.kind == "boards" then
+		state.boards_expanded[item.ws.root] = state.boards_expanded[item.ws.root] == false
 	end
 	M.render()
 end
@@ -779,7 +847,13 @@ function actions.expand()
 	if not item then
 		return
 	end
-	if item.kind == "session" or item.kind == "report" or item.kind == "report_new" then
+	if
+		item.kind == "session"
+		or item.kind == "report"
+		or item.kind == "report_new"
+		or item.kind == "board"
+		or item.kind == "board_new"
+	then
 		return actions.open("default")
 	end
 	local expanded
@@ -787,6 +861,8 @@ function actions.expand()
 		expanded = item.ws.expanded ~= false
 	elseif item.kind == "reports" then
 		expanded = state.reports_expanded[item.wt.path] ~= false
+	elseif item.kind == "boards" then
+		expanded = state.boards_expanded[item.ws.root] ~= false
 	else
 		expanded = wt_expanded(item.wt, session.list(item.wt.path))
 	end
@@ -807,15 +883,17 @@ function actions.collapse()
 		return
 	end
 	local lnum = api.nvim_win_get_cursor(0)[1]
-	local is_header = item.id:match("^ws:") or item.id:match("^wt:") or item.kind == "reports"
+	local is_header = item.id:match("^ws:") or item.id:match("^wt:") or item.kind == "reports" or item.kind == "boards"
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
 		or item.kind == "reports" and state.reports_expanded[item.wt.path] ~= false
+		or item.kind == "boards" and state.boards_expanded[item.ws.root] ~= false
 	if is_header and open then
 		return actions.toggle()
 	end
 	-- jump to the parent line
-	local parent = (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
+	local parent = (item.kind == "board" or item.kind == "board_new") and "boards:" .. item.ws.root
+		or (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
 		or (item.kind == "session" or item.kind == "reports") and "wt:" .. item.wt.path
 		or "ws:" .. item.ws.root
 	if item.id == parent then
@@ -834,7 +912,9 @@ function actions.add()
 	if not item then
 		return M.add_workspace()
 	end
-	if item.kind == "workspace" then
+	if item.kind == "boards" or item.kind == "board" or item.kind == "board_new" then
+		require("aero.tasks.ui").new_board(item.ws)
+	elseif item.kind == "workspace" then
 		add_worktree(item.ws)
 	elseif item.kind == "reports" or item.kind == "report" or item.kind == "report_new" then
 		new_report(item)
@@ -852,7 +932,21 @@ function actions.rename()
 	if not item then
 		return
 	end
-	if item.kind == "report" then
+	if item.kind == "board" then
+		vim.ui.input(
+			{ prompt = "Rename board: ", default = item.board.metadata and item.board.metadata.title },
+			function(name)
+				if not name or vim.trim(name) == "" then
+					return
+				end
+				local ok, err = require("aero.tasks").rename_board(item.ws, item.board.path, vim.trim(name))
+				if not ok then
+					notify(err, vim.log.levels.WARN)
+				end
+				M.render()
+			end
+		)
+	elseif item.kind == "report" then
 		reports.rename(item.report, function(report)
 			item.id = "report:" .. report.path
 			M.render()
@@ -880,7 +974,16 @@ function actions.delete()
 	if not item then
 		return
 	end
-	if item.kind == "report" then
+	if item.kind == "board" then
+		if vim.fn.confirm("Permanently delete board and ALL its tickets?", "&Yes\n&No", 2) ~= 1 then
+			return
+		end
+		local ok, err = require("aero.tasks").delete_board(item.ws, item.board.path)
+		if not ok then
+			notify(err, vim.log.levels.WARN)
+			return
+		end
+	elseif item.kind == "report" then
 		if vim.fn.confirm("Delete report " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
@@ -1034,6 +1137,14 @@ end
 
 function actions.edit()
 	local item = current_item()
+	if item and item.kind == "board" then
+		api.nvim_set_current_win(M.code_window())
+		vim.cmd.edit(vim.fn.fnameescape(item.board.path))
+		return
+	end
+	if item and (item.kind == "boards" or item.kind == "board_new") then
+		return require("aero.tasks.ui").new_board(item.ws)
+	end
 	if item and item.kind == "report" then
 		return open_report(item)
 	end
@@ -1120,7 +1231,7 @@ local descriptions = {
 	add = "add: worktree / agent session / report (on Reports)",
 	add_workspace = "add workspace",
 	delete = "delete selected item: session (confirm) / report (confirm) / worktree / workspace",
-	rename = "rename selected session or report",
+	rename = "rename selected session, report, or board",
 	stop = "stop session",
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",
@@ -1150,7 +1261,10 @@ function actions.help()
 		table.insert(lines, ("  %-8s toggle fullscreen"):format(config.options.fullscreen_key))
 	end
 	if config.options.quote_key then
-		table.insert(lines, ("  %-8s quote selection (Visual mode in code / agent logs)"):format(config.options.quote_key))
+		table.insert(
+			lines,
+			("  %-8s quote selection (Visual mode in code / agent logs)"):format(config.options.quote_key)
+		)
 	end
 	local agents = vim.tbl_keys(config.options.agents)
 	table.sort(agents)

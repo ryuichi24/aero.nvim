@@ -9,14 +9,8 @@ local function notify(message)
 	vim.notify("Aero: " .. message, vim.log.levels.WARN)
 end
 
-local function canonical(path)
-	return vim.fs.normalize(vim.fn.resolve(vim.fn.fnamemodify(path, ":p")))
-end
-
-local function folder(path)
-	local name = vim.fs.basename(path):gsub("[^%w._-]", "-")
-	return name .. "-" .. vim.fn.sha256(path):sub(1, 8)
-end
+local canonical = require("aero.storage").canonical
+local folder = require("aero.storage").folder
 
 --- Resolve storage without creating directories. Custom roots retain worktree isolation.
 function M.directory(worktree, ws)

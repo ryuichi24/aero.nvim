@@ -12,6 +12,12 @@ function M.check()
 	else
 		vim.health.error("git not found")
 	end
+	local version, yq_err = require("aero.tasks.frontmatter").check_yq()
+	if version then
+		vim.health.ok("Task YAML parser: " .. version)
+	else
+		vim.health.warn(yq_err)
+	end
 	for name, agent in pairs(require("aero.config").options.agents) do
 		local cmd = type(agent.cmd) == "table" and agent.cmd[1]
 		if not cmd then

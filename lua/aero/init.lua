@@ -12,6 +12,9 @@ function M.setup(opts)
 	require("aero.dashboard").set_keymaps()
 	require("aero.layout").setup()
 	require("aero.quote").setup()
+	if package.loaded["aero.tasks.view"] then
+		package.loaded["aero.tasks.view"].setup()
+	end
 	did_setup = true
 	require("aero.events").emit("setup", {})
 end
@@ -102,6 +105,23 @@ end
 --- Pick a worktree report and append its path to an agent's draft.
 function M.report()
 	return ensure().report()
+end
+
+--- Pick a workspace board, or create one with action = "new".
+function M.board(action, workspace)
+	ensure()
+	return require("aero.tasks.ui").board(action, workspace)
+end
+
+--- Create or move a ticket on the current board.
+function M.ticket(action)
+	ensure()
+	return require("aero.tasks.ui").ticket(action)
+end
+
+function M.open_board(workspace, path)
+	ensure()
+	return require("aero.tasks.view").open(workspace, path)
 end
 
 --- Append the visual selection (or an explicit line range) to an agent's draft.
