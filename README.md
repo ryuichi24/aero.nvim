@@ -819,7 +819,7 @@ agent's resumable conversation state.
 ## Kanban task management
 
 Every workspace has a **Boards** section in the sidebar, independent of its worktrees
-and agent sessions. Press `<CR>` on a board to open its Kanban view in the code pane;
+and agent sessions. Press `<CR>` on a board to open its Kanban view in a dedicated full-width tab;
 `e` opens the source Markdown. `a` on a board/Boards row or `<CR>` on its **New +** row
 creates a board. `N` renames a board without changing its folder. `d` explicitly confirms
 permanent deletion of the entire board folder **including its tickets**.
@@ -863,8 +863,15 @@ workspace-wide unit, **points** by default.
 Each state is a separate **editable buffer**, displayed in a column window. Each ticket
 occupies one physical line (`ticket-id  title`); metadata is shown as virtual text.
 Column headers show the board, state, counts, and archive/stale status; `g?` shows the
-board summary, tags, mappings, and source diagnostics. IDs and titles are retained in full:
-use normal horizontal scrolling when a column is narrow.
+board summary, tags, mappings, and source diagnostics. Ticket IDs are concealed, like Oil's
+entry identifiers, so rows display only their titles. Full IDs remain in the buffer and
+travel with cut/paste; use `:setlocal conceallevel=0` to inspect them. Titles are retained
+in full; use normal horizontal scrolling when a column is narrow.
+
+Each board has its own reusable tab, giving its columns the full editor width without the
+dashboard or agent panel. Opening the same board again focuses its existing tab. `q` closes
+the board tab and returns to the originating tab; save or discard pending board edits first.
+Closing the tab retains its state buffers, so reopening restores the board session.
 
 **Move tickets like editing files in Oil:** `dd` cuts a row, `<C-w>h` / `<C-w>l` changes
 column, and `p` / `P` pastes. Visual cut/paste moves multiple tickets. **`:w` in any column
@@ -882,8 +889,10 @@ persist the reversed placement with another `:w`. External source changes never 
 modified draft; stale saves fail. Use `e` to compare source or `R` to explicitly discard all
 pending column edits and reload.
 
-`tasks.column_width` (default `32`) controls how many columns are displayed when opening
-or navigating the board. `[s` / `]s` reveal off-screen states while retaining their buffers.
+`tasks.column_width` (default `32`) controls how many columns are displayed. Screen/window
+resizes automatically rebalance columns and reveal or hide states to fit the available width,
+including when moving to another monitor. Inactive board tabs adapt when entered again.
+`[s` / `]s` reveal off-screen states while retaining their buffers.
 Closing a column window keeps its edits; a wiped state buffer blocks saving until reloaded.
 Tabs opening the same board share the editing session. Resizing never replaces draft lines.
 
@@ -904,7 +913,7 @@ Tabs opening the same board share the editing session. Resizing never replaces d
 | `go` | recover an orphan ticket into a chosen state of its owning board |
 | `gA` | archive/unarchive the board (all files are kept) |
 | `R` | reload the view; asks before discarding edits across all columns |
-| `q` | leave the view for the source board |
+| `q` | close the board tab and return to the originating tab (requires saved edits) |
 | `g?` | list mappings |
 
 Override mappings through `tasks.keymaps`; set entries to `false` to disable them.
