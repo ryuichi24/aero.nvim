@@ -23,7 +23,7 @@ M.defaults = {
 		-- tool call output longer than this is truncated in the chat buffer
 		max_tool_lines = 20,
 		-- prompt window height
-		prompt_height = 8,
+		prompt_height = 25,
 		decorations = true, -- native transcript cards, colors, and visual borders
 		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
 		-- resize_keys may override the shared shortcuts for prompt buffers
@@ -49,7 +49,7 @@ M.defaults = {
 	-- set to false to open sessions in the last used window instead
 	panel = {
 		position = "right", -- "left" | "right"
-		width = 70,
+		width = 80,
 	},
 	-- the per-worktree shell opened with :Aero term / `t`, below the code window
 	terminal = {
