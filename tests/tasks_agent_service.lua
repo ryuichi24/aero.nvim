@@ -26,6 +26,32 @@ local binding =
 local read = assert(operations.get_ticket(binding))
 assert(read.committed and read.state == "todo")
 local before = assert(storage.read(board.path))
+local create_request = {
+	operation_id = "create",
+	expected_board_revision = read.board_revision,
+	title = "Agent follow-up",
+	target_state = "review",
+	body = "## Description\n\nInitial requirements.\n\n- [ ] Verify behavior",
+}
+local created = assert(operations.create_ticket(binding, create_request))
+assert(created.title == create_request.title and created.state == "review")
+assert(created.body:find(create_request.body, 1, true))
+assert(created.ticket_id ~= binding.ticket_id and created.board_id == binding.board_id)
+assert(vim.deep_equal(created, assert(operations.create_ticket(binding, create_request))))
+assert(tasks.read_board(ws, board.path).count == 3, "replay created a duplicate")
+create_request.title = "Changed retry"
+local rejected, create_err = operations.create_ticket(binding, create_request)
+assert(not rejected and create_err.code == "INVALID_ARGUMENT")
+create_request.operation_id = "stale-create"
+rejected, create_err = operations.create_ticket(binding, create_request)
+assert(not rejected and create_err.code == "CONFLICT")
+create_request.expected_board_revision = created.board_revision
+create_request.target_state = "missing"
+rejected, create_err = operations.create_ticket(binding, create_request)
+assert(not rejected and create_err.code == "INVALID_ARGUMENT")
+read = assert(operations.get_ticket(binding))
+assert(read.ticket_id == ticket.metadata.id, "creation changed the assignment")
+before = assert(storage.read(board.path))
 local request = {
 	operation_id = "noop",
 	expected_board_revision = read.board_revision,
@@ -69,6 +95,15 @@ local view = require("aero.tasks.view").open(ws, board.path)
 vim.api.nvim_buf_set_lines(view.columns[1].buf, -1, -1, false, { "Unsaved row" })
 local status = require("aero.tasks.view").status(board.path)
 assert(status.dirty)
+rejected, create_err = operations.create_ticket(binding, {
+	operation_id = "dirty-create",
+	expected_board_revision = updated.board_revision,
+	title = "Draft conflict",
+	target_state = "todo",
+	body = "Must not be created",
+})
+assert(not rejected and create_err.code == "UNSAVED_BOARD")
+assert(tasks.read_board(ws, board.path).count == 3)
 result, err = operations.move_ticket(
 	binding,
 	{ operation_id = "board-dirty", expected_board_revision = updated.board_revision, target_state = "todo" }

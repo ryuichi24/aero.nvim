@@ -319,9 +319,13 @@ function M.create_ticket(ws, board_path, state_name, name, options, body)
 		return nil, "ticket title must be nonempty and single-line"
 	end
 	return storage.with_lock(ws, function()
-		local board, err = mutable(ws, board_path)
+		local board, err = (options and options.guard and M.read_board or mutable)(ws, board_path)
 		if not board then
 			return nil, err
+		end
+		local allowed, guard_err = guarded(options, board)
+		if not allowed then
+			return nil, guard_err
 		end
 		local state = markdown.state(board, state_name or board.states[1].name)
 		if not state then
@@ -332,13 +336,10 @@ function M.create_ticket(ws, board_path, state_name, name, options, body)
 		if not path then
 			return nil, path_err
 		end
-		local text, doc_err = document(
-			"ticket",
-			name,
-			id,
-			vim.tbl_extend("force", options or {}, { state = state.name }),
-			body or { "## Description", "", "## Acceptance criteria", "" }
-		)
+		local metadata = vim.tbl_extend("force", options or {}, { state = state.name })
+		metadata.guard = nil
+		local text, doc_err =
+			document("ticket", name, id, metadata, body or { "## Description", "", "## Acceptance criteria", "" })
 		if not text then
 			return nil, doc_err
 		end

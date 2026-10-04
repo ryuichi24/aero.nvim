@@ -3,7 +3,139 @@ local function notify(err)
 	vim.notify("Aero tasks: " .. (type(err) == "table" and err.message or tostring(err)), vim.log.levels.WARN)
 end
 
-function M.work(board_id, ticket_id)
+function M.attach(session, binding, executable)
+	local board, board_err = require("aero.tasks").resolve_board(binding.workspace, binding.board_id)
+	if not board then
+		return nil, board_err
+	end
+	binding.worktree, binding.session_key = session.worktree, session.key
+	local transport, err = require("aero.tasks.bridge").bind(binding)
+	if not transport then
+		return nil, err
+	end
+	session.task_binding = vim.deepcopy(binding)
+	session.task_documents = { board.path }
+	session.task_transport = transport
+	session.runtime_env = { AERO_TASK_SOCKET = transport.socket, AERO_TASK_CREDENTIAL = transport.credential }
+	session.mcp_servers = {
+		{
+			name = "aero-tasks",
+			command = executable,
+			args = { "serve", "--socket", transport.socket },
+			env = { { name = "AERO_TASK_CREDENTIAL", value = transport.credential } },
+		},
+	}
+	return true
+end
+
+-- ACP servers are supplied on session/new or session/load, not session/prompt.
+function M.prepare_new_ticket(chat, callback)
+	if chat.task_pending then
+		return
+	end
+	local config = require("aero.config").options
+	if not config.tasks.agent.enabled then
+		return notify("enable tasks.agent.enabled to create tickets through MCP")
+	end
+	if not vim.tbl_contains(config.tasks.agent.adapters, chat.s.agent) then
+		return notify("add this ACP adapter to tasks.agent.adapters to use Aero task tools")
+	end
+	if not chat.caps or not chat.caps.loadSession then
+		return notify(
+			"this adapter cannot attach MCP to an existing session; start a board session with :Aero board work"
+		)
+	end
+	local executable, err = require("aero.tasks.install").resolve()
+	if not executable then
+		return notify(err)
+	end
+	local root = require("aero.git").main_root(chat.s.worktree) or chat.s.worktree
+	local ws = require("aero.store").find_workspace(root) or { root = root }
+	local tasks = require("aero.tasks")
+	local boards = tasks.list(ws)
+	local valid = vim.tbl_filter(function(board)
+		return board.valid
+	end, boards)
+	if #valid == 0 then
+		return notify("create and save a board with :Aero board new first")
+	end
+	local function attach(board)
+		if not board then
+			return
+		end
+		if chat.state ~= "ready" or chat.busy then
+			return notify("wait for the current agent turn to finish, then submit /new-ticket again")
+		end
+		local ok, attach_err = M.attach(chat.s, { workspace = ws, board_id = board.metadata.id }, executable)
+		if not ok then
+			return notify(attach_err)
+		end
+		chat.task_pending = true
+		local previous_replay = chat.replay_from_cache
+		chat.replay_from_cache = true
+		chat.replaying = true
+		chat.client:request("session/load", {
+			sessionId = chat.session_id,
+			cwd = chat.s.worktree,
+			mcpServers = chat.s.mcp_servers,
+		}, function(load_err)
+			chat.task_pending, chat.replaying = false, false
+			chat.replay_from_cache = previous_replay
+			if load_err then
+				require("aero.tasks.bridge").unbind(chat.s.task_transport.credential)
+				chat.s.task_binding, chat.s.task_transport, chat.s.task_documents = nil, nil, nil
+				chat.s.mcp_servers, chat.s.runtime_env = nil, nil
+				notify(load_err)
+			else
+				callback()
+			end
+			chat:flush_queue()
+		end)
+	end
+	local current = require("aero.tasks.view").selection()
+	for _, board in ipairs(valid) do
+		if current and current.workspace.root == root and current.board_id == board.metadata.id then
+			return attach(board)
+		end
+	end
+	if #valid == 1 then
+		return attach(valid[1])
+	end
+	vim.ui.select(valid, {
+		prompt = "Board for new tickets",
+		format_item = function(board)
+			return board.metadata.title
+		end,
+	}, attach)
+end
+
+-- Expand Aero's local command before it reaches the ACP provider.
+function M.expand_new_ticket(session, text)
+	local command, details = vim.trim(text):match("^(%S+)%s*(.*)$")
+	if command ~= "/new-ticket" then
+		return text
+	end
+	if
+		not session.task_binding
+		or session.task_binding.revoked
+		or not session.mcp_servers
+		or #session.mcp_servers == 0
+	then
+		return nil, "start a task-enabled session with :Aero board work before using /new-ticket"
+	end
+	return table.concat({
+		"Create a new ticket on the assigned Aero board using Aero's MCP tools.",
+		"First call aero_get_board to discover the current board revision and available state names.",
+		"Use aero_create_ticket with a unique operation_id, the returned expected_board_revision, a concise title, an existing target_state, and an initial Markdown body containing the description and acceptance criteria.",
+		"Use the requested state if specified; otherwise use the board's first state. Derive the ticket content from the request below and our conversation. Ask for clarification if the requirements are unclear.",
+		"Do not create or edit task files directly. For retries, reuse the operation_id only with identical arguments. If a revision conflict occurs, reread the board before retrying with a new operation_id. Report the created ticket ID and state. Do not implement the ticket or change the original assigned ticket.",
+		"",
+		"Ticket request:",
+		details ~= "" and details or "Create a ticket for the follow-up discussed in this conversation.",
+	}, "\n")
+end
+
+function M.work(board_id, ticket_id, board_only)
 	local config = require("aero.config").options
 	if not config.tasks.agent.enabled then
 		return notify("enable tasks.agent.enabled to assign tickets")
@@ -17,7 +149,8 @@ function M.work(board_id, ticket_id)
 		local tasks = require("aero.tasks")
 		if not board_id then
 			if selected then
-				ws, board_id, ticket_id = selected.workspace, selected.board_id, selected.ticket_id
+				ws, board_id, ticket_id =
+					selected.workspace, selected.board_id, not board_only and selected.ticket_id or nil
 			else
 				local path = require("aero.storage").canonical(vim.api.nvim_buf_get_name(0))
 				for _, board in ipairs(tasks.list(ws)) do
@@ -31,12 +164,16 @@ function M.work(board_id, ticket_id)
 				end
 			end
 		end
-		if not board_id or not ticket_id then
+		if not board_id or (not board_only and not ticket_id) then
 			return notify("select a persisted ticket; save new rows with :w first")
 		end
 		local binding = { workspace = ws, board_id = board_id, ticket_id = ticket_id }
 		local function validate()
-			local data, err = require("aero.tasks.operations").get_ticket(binding)
+			local operations = require("aero.tasks.operations")
+			local data, err = (board_only and operations.get_board or operations.get_ticket)(binding)
+			if data and board_only then
+				data.board_path = data.path
+			end
 			if not data then
 				notify(err)
 				return
@@ -74,7 +211,7 @@ function M.work(board_id, ticket_id)
 				if not agent then
 					return
 				end
-				vim.ui.input({ prompt = "Task session name: ", default = ticket_id }, function(name)
+				vim.ui.input({ prompt = "Task session name: ", default = ticket_id or board_id }, function(name)
 					if not name or vim.trim(name) == "" then
 						return
 					end
@@ -118,7 +255,7 @@ function M.work(board_id, ticket_id)
 					if require("aero.tabs").enabled() then
 						require("aero.tabs").enter(wt.path)
 					else
-						if vim.t.aero_board_path then
+						if vim.t.aero_board_path or vim.t.aero_removed_workspace then
 							vim.cmd.tabnew()
 						end
 						vim.cmd.tcd(vim.fn.fnameescape(wt.path))
@@ -127,11 +264,14 @@ function M.work(board_id, ticket_id)
 						"Workspace root: " .. vim.json.encode(ws.root),
 						"Board ID: " .. board_id,
 						"Board file: " .. vim.json.encode(data.board_path),
-						"Ticket ID: " .. ticket_id,
-						"Ticket file: " .. vim.json.encode(data.ticket_path),
+						ticket_id and ("Ticket ID: " .. ticket_id) or "Board-only session: no ticket is assigned.",
+						data.ticket_path and ("Ticket file: " .. vim.json.encode(data.ticket_path))
+							or "Use /new-ticket to create tickets on this board.",
 						"Execution worktree: " .. vim.json.encode(wt.path),
 						"",
-						config.tasks.agent.prompt,
+						board_only
+								and "Use Aero's MCP tools to read this board and create tickets when asked. Do not write task documents directly."
+							or config.tasks.agent.prompt,
 					}, "\n")
 					local ok, compose_err = require("aero.compose").append(session, prompt)
 					if not ok then

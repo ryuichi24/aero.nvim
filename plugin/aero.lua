@@ -44,8 +44,8 @@ local subcommands = {
 		require("aero").report()
 	end,
 	board = function(args)
-		if #args > 2 or args[2] and args[1] ~= "markdown" then
-			vim.notify("Aero: use :Aero board markdown [board-id] or :Aero board [new]", vim.log.levels.WARN)
+		if #args > 2 or args[2] and args[1] ~= "markdown" and args[1] ~= "work" then
+			vim.notify("Aero: use :Aero board [new|markdown|work] [board-id]", vim.log.levels.WARN)
 			return
 		end
 		require("aero").board(args[1], nil, args[2])
@@ -87,11 +87,15 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
-		if words[2] == "board" and words[3] == "markdown" and (#words > 3 or cmdline:match("%s$")) then
+		if
+			words[2] == "board"
+			and (words[3] == "markdown" or words[3] == "work")
+			and (#words > 3 or cmdline:match("%s$"))
+		then
 			return require("aero.tasks.ui").board_ids(arglead)
 		end
 		if #words >= 2 and (words[2] == "board" or words[2] == "ticket") and (#words > 2 or cmdline:match("%s$")) then
-			local choices = words[2] == "board" and { "new", "markdown" }
+			local choices = words[2] == "board" and { "new", "markdown", "work" }
 				or { "new", "move", "work", "removed", "recover" }
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)

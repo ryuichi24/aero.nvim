@@ -518,13 +518,10 @@ function Chat:on_request(method, params, respond)
 		local path = require("aero.storage").canonical(params.path)
 		for _, document in ipairs(self.s.task_documents or {}) do
 			if path == document then
-				respond(
-					nil,
-					{
-						code = -32603,
-						message = "Assigned task documents must be updated through Aero task tools, using their expected revisions.",
-					}
-				)
+				respond(nil, {
+					code = -32603,
+					message = "Assigned task documents must be updated through Aero task tools, using their expected revisions.",
+				})
 				return
 			end
 		end
@@ -760,6 +757,27 @@ function Chat:prompt(text)
 	if vim.trim(text) == "/cancel" then
 		return self:cancel()
 	end
+	if self.task_pending then
+		table.insert(self.queue, text)
+		return self:changed()
+	end
+	if vim.trim(text):match("^/new%-ticket%s") or vim.trim(text) == "/new-ticket" then
+		if not self.s.task_binding then
+			if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
+				table.insert(self.queue, text)
+				return self:changed()
+			end
+			return require("aero.tasks.agent").prepare_new_ticket(self, function()
+				self:prompt(text)
+			end)
+		end
+	end
+	local expanded, expansion_err = require("aero.tasks.agent").expand_new_ticket(self.s, text)
+	if not expanded then
+		vim.notify("Aero: " .. expansion_err, vim.log.levels.WARN)
+		return
+	end
+	text = expanded
 	-- queued prompts are shown at the end of the transcript and only become blocks once sent,
 	-- so a resumed session's replayed history (or a failed resume) can't bury or drop them
 	if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
@@ -842,6 +860,16 @@ function Chat:send_prompt_buf()
 		-- Report the failed backend without clearing a prompt that cannot be sent.
 		return self:prompt(text)
 	end
+	if not self.s.task_binding and (text:match("^/new%-ticket%s") or text == "/new-ticket") then
+		return require("aero.tasks.agent").prepare_new_ticket(self, function()
+			self:send_prompt_buf()
+		end)
+	end
+	local expanded, expansion_err = require("aero.tasks.agent").expand_new_ticket(self.s, text)
+	if not expanded then
+		vim.notify("Aero: " .. expansion_err, vim.log.levels.WARN)
+		return
+	end
 	api.nvim_buf_set_lines(buf, 0, -1, false, {})
 	vim.bo[buf].modified = false
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
@@ -852,7 +880,7 @@ function Chat:send_prompt_buf()
 	for _, win in ipairs(vim.fn.win_findbuf(self.buf)) do
 		api.nvim_win_set_cursor(win, { api.nvim_buf_line_count(self.buf), 0 })
 	end
-	self:prompt(text)
+	self:prompt(expanded)
 end
 
 function Chat:get_prompt_buf()
@@ -1135,6 +1163,9 @@ function M.omnifunc(findstart, base)
 	if ("/cancel"):sub(1, #base) == base then
 		table.insert(out, { word = "/cancel", menu = "Cancel the current turn and discard queued prompts" })
 	end
+	if ("/new-ticket"):sub(1, #base) == base then
+		table.insert(out, { word = "/new-ticket", menu = "Create an Aero ticket with initial content through MCP" })
+	end
 	for _, c in ipairs(chat and chat.commands or {}) do
 		local word = "/" .. c.name
 		if
@@ -1142,6 +1173,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/mode"
 			and word ~= "/report"
 			and word ~= "/cancel"
+			and word ~= "/new-ticket"
 			and word:find(base, 1, true) == 1
 		then
 			table.insert(out, { word = word, menu = c.description })

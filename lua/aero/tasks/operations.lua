@@ -9,16 +9,22 @@ local function failure(code, message, actual)
 	return nil, { code = code, message = message, actual = actual }
 end
 
-local function resolve(binding)
+local function resolve(binding, board_only)
 	if type(binding) == "table" and binding.revoked then
 		return failure("NOT_FOUND", "task binding expired")
 	end
-	if type(binding) ~= "table" or not binding.workspace or not binding.board_id or not binding.ticket_id then
+	if type(binding) ~= "table" or not binding.workspace or not binding.board_id then
 		return failure("INVALID_ARGUMENT", "invalid task binding")
 	end
 	local board, err = tasks.resolve_board(binding.workspace, binding.board_id)
 	if not board then
 		return nil, err
+	end
+	if not binding.ticket_id then
+		if board_only then
+			return { board = board }
+		end
+		return failure("INVALID_ARGUMENT", "this session is bound to a board, not a ticket")
 	end
 	local ticket, state = tasks.resolve_ticket(board, binding.ticket_id)
 	if not ticket then
@@ -33,6 +39,18 @@ end
 
 local function snapshot(context)
 	local board, ticket = context.board, context.ticket
+	if not ticket then
+		return {
+			board_id = board.metadata.id,
+			board_path = board.path,
+			board_revision = tasks.revision(board.text),
+			dirty = {
+				board_projection = require("aero.tasks.view").status(board.path),
+				board_source = dirty(board.path),
+				ticket = false,
+			},
+		}
+	end
 	local states = {}
 	for _, state in ipairs(board.states) do
 		table.insert(states, state.name)
@@ -67,7 +85,7 @@ function M.get_ticket(binding)
 end
 
 function M.get_board(binding)
-	local context, err = resolve(binding)
+	local context, err = resolve(binding, true)
 	if not context then
 		return nil, err
 	end
@@ -96,7 +114,7 @@ function M.get_board(binding)
 end
 
 function M.list_boards(binding)
-	local context, err = resolve(binding)
+	local context, err = resolve(binding, true)
 	if not context then
 		return nil, err
 	end
@@ -122,14 +140,14 @@ local function mutate(binding, method, request)
 	then
 		return failure("INVALID_ARGUMENT", "a bounded operation_id is required")
 	end
-	local context, err = resolve(binding)
+	local context, err = resolve(binding, method == "create_ticket")
 	if not context then
 		return nil, err
 	end
 	local key = vim.json.encode({
 		binding.workspace.root,
 		binding.board_id,
-		binding.ticket_id,
+		binding.ticket_id or "",
 		binding.session_key or "",
 		request.operation_id,
 	})
@@ -141,18 +159,19 @@ local function mutate(binding, method, request)
 		end
 		return unpack(vim.deepcopy(cache[key].result), 1, 2)
 	end
-	local placement = method == "move_ticket"
+	local creating = method == "create_ticket"
+	local placement = method == "move_ticket" or creating
 	local expected = placement and request.expected_board_revision or request.expected_ticket_revision
 	if type(expected) ~= "string" then
 		return failure("INVALID_ARGUMENT", "expected document revision is required")
 	end
 	local options = {
 		guard = function(board, ticket_path, document)
-			local latest, resolve_err = resolve(binding)
+			local latest, resolve_err = resolve(binding, creating)
 			if not latest then
 				return nil, resolve_err
 			end
-			if latest.board.path ~= board.path or latest.ticket.path ~= ticket_path then
+			if latest.board.path ~= board.path or (not creating and latest.ticket.path ~= ticket_path) then
 				return failure("CONFLICT", "task identity changed")
 			end
 			local actual = snapshot(latest)
@@ -176,16 +195,39 @@ local function mutate(binding, method, request)
 					or actual.dirty.board_source
 				)
 			then
-				return failure("UNSAVED_BOARD", "save or discard the board draft before moving this ticket")
+				return failure("UNSAVED_BOARD", "save or discard the board draft before changing ticket placements")
 			end
-			if actual.dirty.ticket then
+			if not creating and actual.dirty.ticket then
 				return failure("UNSAVED_DOCUMENT", "save or discard the ticket draft before updating it")
 			end
 			return true
 		end,
 	}
 	local ok
-	if placement then
+	if creating then
+		if type(request.title) ~= "string" or vim.trim(request.title) == "" or request.title:find("%c") then
+			return failure("INVALID_ARGUMENT", "title must be nonempty and single-line")
+		end
+		if type(request.body) ~= "string" then
+			return failure("INVALID_ARGUMENT", "body must be a Markdown string")
+		end
+		if
+			type(request.target_state) ~= "string"
+			or not vim.iter(context.board.states):any(function(state)
+				return state.name == request.target_state
+			end)
+		then
+			return failure("INVALID_ARGUMENT", "target_state must name an existing board state")
+		end
+		ok, err = tasks.create_ticket(
+			binding.workspace,
+			context.board.path,
+			request.target_state,
+			request.title,
+			options,
+			vim.split(request.body, "\n", { plain = true })
+		)
+	elseif placement then
 		if type(request.target_state) ~= "string" then
 			return failure("INVALID_ARGUMENT", "target_state is required")
 		end
@@ -244,7 +286,11 @@ local function mutate(binding, method, request)
 	end
 	local result
 	if ok then
-		result, err = M.get_ticket(binding)
+		local result_binding = binding
+		if creating then
+			result_binding = vim.tbl_extend("force", binding, { ticket_id = ok.metadata.id })
+		end
+		result, err = M.get_ticket(result_binding)
 		if result then
 			vim.schedule(function()
 				vim.api.nvim_exec_autocmds("User", {
@@ -252,9 +298,9 @@ local function mutate(binding, method, request)
 					data = {
 						workspace = binding.workspace,
 						board_id = binding.board_id,
-						ticket_id = binding.ticket_id,
+						ticket_id = result.ticket_id,
 						board_path = context.board.path,
-						ticket_path = context.ticket.path,
+						ticket_path = result.ticket_path,
 						board_revision = result.board_revision,
 						ticket_revision = result.ticket_revision,
 					},
@@ -262,14 +308,15 @@ local function mutate(binding, method, request)
 			end)
 		end
 	elseif type(err) ~= "table" then
-		local actual = M.get_ticket(binding)
+		local latest = resolve(binding, creating)
+		local actual = latest and snapshot(latest)
 		local code = "IO_ERROR"
 		if tostring(err):find("lock is held", 1, true) then
 			code = "LOCK_HELD"
 		elseif actual then
 			if placement and (actual.dirty.board_projection.dirty or actual.dirty.board_source) then
 				code = "UNSAVED_BOARD"
-			elseif actual.dirty.ticket then
+			elseif not creating and actual.dirty.ticket then
 				code = "UNSAVED_DOCUMENT"
 			elseif expected ~= (placement and actual.board_revision or actual.ticket_revision) then
 				code = "CONFLICT"
@@ -285,7 +332,7 @@ local function mutate(binding, method, request)
 	return result, err
 end
 
-for _, method in ipairs({ "move_ticket", "update_ticket_body", "update_ticket_metadata" }) do
+for _, method in ipairs({ "create_ticket", "move_ticket", "update_ticket_body", "update_ticket_metadata" }) do
 	M[method] = function(binding, request)
 		return mutate(binding, method, request)
 	end

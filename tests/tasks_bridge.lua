@@ -11,8 +11,49 @@ require("aero").setup({
 local tasks = require("aero.tasks")
 local ws = { root = root }
 local board = assert(tasks.create_board(ws, "Bridge"))
-local ticket = assert(tasks.create_ticket(ws, board.path, "todo", "Assigned"))
 local bridge = require("aero.tasks.bridge")
+local empty_binding = assert(bridge.bind({ workspace = ws, board_id = board.metadata.id }))
+local empty_result
+vim.system({ executable, "call", "--socket", empty_binding.socket, "get_board" }, {
+	text = true,
+	env = { AERO_TASK_CREDENTIAL = empty_binding.credential },
+}, function(value)
+	empty_result = value
+end)
+assert(vim.wait(10000, function()
+	return empty_result ~= nil
+end))
+assert(empty_result.code == 0, empty_result.stderr)
+local empty_board = vim.json.decode(empty_result.stdout)
+assert(#empty_board.states[1].tickets == 0)
+local first_result
+vim.system(
+	{
+		executable,
+		"call",
+		"--socket",
+		empty_binding.socket,
+		"create_ticket",
+		vim.json.encode({
+			operation_id = "first-ticket",
+			expected_board_revision = empty_board.board_revision,
+			title = "First ticket",
+			target_state = "todo",
+			body = "Initial content on an empty board.",
+		}),
+	},
+	{ text = true, env = { AERO_TASK_CREDENTIAL = empty_binding.credential } },
+	function(value)
+		first_result = value
+	end
+)
+assert(vim.wait(10000, function()
+	return first_result ~= nil
+end))
+assert(first_result.code == 0, first_result.stderr)
+local first = vim.json.decode(first_result.stdout)
+assert(first.body:find("Initial content on an empty board.", 1, true))
+local ticket = assert(tasks.read_ticket(board.path, first.ticket_path))
 local binding = assert(bridge.bind({ workspace = ws, board_id = board.metadata.id, ticket_id = ticket.metadata.id }))
 local pipe, framed, received = vim.uv.new_pipe(false), "", {}
 pipe:connect(binding.socket, function(err)
@@ -118,10 +159,26 @@ rpc(1, "initialize", {
 	clientInfo = { name = "aero-test", version = "1" },
 })
 vim.fn.chansend(job, vim.json.encode({ jsonrpc = "2.0", method = "notifications/initialized" }) .. "\n")
-assert(#rpc(2, "tools/list", vim.empty_dict()).tools == 6)
+assert(#rpc(2, "tools/list", vim.empty_dict()).tools == 7)
 local tool = rpc(3, "tools/call", { name = "aero_get_ticket", arguments = vim.empty_dict() })
 assert(not tool.isError)
 assert(vim.json.decode(tool.content[1].text).ticket_id == ticket.metadata.id)
+local arguments = {
+	operation_id = "mcp-create",
+	expected_board_revision = updated.board_revision,
+	title = "Created through MCP",
+	target_state = "todo",
+	body = "## Requirements\n\nInitial content from the agent.",
+}
+local creation = rpc(4, "tools/call", { name = "aero_create_ticket", arguments = arguments })
+assert(not creation.isError, vim.inspect(creation))
+local created = vim.json.decode(creation.content[1].text)
+assert(created.title == arguments.title and created.state == "todo")
+assert(created.body:find(arguments.body, 1, true))
+assert(created.ticket_id ~= ticket.metadata.id)
+local replay = rpc(5, "tools/call", { name = "aero_create_ticket", arguments = arguments })
+assert(not replay.isError and vim.json.decode(replay.content[1].text).ticket_id == created.ticket_id)
+assert(tasks.read_board(ws, board.path).count == 2)
 vim.fn.jobstop(job)
 bridge.stop()
 vim.fn.delete(root, "rf")

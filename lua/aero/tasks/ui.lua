@@ -66,6 +66,34 @@ function M.new_board(ws)
 end
 
 function M.board(action, ws, board_id)
+	if action == "work" then
+		local agent = require("aero.tasks.agent")
+		if board_id or require("aero.tasks.view").selection() then
+			return agent.work(board_id, nil, true)
+		end
+		return M.workspace(function(workspace)
+			local boards = vim.tbl_filter(function(board)
+				return board.valid
+			end, tasks.list(workspace))
+			if #boards == 0 then
+				return notify("create and save a board first")
+			end
+			local function work(board)
+				if board then
+					agent.work(board.metadata.id, nil, true)
+				end
+			end
+			if #boards == 1 then
+				return work(boards[1])
+			end
+			vim.ui.select(boards, {
+				prompt = "Board for agent",
+				format_item = function(board)
+					return board.metadata.title
+				end,
+			}, work)
+		end)
+	end
 	if action == "new" then
 		return M.new_board(ws)
 	end

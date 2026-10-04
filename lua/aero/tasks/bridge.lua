@@ -31,6 +31,7 @@ local methods = {
 	list_boards = true,
 	get_board = true,
 	get_ticket = true,
+	create_ticket = true,
 	move_ticket = true,
 	update_ticket_body = true,
 	update_ticket_metadata = true,
