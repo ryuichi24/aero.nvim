@@ -91,7 +91,8 @@ end, {
 			return require("aero.tasks.ui").board_ids(arglead)
 		end
 		if #words >= 2 and (words[2] == "board" or words[2] == "ticket") and (#words > 2 or cmdline:match("%s$")) then
-			local choices = words[2] == "board" and { "new", "markdown" } or { "new", "move", "work" }
+			local choices = words[2] == "board" and { "new", "markdown" }
+				or { "new", "move", "work", "removed", "recover" }
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, choices)

@@ -230,10 +230,15 @@ local function build()
 				{ { " " .. #boards, "AeroDim" } }
 			)
 			if bopen then
+				local removed_count = 0
 				for _, board in ipairs(boards) do
 					local data = board.metadata or {}
 					local label = tostring(data.title or vim.fs.basename(vim.fs.dirname(board.path))):gsub("[%c]", " ")
 					local summary_text = " " .. board.count .. " tickets" .. (data.archived and " · archived" or "")
+					removed_count = removed_count + #board.orphans
+					if #board.orphans > 0 then
+						summary_text = summary_text .. " · " .. #board.orphans .. " removed"
+					end
 					if type(data.description) == "string" then
 						summary_text = summary_text .. " · " .. data.description:gsub("[%c]", " ")
 					end
@@ -249,6 +254,11 @@ local function build()
 						{ { summary_text, "AeroDim" } }
 					)
 				end
+				add(
+					{ { "     Removed tickets", "AeroSession" } },
+					{ kind = "tickets_removed", id = "tickets-removed:" .. ws.root, ws = ws },
+					{ { " " .. removed_count, "AeroDim" } }
+				)
 				for _, err in ipairs(board_errors) do
 					add({ { "     ! " .. tostring(err):gsub("[%c]", " "), "AeroExited" } })
 				end
@@ -825,6 +835,8 @@ function actions.open(how)
 		require("aero.tasks.view").open(item.ws, item.board.path)
 	elseif item.kind == "board_new" then
 		require("aero.tasks.ui").new_board(item.ws)
+	elseif item.kind == "tickets_removed" then
+		require("aero.tasks.ui").removed(item.ws)
 	elseif item.kind == "session" then
 		open_session(item.session, how or "default")
 	elseif item.kind == "report" then
@@ -864,6 +876,7 @@ function actions.expand()
 		or item.kind == "report_new"
 		or item.kind == "board"
 		or item.kind == "board_new"
+		or item.kind == "tickets_removed"
 	then
 		return actions.open("default")
 	end
@@ -903,7 +916,8 @@ function actions.collapse()
 		return actions.toggle()
 	end
 	-- jump to the parent line
-	local parent = (item.kind == "board" or item.kind == "board_new") and "boards:" .. item.ws.root
+	local parent = (item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed")
+			and "boards:" .. item.ws.root
 		or (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
 		or (item.kind == "session" or item.kind == "reports") and "wt:" .. item.wt.path
 		or "ws:" .. item.ws.root
@@ -923,7 +937,7 @@ function actions.add()
 	if not item then
 		return M.add_workspace()
 	end
-	if item.kind == "boards" or item.kind == "board" or item.kind == "board_new" then
+	if item.kind == "boards" or item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed" then
 		require("aero.tasks.ui").new_board(item.ws)
 	elseif item.kind == "workspace" then
 		add_worktree(item.ws)

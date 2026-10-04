@@ -179,7 +179,127 @@ function M.board_ids(prefix)
 	return ids
 end
 
+function M.removed(ws, preferred_board)
+	if not ws then
+		local selected = require("aero.dashboard").selected_workspace()
+		if selected then
+			return M.removed(selected)
+		end
+		local view = require("aero.tasks.view").current()
+		if view then
+			return M.removed(view.ws, view.path)
+		end
+		return M.workspace(function(workspace)
+			M.removed(workspace)
+		end)
+	end
+	local removed, diagnostics = tasks.list_removed(ws)
+	if #removed == 0 then
+		vim.notify(
+			"Aero tasks: "
+				.. (#diagnostics > 0 and table.concat(diagnostics, "; ") or "no removed tickets in this workspace")
+		)
+		return
+	end
+	local edit = require("aero.tasks.edit")
+	vim.ui.select(removed, {
+		prompt = "Removed tickets — choose one to restore",
+		format_item = function(item)
+			return edit.title(item.title)
+				.. " · from "
+				.. edit.title(item.board_title)
+				.. (item.error and " [invalid]" or "")
+		end,
+	}, function(item)
+		if not item then
+			return
+		end
+		if item.error then
+			return notify(item.path .. ": " .. item.error)
+		end
+		local boards = vim.tbl_filter(function(board)
+			return board.valid
+		end, tasks.list(ws))
+		if preferred_board then
+			for index, board in ipairs(boards) do
+				if board.path == preferred_board then
+					table.remove(boards, index)
+					table.insert(boards, 1, board)
+					break
+				end
+			end
+		end
+		vim.ui.select(boards, {
+			prompt = "Restore into board",
+			format_item = function(board)
+				return edit.title(board.metadata.title) .. (board.metadata.archived and " [archived]" or "")
+			end,
+		}, function(board)
+			if not board then
+				return
+			end
+			vim.ui.select(
+				vim.tbl_map(function(state)
+					return state.name
+				end, board.states),
+				{ prompt = "Restore into state" },
+				function(state)
+					if not state then
+						return
+					end
+					if vim.fn.getcmdwintype() ~= "" then
+						return notify("close the command window before restoring tickets")
+					end
+					local result, err = tasks.recover_ticket(ws, item.board_path, item.path, board.path, state, {
+						expected_ticket_id = item.ticket.metadata.id,
+						guard = function(source, target)
+							if source.metadata.id ~= item.board_id or target.metadata.id ~= board.metadata.id then
+								return nil, "board identity changed; reload the removed-ticket list"
+							end
+							for _, path in ipairs({ source.path, target.path }) do
+								local status = require("aero.tasks.view").status(path)
+								if status.dirty or status.missing_column then
+									return nil, "save or discard board edits before restoring tickets: " .. path
+								end
+							end
+							return true
+						end,
+					})
+					-- Also refresh after partial failures that deliberately retain a recovery copy.
+					for _, path in ipairs({ item.board_path, board.path }) do
+						vim.api.nvim_exec_autocmds("User", {
+							pattern = "AeroTaskChanged",
+							data = {
+								workspace = ws,
+								board_path = path,
+								ticket_path = result and result.path or item.path,
+							},
+						})
+					end
+					if not result then
+						return notify(err)
+					end
+					if result.warning then
+						notify(result.warning)
+					end
+					vim.notify(
+						"Aero tasks: restored "
+							.. edit.title(item.title)
+							.. " to "
+							.. edit.title(board.metadata.title)
+							.. " / "
+							.. state
+					)
+				end
+			)
+		end)
+	end)
+end
+
 function M.ticket(action)
+	if action == "removed" or action == "recover" then
+		return M.removed()
+	end
 	if action == "work" then
 		return require("aero.tasks.agent").work()
 	end
@@ -190,7 +310,7 @@ function M.ticket(action)
 	if action == "move" then
 		return view.move()
 	end
-	notify("use :Aero ticket new or :Aero ticket move on an active board")
+	notify("use :Aero ticket new, move, work, or removed")
 end
 
 return M

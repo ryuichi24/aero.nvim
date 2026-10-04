@@ -134,6 +134,10 @@ decorate = function(view, only)
 				local title = edit.title((view.board.metadata or {}).title or "Board")
 				local archived = (view.board.metadata or {}).archived and " [archived]" or ""
 				local errors = #view.board.diagnostics > 0 and " [diagnostics: g?]" or ""
+				local recover_key = config.options.tasks.keymaps.recover
+				local removed = #view.board.orphans > 0
+						and (" · Removed tickets: " .. #view.board.orphans .. (recover_key and " (" .. recover_key .. ")" or ""))
+					or ""
 				vim.wo[win].winbar = (
 					title
 					.. archived
@@ -144,6 +148,7 @@ decorate = function(view, only)
 					.. ")"
 					.. (view.stale and " [stale]" or "")
 					.. errors
+					.. removed
 				):gsub("%%", "%%%%")
 			end
 		end
@@ -811,27 +816,7 @@ function M.actions(view)
 			if not clean(view) then
 				return
 			end
-			vim.ui.select(view.board.orphans, {
-				prompt = "Recover orphan ticket",
-				format_item = function(o)
-					return vim.fs.basename(o.path)
-				end,
-			}, function(orphan)
-				if not orphan then
-					return
-				end
-				vim.ui.select(
-					vim.tbl_map(function(s)
-						return s.name
-					end, view.board.states),
-					{ prompt = "Recover into state" },
-					function(name)
-						if name then
-							apply(tasks.move_ticket, orphan.path, name)
-						end
-					end
-				)
-			end)
+			return require("aero.tasks.ui").removed(view.ws, view.path)
 		end,
 		earlier = function()
 			local item, state = selected(view)
