@@ -180,6 +180,9 @@ function M.board_ids(prefix)
 end
 
 function M.ticket(action)
+	if action == "work" then
+		return require("aero.tasks.agent").work()
+	end
 	local view = require("aero.tasks.view")
 	if action == "new" then
 		return view.new_ticket()

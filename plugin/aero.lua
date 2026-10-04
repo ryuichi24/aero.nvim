@@ -51,7 +51,16 @@ local subcommands = {
 		require("aero").board(args[1], nil, args[2])
 	end,
 	ticket = function(args)
+		if args[1] == "work" then
+			return require("aero.tasks.agent").work(args[2], args[3])
+		end
 		require("aero").ticket(args[1])
+	end,
+	tasks = function(args)
+		if args[1] == "install" then
+			return require("aero.tasks.install").install()
+		end
+		vim.notify("Aero: use :Aero tasks install", vim.log.levels.WARN)
 	end,
 	quote = function(_, opts)
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
@@ -82,7 +91,7 @@ end, {
 			return require("aero.tasks.ui").board_ids(arglead)
 		end
 		if #words >= 2 and (words[2] == "board" or words[2] == "ticket") and (#words > 2 or cmdline:match("%s$")) then
-			local choices = words[2] == "board" and { "new", "markdown" } or { "new", "move" }
+			local choices = words[2] == "board" and { "new", "markdown" } or { "new", "move", "work" }
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, choices)

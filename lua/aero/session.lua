@@ -293,7 +293,7 @@ function M.start(s, win, resume, session_id)
 			width = vim.api.nvim_win_get_width(win),
 			height = vim.api.nvim_win_get_height(win),
 			cwd = s.worktree,
-			env = vim.tbl_extend("force", { TERM = "xterm-256color" }, agent.env or {}),
+			env = vim.tbl_extend("force", { TERM = "xterm-256color" }, agent.env or {}, s.runtime_env or {}),
 			on_stdout = function(_, data)
 				if vim.api.nvim_buf_is_valid(buf) then
 					vim.api.nvim_chan_send(term, table.concat(data, "\n"))
@@ -478,6 +478,9 @@ function M.is_running(s)
 end
 
 function M.delete(s)
+	if s.task_transport then
+		require("aero.tasks.bridge").unbind(s.task_transport.credential)
+	end
 	local data = events.session(s)
 	M.stop(s)
 	if is_acp(s) then

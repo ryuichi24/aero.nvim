@@ -515,6 +515,19 @@ function Chat:on_request(method, params, respond)
 			respond(nil, { code = -32603, message = tostring(err) })
 		end
 	elseif method == "fs/write_text_file" then
+		local path = require("aero.storage").canonical(params.path)
+		for _, document in ipairs(self.s.task_documents or {}) do
+			if path == document then
+				respond(
+					nil,
+					{
+						code = -32603,
+						message = "Assigned task documents must be updated through Aero task tools, using their expected revisions.",
+					}
+				)
+				return
+			end
+		end
 		local ok, err = write_file(params.path, params.content or "")
 		if ok then
 			respond(vim.NIL)
@@ -673,7 +686,7 @@ function Chat:handshake(resume)
 		local previous_id = def.acp_session_id or self.saved_session_id
 		local session_id = self.requested_session_id or previous_id
 		self.saved_session_id = self.cache_session_id or previous_id or session_id
-		local base = { cwd = self.s.worktree, mcpServers = {} }
+		local base = { cwd = self.s.worktree, mcpServers = self.s.mcp_servers or {} }
 		if resume and session_id and self.caps.loadSession then
 			-- Cached errors are not conversation history. A different selected ID must
 			-- replay its own transcript, without relabeling the previous conversation.
@@ -1026,7 +1039,7 @@ function M.start(s, buf, agent, resume, session_id)
 	local cmd = type(agent.cmd) == "function" and agent.cmd(s) or agent.cmd
 	local client, err = Client.spawn(cmd, {
 		cwd = s.worktree,
-		env = agent.env,
+		env = vim.tbl_extend("force", agent.env or {}, s.runtime_env or {}),
 		on_request = function(method, params, respond)
 			chat:on_request(method, params, respond)
 		end,

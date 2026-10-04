@@ -55,6 +55,7 @@ require("aero").setup({
 	animation = false,
 	fullscreen_key = false,
 	agents = { opencode = terminal, ["opencode-acp"] = acp },
+	tasks = { directory = "worktree" },
 })
 local sessions, store = require("aero.session"), require("aero.store")
 local worktree = dir .. "/workspace"
@@ -86,6 +87,26 @@ end
 
 local s = phase == "new" and sessions.create(worktree, "opencode-acp") or sessions.list(worktree)[1]
 assert(s and s.agent == "opencode-acp")
+if vim.env.AERO_MCP_EXECUTABLE then
+	local tasks = require("aero.tasks")
+	local ws = { root = worktree }
+	local board = tasks.list(ws)[1] or assert(tasks.create_board(ws, "OpenCode MCP smoke"))
+	local ticket = board.states[1].entries[1] and board.states[1].entries[1].ticket
+		or assert(tasks.create_ticket(ws, board.path, board.states[1].name, "MCP assigned"))
+	local binding =
+		{ workspace = ws, board_id = board.metadata.id, ticket_id = ticket.metadata.id, session_key = s.key }
+	local transport = assert(require("aero.tasks.bridge").bind(binding))
+	s.task_binding, s.task_transport = binding, transport
+	s.task_documents = { board.path, ticket.path }
+	s.mcp_servers = {
+		{
+			name = "aero-tasks",
+			command = vim.env.AERO_MCP_EXECUTABLE,
+			args = { "serve", "--socket", transport.socket },
+			env = { { name = "AERO_TASK_CREDENTIAL", value = transport.credential } },
+		},
+	}
+end
 local previous = store.find_session(worktree, s.name).acp_session_id
 assert(sessions.show(s, 0))
 local done = vim.wait(45000, function()

@@ -699,6 +699,9 @@ function M.actions(view)
 		move = function()
 			M.move(view)
 		end,
+		work = function()
+			require("aero.tasks.agent").work()
+		end,
 		rename = function()
 			if not clean(view) then
 				return
