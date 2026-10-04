@@ -148,7 +148,8 @@ a board or `:Aero board` to open one. Each state is an editable column in a dedi
 3. `p` pastes into the destination.
 4. `:w` in any column saves **all columns together**.
 
-Press `<CR>` to edit a ticket's Markdown and `ga` to create a ticket.
+Type a new ticket title on a blank line in any state and use `:w` to create its Markdown
+file. Press `<CR>` to edit a ticket's Markdown; `ga` also offers dialog-based creation.
 
 [Kanban workflow, keys, and file format](docs/kanban.md)
 

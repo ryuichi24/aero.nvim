@@ -60,16 +60,30 @@ Each board has a reusable full-width tab, without the dashboard/agent panel. Reo
 focuses its tab. `q` returns to the originating tab after saving/discarding edits.
 Closing retains state buffers, so reopening restores the editing session.
 
-### Move and save
+### Create, move, and save
+
+Type a new ticket title on a blank line in any state column, then save with `:w`.
+Use `o`/`O` to insert a row, or `i` in an empty column. You can add several titles,
+including in hidden/custom states, and move existing tickets in the same draft.
+Aero creates one Markdown file per new row with a stable ID, title, timestamps,
+Description, and Acceptance criteria sections. Its board reference is inserted at
+the row's position. The ID is added to the row after saving and concealed automatically.
+Repeated titles create distinct tickets; blank lines are ignored.
 
 `dd` cuts a row, `<C-w>h/l` switches columns, and `p`/`P` pastes. Visual cut/paste
 moves multiple tickets. `m` and `gK/gJ` stage movement/reordering. **`:w` in any column
 saves all columns together**, including hidden ones, in one board Markdown update.
-Ticket files remain unchanged.
+Movement leaves existing ticket files unchanged; new title rows create ticket files.
 
-Missing, duplicate, unknown, or edited rows reject the whole save and keep the draft.
-Do not edit IDs/titles here; rename with `N`. Cutting without pasting is not deletion;
-use `gd/gD`. Explicit removal, creation, and metadata/state edits require a clean draft.
+Missing, duplicate, unknown-ID, or edited existing rows reject the whole save and keep
+the draft. Do not edit existing IDs/titles here; rename with `N`. New tickets are plain
+titles without an ID prefix. Cutting without pasting is not deletion; use `gd/gD`.
+Explicit removal, dialog-based creation (`ga`), and metadata/state edits require a clean draft.
+
+Validation and source-conflict checks run before creating files. If the final board write
+fails, Aero removes unchanged files created by that attempt when the board is still unchanged.
+Files changed or possibly referenced externally are retained with recovery paths in the error.
+The draft stays editable for retry. Saving again after success does not create duplicates.
 
 Undo/redo is column-local. A cross-column move edits two buffers; undoing one can
 temporarily create missing/duplicate rows. After saving, undo creates a new draft;
