@@ -33,11 +33,14 @@ require("aero").setup({
 ```
 
 Run `:checkhealth aero` to verify the exact executable and bridge version.
-The development manifest is unpublished: `:Aero tasks install` requires a custom
-build. Tagged releases must update `mcp/release.json` and publish matching assets;
+Unpublished development manifests require a custom build instead of
+`:Aero tasks install`. Tagged releases must update `mcp/release.json` and publish matching assets;
 the installer then downloads the exact release, verifies SHA-256, and installs
 outside the plugin checkout under `stdpath("data")/Aero/bin/<version>`.
 Installation uses curl and sha256sum or shasum. Runtime prebuilt users need no Go.
+
+Maintainers: see [releasing the MCP server](releasing.md) for the manifest,
+tagging, and publishing procedure.
 
 For published releases, a lazy.nvim build hook can call
 `require("aero.tasks.install").install()`; vim.pack users can run
