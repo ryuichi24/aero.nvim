@@ -46,7 +46,7 @@ M.defaults = {
 		agent = {
 			enabled = false,
 			executable = false,
-			adapters = { "opencode-acp" },
+			adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" },
 			prompt = "Read the ticket through Aero's task tools and implement its requirements. Record progress and verification results with aero_update_ticket_body. Discover current board states before explicitly moving the ticket with aero_move_ticket. Do not write the task documents directly.",
 		},
 		keymaps = {

@@ -26,7 +26,7 @@ require("aero").setup({
     agent = {
       enabled = true,
       executable = vim.fn.expand("~/dev/personal/projects/aero.nvim/mcp/aero-mcp"),
-      adapters = { "opencode-acp" },
+      adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" },
     },
   },
 })
