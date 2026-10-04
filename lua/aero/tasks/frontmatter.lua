@@ -130,6 +130,12 @@ function M.validate(data, kind)
 	if data.description ~= nil then
 		check(type(data.description) == "string", "description must be a string")
 	end
+	if kind == "ticket" and data.state ~= nil then
+		check(
+			type(data.state) == "string" and vim.trim(data.state) ~= "" and not data.state:find("%c"),
+			"state must be a nonempty single-line string"
+		)
+	end
 	if data.priority ~= nil then
 		check(vim.tbl_contains({ "low", "normal", "high", "urgent" }, data.priority), "invalid priority")
 	end

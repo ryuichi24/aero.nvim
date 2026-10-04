@@ -27,6 +27,23 @@ function M.dirty(view)
 	return false
 end
 
+-- Inspect retained buffers, including columns in hidden or closed tabs.
+function M.status(board_path)
+	local view = sessions[require("aero.storage").canonical(board_path)]
+	local status = { dirty = false, stale = false, missing_column = false }
+	if not view then
+		return status
+	end
+	status.dirty = M.dirty(view)
+	status.stale = storage.read(view.board.path) ~= view.baseline_text
+	for _, column in ipairs(view.columns or {}) do
+		if not api.nvim_buf_is_valid(column.buf) then
+			status.missing_column = true
+		end
+	end
+	return status
+end
+
 local function clean(view)
 	if M.dirty(view) then
 		notify("save all board edits with :w or discard with R first")
@@ -47,6 +64,22 @@ local function selected(view)
 		end
 	end
 	return nil, view.board.states[view.state_index or 1]
+end
+
+function M.selection()
+	local view = M.current()
+	if not view then
+		return nil
+	end
+	local item, state = selected(view)
+	return {
+		workspace = view.board.ws,
+		board_path = view.board.path,
+		board_id = view.board.metadata and view.board.metadata.id,
+		ticket_path = item and item.path,
+		ticket_id = item and item.ticket and item.ticket.metadata and item.ticket.metadata.id,
+		state = state and state.name,
+	}
 end
 
 local function detail(item, state)
@@ -131,7 +164,7 @@ function M.save(view)
 			columns[si] = { name = column.name }
 		end
 	end
-	local states, errors, new_tickets = edit.parse(view.board.states, columns, view.registry)
+	local states, errors, new_tickets, removed, restored = edit.parse(view.board.states, columns, view.registry)
 	if #errors > 0 then
 		local by_buffer, messages = {}, {}
 		for _, err in ipairs(errors) do
@@ -161,6 +194,8 @@ function M.save(view)
 		paths = paths,
 		titles = titles,
 		new_tickets = new_tickets,
+		removed_tickets = removed,
+		restored_tickets = restored,
 	})
 	view.saving = false
 	if not ok then
@@ -269,6 +304,17 @@ function M.render(view, discard, metadata_refresh)
 	local text = storage.read(view.path)
 	if not discard and M.dirty(view) then
 		view.stale = text ~= view.baseline_text
+		if metadata_refresh then
+			for _, registered in pairs(view.registry) do
+				local item = registered.entry
+				if item and item.path then
+					local ticket = tasks.read_ticket(view.path, item.path)
+					if ticket and ticket.valid then
+						item.ticket = ticket
+					end
+				end
+			end
+		end
 		decorate(view)
 		return
 	end
@@ -931,6 +977,20 @@ function M.open(ws, path)
 end
 
 local group = api.nvim_create_augroup("Aero.tasks", { clear = true })
+api.nvim_create_autocmd("User", {
+	group = group,
+	pattern = "AeroTaskChanged",
+	callback = function(event)
+		if vim.fn.getcmdwintype() ~= "" then
+			return
+		end
+		local view = event.data and sessions[event.data.board_path]
+		if view then
+			M.render(view, false, true)
+		end
+		require("aero.dashboard").render()
+	end,
+})
 local pending, metadata_refresh = false, false
 api.nvim_create_autocmd({ "BufWritePost", "FocusGained", "CmdwinLeave" }, {
 	group = group,

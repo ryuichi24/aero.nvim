@@ -62,7 +62,6 @@ assert(
 	api.nvim_tabpage_is_valid(view.tab) and api.nvim_get_current_tabpage() == view.tab,
 	"closing a dirty board discarded its tab"
 )
-assert(not viewmod.save(view), "missing ticket saved")
 assert(storage.read(board.path) == baseline)
 focus(2)
 keys("p")
@@ -73,18 +72,30 @@ assert(moved.states[2].entries[1].path == first.path)
 assert(moved.states[1].entries[1].path == second.path)
 assert(moved.states[2].entries[1].raw:find("follows ticket", 1, true))
 assert(moved.text:find("State note stays here.", 1, true))
-assert(storage.read(first.path) == ticket_text)
+local updated_ticket = tasks.read_ticket(board.path, first.path)
+assert(updated_ticket.metadata.state == moved.states[2].name)
+local original_ticket = require("aero.tasks.markdown").parse(ticket_text, "ticket", first.path)
+assert(
+	vim.deep_equal(
+		vim.list_slice(updated_ticket.lines, updated_ticket.frontmatter.finish + 1),
+		vim.list_slice(original_ticket.lines, original_ticket.frontmatter.finish + 1)
+	),
+	"movement changed ticket body"
+)
 assert(not viewmod.dirty(view))
 local saved = storage.read(board.path)
 vim.cmd.write()
 vim.cmd.wall()
 assert(storage.read(board.path) == saved, "no-op save rewrote board")
--- Undo in only one column is not a complete inverse movement.
+-- Undoing only the destination removes its reference; redo restores the retained file.
 keys("u")
-assert(not viewmod.save(view))
-assert(storage.read(board.path) == saved)
+assert(viewmod.save(view))
+local undone = tasks.read_board(ws, board.path)
+assert(#undone.states[2].entries == 0 and undone.orphans[1].path == first.path)
+assert(storage.read(first.path) == updated_ticket.text, "removal changed the retained ticket")
 keys("<C-r>")
 assert(viewmod.save(view))
+assert(tasks.read_board(ws, board.path).states[2].entries[1].path == first.path)
 -- Duplicating a row is rejected even with matching display titles.
 focus(1)
 keys("yyp")
@@ -134,6 +145,16 @@ assert(not tasks.apply_layout(ws, board.path, {
 	},
 }))
 assert(storage.read(board.path) == current.text)
+assert(not tasks.apply_layout(ws, board.path, {
+	expected_text = current.text,
+	states = {
+		{ name = "todo", ticket_ids = {} },
+		{ name = "doing", ticket_ids = {} },
+		{ name = "done", ticket_ids = {} },
+	},
+	removed_tickets = { ["task-unknown"] = true },
+}))
+assert(storage.read(board.path) == current.text)
 
 -- A visual multi-ticket move is one board commit, and uses full IDs, not titles.
 local multi = assert(tasks.create_board(ws, "Visual"))
@@ -166,6 +187,40 @@ assert(storage.read(multi.path) == visual.text)
 vim.bo[sourcebuf].modified = false
 api.nvim_buf_delete(sourcebuf, { force = true })
 assert(viewmod.save(view))
+
+-- Deleting a persisted row and :w removes only its reference, with native undo/redo.
+focus(3)
+local before_removal = tasks.read_board(ws, multi.path).states[3].entries
+local removed_path = before_removal[1].path
+local removed_id = before_removal[1].ticket.metadata.id
+for row, line in ipairs(api.nvim_buf_get_lines(view.columns[3].buf, 0, -1, false)) do
+	if line:find(removed_id, 1, true) then
+		api.nvim_win_set_cursor(0, { row, 0 })
+		break
+	end
+end
+local retained = storage.read(removed_path)
+local notices_before = #notices
+keys("i<C-g>u<Esc>") -- Separate this scripted edit from the preceding paste's undo block.
+keys("dd")
+vim.cmd.write()
+local removed = tasks.read_board(ws, multi.path)
+assert(#removed.states[3].entries == #before_removal - 1 and removed.orphans[1].path == removed_path)
+assert(storage.read(removed_path) == retained, "row deletion deleted or modified the ticket file")
+assert(#notices == notices_before, "row deletion produced a warning")
+assert(not viewmod.dirty(view))
+keys("u")
+vim.cmd.write()
+assert(tasks.read_board(ws, multi.path).states[3].entries[1].path == removed_path)
+assert(storage.read(removed_path) == retained)
+keys("<C-r>")
+vim.cmd.write()
+assert(#tasks.read_board(ws, multi.path).states[3].entries == #before_removal - 1)
+assert(storage.read(removed_path) == retained)
+keys("ggdG")
+vim.cmd.write()
+assert(#tasks.read_board(ws, multi.path).states[3].entries == 0, "last-row deletion was not saved")
+assert(storage.read(removed_path) == retained)
 
 -- Native movement and resize do not perform any filesystem reads.
 local original_read, reads = storage.read, 0

@@ -153,7 +153,55 @@ end
 
 local function save(doc, lines)
 	local changed = fm.edit(lines, doc.frontmatter, { updated_at = now() })
-	return storage.write(doc.path, doc.text, storage.text(changed, doc.text))
+	local text = storage.text(changed, doc.text)
+	-- Placement is authoritative. Prepare every ticket edit before writing any files.
+	local edits, written = {}, {}
+	local board = markdown.parse(text, "board", doc.path)
+	for _, state in ipairs(board.states) do
+		for _, item in ipairs(state.entries) do
+			local ticket, err = M.read_ticket(doc.path, item.path)
+			if not ticket or not ticket.valid then
+				return nil, err or "invalid ticket metadata"
+			end
+			if ticket.metadata.state ~= state.name then
+				local ok, buffer_err = storage.unmodified(ticket.path)
+				if not ok then
+					return nil, buffer_err
+				end
+				local updated = fm.edit(ticket.lines, ticket.frontmatter, { state = state.name, updated_at = now() })
+				table.insert(
+					edits,
+					{ path = ticket.path, original = ticket.text, text = storage.text(updated, ticket.text) }
+				)
+			end
+		end
+	end
+	local function rollback(err)
+		for i = #written, 1, -1 do
+			local edit = written[i]
+			local ok, restore_err = storage.write(edit.path, edit.text, edit.original)
+			if not ok then
+				err = tostring(err)
+					.. "; ticket state rollback failed at "
+					.. edit.path
+					.. ": "
+					.. tostring(restore_err)
+			end
+		end
+		return nil, err
+	end
+	for _, edit in ipairs(edits) do
+		local ok, err = storage.write(edit.path, edit.original, edit.text)
+		if not ok then
+			return rollback(err)
+		end
+		table.insert(written, edit)
+	end
+	local ok, err = storage.write(doc.path, doc.text, text)
+	if not ok then
+		return rollback(err)
+	end
+	return true
 end
 
 local function entry(board, path)
@@ -164,6 +212,63 @@ local function entry(board, path)
 			end
 		end
 	end
+end
+
+function M.revision(text)
+	return "sha256:" .. vim.fn.sha256(text)
+end
+
+function M.resolve_board(ws, id)
+	local matches = {}
+	for _, board in ipairs(M.list(ws)) do
+		if board.metadata and board.metadata.id == id then
+			table.insert(matches, board)
+		end
+	end
+	if #matches > 1 then
+		return nil, { code = "AMBIGUOUS_ID", message = "duplicate board ID" }
+	end
+	if #matches == 0 then
+		return nil, { code = "NOT_FOUND", message = "board not found" }
+	end
+	if not matches[1].valid then
+		return nil, { code = "INVALID_DOCUMENT", message = "invalid board", diagnostics = matches[1].diagnostics }
+	end
+	return matches[1]
+end
+
+function M.resolve_ticket(board, id)
+	local matches = {}
+	for _, state in ipairs(board.states) do
+		for _, item in ipairs(state.entries) do
+			if item.ticket and item.ticket.metadata and item.ticket.metadata.id == id then
+				table.insert(matches, { ticket = item.ticket, state = state.name, error = item.error })
+			end
+		end
+	end
+	for _, orphan in ipairs(board.orphans or {}) do
+		if orphan.ticket and orphan.ticket.metadata and orphan.ticket.metadata.id == id then
+			table.insert(matches, { ticket = orphan.ticket, orphan = true })
+		end
+	end
+	if #matches > 1 then
+		return nil, { code = "AMBIGUOUS_ID", message = "duplicate ticket ID" }
+	end
+	if #matches == 0 or matches[1].orphan then
+		return nil, { code = "NOT_FOUND", message = "referenced ticket not found" }
+	end
+	if matches[1].error or not matches[1].ticket.valid then
+		return nil, { code = "INVALID_DOCUMENT", message = matches[1].error or "invalid ticket" }
+	end
+	return matches[1].ticket, matches[1].state
+end
+
+-- Optional agent guard executes inside the existing lock, before any mutation.
+local function guarded(options, board, ticket_path, document)
+	if options and options.guard then
+		return options.guard(board, ticket_path, document)
+	end
+	return true
 end
 
 function M.create_board(ws, name, options)
@@ -225,8 +330,13 @@ function M.create_ticket(ws, board_path, state_name, name, options, body)
 		if not path then
 			return nil, path_err
 		end
-		local text, doc_err =
-			document("ticket", name, id, options, body or { "## Description", "", "## Acceptance criteria", "" })
+		local text, doc_err = document(
+			"ticket",
+			name,
+			id,
+			vim.tbl_extend("force", options or {}, { state = state.name }),
+			body or { "## Description", "", "## Acceptance criteria", "" }
+		)
 		if not text then
 			return nil, doc_err
 		end
@@ -244,16 +354,28 @@ function M.create_ticket(ws, board_path, state_name, name, options, body)
 	end)
 end
 
-function M.move_ticket(ws, board_path, ticket_path, state_name, position)
+function M.move_ticket(ws, board_path, ticket_path, state_name, position, options)
 	return storage.with_lock(ws, function()
-		local board, err = mutable(ws, board_path)
+		local board, err = (options and options.guard and M.read_board or mutable)(ws, board_path)
 		if not board then
 			return nil, err
 		end
 		local item, current_state = entry(board, ticket_path)
+		local allowed, guard_err = guarded(options, board, ticket_path)
+		if not allowed then
+			return nil, guard_err
+		end
 		local state = markdown.state(board, state_name or current_state and current_state.name)
 		if not state then
 			return nil, "unknown state"
+		end
+		if item and current_state.name == state.name and position == nil then
+			if item.ticket and item.ticket.valid and item.ticket.metadata.state ~= state.name then
+				local ticket = item.ticket
+				local lines = fm.edit(ticket.lines, ticket.frontmatter, { state = state.name, updated_at = now() })
+				return storage.write(ticket.path, ticket.text, storage.text(lines, ticket.text))
+			end
+			return true
 		end
 		local raw
 		if item then
@@ -304,6 +426,10 @@ function M.apply_layout(ws, board_path, request)
 		end
 		local registry, seen, changed = {}, {}, false
 		local new_tickets, pending = request.new_tickets or {}, {}
+		local removed, restored = request.removed_tickets or {}, request.restored_tickets or {}
+		if type(removed) ~= "table" or type(restored) ~= "table" then
+			return nil, "invalid removed or restored tickets"
+		end
 		if type(new_tickets) ~= "table" then
 			return nil, "invalid new tickets"
 		end
@@ -318,6 +444,39 @@ function M.apply_layout(ws, board_path, request)
 				end
 				registry[id] = item
 			end
+		end
+		for id, remove in pairs(removed) do
+			if remove ~= true or not registry[id] then
+				return nil, "unknown removed ticket identity: " .. tostring(id)
+			end
+			local item = registry[id]
+			if request.paths and request.paths[id] ~= item.path then
+				return nil, "ticket identity/path changed; reload draft"
+			end
+			if
+				request.titles
+				and request.titles[id] ~= require("aero.tasks.edit").title(item.ticket.metadata.title)
+			then
+				return nil, "ticket title changed externally; reload draft"
+			end
+		end
+		for id, restore in pairs(restored) do
+			if restore ~= true or registry[id] then
+				return nil, "invalid restored ticket identity: " .. tostring(id)
+			end
+			local found
+			for _, orphan in ipairs(board.orphans or {}) do
+				if orphan.ticket and orphan.ticket.metadata and orphan.ticket.metadata.id == id then
+					if found then
+						return nil, "duplicate restored ticket identity: " .. tostring(id)
+					end
+					found = orphan
+				end
+			end
+			if not found or found.error or not found.ticket.valid then
+				return nil, "missing or invalid restored ticket: " .. tostring(id)
+			end
+			registry[id] = { path = found.path, ticket = found.ticket, raw = markdown.entry(found.ticket) }
 		end
 		for si, state in ipairs(states) do
 			local original = board.states[si]
@@ -340,7 +499,7 @@ function M.apply_layout(ws, board_path, request)
 					then
 						return nil, "unknown identity or invalid new ticket title: " .. tostring(id)
 					end
-					table.insert(pending, { key = id, title = new.title })
+					table.insert(pending, { key = id, title = new.title, state = state.name })
 					changed = true
 				else
 					changed = changed or not original.entries[ti] or original.entries[ti].ticket.metadata.id ~= id
@@ -358,7 +517,11 @@ function M.apply_layout(ws, board_path, request)
 			end
 		end
 		for id in pairs(registry) do
-			if not seen[id] then
+			if removed[id] and seen[id] then
+				return nil, "removed ticket is still present: " .. id
+			elseif restored[id] and not seen[id] then
+				return nil, "unreferenced restored ticket: " .. id
+			elseif not seen[id] and not removed[id] then
 				return nil, "missing ticket: " .. id
 			end
 		end
@@ -396,8 +559,13 @@ function M.apply_layout(ws, board_path, request)
 			if not path then
 				return rollback(path_err)
 			end
-			local text, doc_err =
-				document("ticket", new.title, id, nil, { "## Description", "", "## Acceptance criteria", "" })
+			local text, doc_err = document(
+				"ticket",
+				new.title,
+				id,
+				{ state = new.state },
+				{ "## Description", "", "## Acceptance criteria", "" }
+			)
 			if not text then
 				return rollback(doc_err)
 			end
@@ -460,9 +628,10 @@ function M.remove_ticket(ws, board_path, ticket_path, permanent)
 	end)
 end
 
-function M.update_metadata(ws, board_path, ticket_path, changes)
+function M.update_metadata(ws, board_path, ticket_path, changes, options)
 	return storage.with_lock(ws, function()
-		local board, err = mutable(ws, board_path)
+		local reader = options and options.guard and ticket_path and not changes.title and M.read_board or mutable
+		local board, err = reader(ws, board_path)
 		if not board then
 			return nil, err
 		end
@@ -476,10 +645,17 @@ function M.update_metadata(ws, board_path, ticket_path, changes)
 		if not doc.valid then
 			return nil, "fix document diagnostics before editing metadata"
 		end
+		local allowed, guard_err = guarded(options, board, ticket_path, doc)
+		if not allowed then
+			return nil, guard_err
+		end
 		for _, field in ipairs({ "id", "schema_version", "aero_type", "created_at" }) do
 			if changes[field] ~= nil then
 				return nil, "identity field cannot be edited: " .. field
 			end
+		end
+		if ticket_path and changes.state ~= nil then
+			return nil, "ticket state is managed by board placement; move the ticket instead"
 		end
 		local updated = vim.tbl_extend("force", doc.metadata, changes, { updated_at = now() })
 		local errors = fm.validate(updated, ticket_path and "ticket" or "board")
@@ -510,6 +686,30 @@ function M.update_metadata(ws, board_path, ticket_path, changes)
 			end
 		end
 		return true
+	end)
+end
+
+function M.update_body(ws, board_path, ticket_path, body, options)
+	if type(body) ~= "string" or body:find("\0", 1, true) then
+		return nil, { code = "INVALID_ARGUMENT", message = "body must be Markdown text without NUL bytes" }
+	end
+	return storage.with_lock(ws, function()
+		local board, err = M.read_board(ws, board_path)
+		if not board or not board.valid then
+			return nil, err or { code = "INVALID_DOCUMENT", message = "invalid board" }
+		end
+		local ticket, ticket_err = M.read_ticket(board.path, ticket_path)
+		if not ticket or not ticket.valid then
+			return nil, ticket_err or { code = "INVALID_DOCUMENT", message = "invalid ticket" }
+		end
+		local allowed, guard_err = guarded(options, board, ticket_path, ticket)
+		if not allowed then
+			return nil, guard_err
+		end
+		local lines = vim.list_slice(ticket.lines, 1, ticket.frontmatter.finish)
+		vim.list_extend(lines, storage.lines(body))
+		lines = fm.edit(lines, ticket.frontmatter, { updated_at = now() })
+		return storage.write(ticket.path, ticket.text, storage.text(lines, ticket.text))
 	end)
 end
 

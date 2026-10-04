@@ -19,6 +19,27 @@ function M.registry(board)
 			registry[id] = { entry = entry, title = M.title(data and data.title or entry.label) }
 		end
 	end
+	-- Retained ticket files let native undo/paste restore a removed reference.
+	local orphans, duplicates = {}, {}
+	for _, orphan in ipairs(board.orphans or {}) do
+		local ticket = orphan.ticket
+		if ticket and ticket.valid and not orphan.error then
+			local id = ticket.metadata.id
+			if orphans[id] then
+				duplicates[id] = true
+			end
+			orphans[id] = orphan
+		end
+	end
+	for id, orphan in pairs(orphans) do
+		if not registry[id] and not duplicates[id] then
+			registry[id] = {
+				entry = { path = orphan.path, ticket = orphan.ticket },
+				title = M.title(orphan.ticket.metadata.title),
+				orphan = true,
+			}
+		end
+	end
 	return registry
 end
 
@@ -33,6 +54,7 @@ end
 
 function M.parse(states, columns, registry)
 	local layout, errors, seen, new_tickets = {}, {}, {}, {}
+	local removed, restored = {}, {}
 	for si, state in ipairs(states) do
 		local column = columns[si]
 		local ids = {}
@@ -72,17 +94,20 @@ function M.parse(states, columns, registry)
 					if item then
 						seen[id] = true
 						table.insert(ids, id)
+						if item.orphan then
+							restored[id] = true
+						end
 					end
 				end
 			end
 		end
 	end
-	for id in pairs(registry) do
-		if not seen[id] then
-			table.insert(errors, { message = "missing ticket: " .. id })
+	for id, item in pairs(registry) do
+		if not seen[id] and not item.orphan then
+			removed[id] = true
 		end
 	end
-	return layout, errors, new_tickets
+	return layout, errors, new_tickets, removed, restored
 end
 
 return M
