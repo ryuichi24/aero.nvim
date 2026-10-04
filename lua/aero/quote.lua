@@ -100,33 +100,9 @@ local function append(source, target)
 		return
 	end
 	local lines = format_quote(source, target)
-	if target.chat then
-		local buf = target.chat:get_prompt_buf()
-		local draft = api.nvim_buf_get_lines(buf, 0, -1, false)
-		if #draft == 1 and draft[1] == "" then
-			draft = {}
-		elseif draft[#draft] ~= "" then
-			table.insert(draft, "")
-		end
-		vim.list_extend(draft, lines)
-		table.insert(draft, "")
-		api.nvim_buf_set_lines(buf, 0, -1, false, draft)
-		target.chat:compose()
-		api.nvim_win_set_cursor(0, { #draft, 0 })
-		if not config.options.start_insert then
-			vim.cmd.stopinsert()
-		end
-	else
-		-- Terminal agents receive a bracketed paste, with no submit keystroke.
-		if not target.job then
-			notify("the terminal agent exited before the quote could be pasted")
-			return
-		end
-		api.nvim_set_current_win(win)
-		vim.fn.chansend(target.job, "\027[200~" .. table.concat(lines, "\n") .. "\n\027[201~")
-		if config.options.start_insert then
-			vim.cmd.startinsert()
-		end
+	local ok, err = require("aero.compose").append(target, table.concat(lines, "\n"), win)
+	if not ok then
+		notify(err)
 	end
 end
 
