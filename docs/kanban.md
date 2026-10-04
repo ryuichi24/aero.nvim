@@ -132,7 +132,7 @@ Tabs for the same board share the editing session; resizing does not replace dra
 | `gs` | Add, rename, reorder, remove states; populated removal needs a destination |
 | `gd` | Remove reference, preserving ticket file |
 | `gD` | Confirm permanent ticket deletion |
-| `go` | Browse removed tickets; choose a destination board and state |
+| `go` | Open editable removed-ticket list; `<CR>` restores, delete rows + `:w` deletes permanently |
 | `gA` | Archive/unarchive board, keeping files |
 | `R` | Reload with confirmation before discarding column drafts |
 | `q` / `g?` | Close tab / show help |
@@ -154,7 +154,20 @@ permanently deleted. They are shown explicitly rather than treated as board erro
 - A board with removed tickets shows **Removed tickets: N (go)** in its header.
 - Press `go`, or run `:Aero ticket removed`, to see ticket titles and original boards.
 
-Choose a ticket, destination board, and destination state. Selecting the original
+The list opens in its own full-width tab, like the board view, labelled with its
+workspace name and path. Reopening reuses that workspace's tab and preserves any
+unsaved edits; `q` closes the tab and returns to where you opened it.
+
+The list is an editable buffer, like oil.nvim. Use native motions (`dd`, `dj`,
+visual selections, etc.) to remove rows, then `:w` to **permanently delete** their
+retained Markdown files. Deleting a row alone does not touch disk; `u` undoes the
+draft before saving. `R` reloads the list and discards the draft; `q` closes it.
+Only row deletion and reordering are supported. Changed or restored tickets and
+unsaved ticket/board edits block deletion. Successful saves refresh the list and
+the removed-ticket counts.
+
+Press `<CR>` on a ticket to choose a destination board and destination state.
+Save or discard list edits before restoring. Selecting the original
 board restores the reference at its existing path. Selecting another board transfers
 the Markdown file into that board's `tickets/` folder, preserving its ID, body,
 metadata, and permissions; its state is updated to the selected state. Source and
@@ -165,7 +178,8 @@ Existing destination files/IDs are never overwritten. A failed board commit keep
 the original file and cleans an unchanged temporary recovery copy. If recovery commits
 but the original subsequently changes or cannot be removed, Aero reports that the
 source was retained instead of discarding its contents. Invalid removed documents
-are labelled in the picker and must be repaired before recovery.
+are labelled in the list and must be repaired before recovery; they can still be
+permanently deleted by removing their rows and saving.
 
 ## Storage
 

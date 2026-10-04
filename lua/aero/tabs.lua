@@ -46,7 +46,11 @@ function M.find(worktree)
 	local candidate
 	local current = api.nvim_get_current_tabpage()
 	for _, tab in ipairs(api.nvim_list_tabpages()) do
-		if not vim.t[tab].aero_fullscreen and not vim.t[tab].aero_board_path then
+		if
+			not vim.t[tab].aero_fullscreen
+			and not vim.t[tab].aero_board_path
+			and not vim.t[tab].aero_removed_workspace
+		then
 			local assigned = vim.t[tab].aero_worktree
 			if assigned and norm(assigned) == norm(worktree) then
 				return tab
@@ -63,6 +67,7 @@ function M.find(worktree)
 		not vim.t[current].aero_worktree
 		and not vim.t[current].aero_fullscreen
 		and not vim.t[current].aero_board_path
+		and not vim.t[current].aero_removed_workspace
 		and dashboard_only(current)
 	then
 		candidate = current

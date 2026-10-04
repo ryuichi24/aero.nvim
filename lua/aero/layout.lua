@@ -166,7 +166,13 @@ function M.rebalance()
 	if vim.fn.getcmdwintype() ~= "" then
 		return
 	end
-	if balancing or config.options.layout == false or vim.t.aero_fullscreen or vim.t.aero_board_path then
+	if
+		balancing
+		or config.options.layout == false
+		or vim.t.aero_fullscreen
+		or vim.t.aero_board_path
+		or vim.t.aero_removed_workspace
+	then
 		return
 	end
 	tab_state().screen_size = vim.o.columns .. ":" .. vim.o.lines

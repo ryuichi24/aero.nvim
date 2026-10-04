@@ -230,15 +230,7 @@ function M.removed(ws, preferred_board)
 		return
 	end
 	local edit = require("aero.tasks.edit")
-	vim.ui.select(removed, {
-		prompt = "Removed tickets — choose one to restore",
-		format_item = function(item)
-			return edit.title(item.title)
-				.. " · from "
-				.. edit.title(item.board_title)
-				.. (item.error and " [invalid]" or "")
-		end,
-	}, function(item)
+	return require("aero.tasks.removed").open(ws, function(item, refresh)
 		if not item then
 			return
 		end
@@ -310,6 +302,7 @@ function M.removed(ws, preferred_board)
 					if result.warning then
 						notify(result.warning)
 					end
+					refresh()
 					vim.notify(
 						"Aero tasks: restored "
 							.. edit.title(item.title)

@@ -440,6 +440,74 @@ function M.list_removed(ws)
 	return removed, diagnostics
 end
 
+-- Validate the complete deletion draft before unlinking any retained files.
+function M.delete_removed(ws, items)
+	return storage.with_lock(ws, function()
+		local checked, seen = {}, {}
+		for _, item in ipairs(items) do
+			local board, err = M.read_board(ws, item.board_path)
+			if not board then
+				return nil, err
+			end
+			if board.metadata.id ~= item.board_id then
+				return nil, "board identity changed; reload the list"
+			end
+			local status = require("aero.tasks.view").status(board.path)
+			if status.dirty or status.missing_column then
+				return nil, "save or discard board edits before deleting removed tickets"
+			end
+			local ok, draft_err = storage.unmodified(board.path)
+			if not ok then
+				return nil, draft_err
+			end
+			local ticket, ticket_err = M.read_ticket(board.path, item.path)
+			if not ticket then
+				return nil, ticket_err
+			end
+			if seen[ticket.path] then
+				return nil, "duplicate removed ticket"
+			end
+			seen[ticket.path] = true
+			if entry(board, ticket.path) then
+				return nil, "ticket is no longer removed; reload the list"
+			end
+			if ticket.text ~= item.text then
+				return nil, "removed ticket changed; reload the list"
+			end
+			ok, draft_err = storage.unmodified(ticket.path)
+			if not ok then
+				return nil, draft_err
+			end
+			table.insert(checked, item)
+		end
+		local deleted = {}
+		for _, item in ipairs(checked) do
+			-- Closing a deleted file's buffer can run user autocmds between items.
+			local board = M.read_board(ws, item.board_path)
+			if not board or board.metadata.id ~= item.board_id or entry(board, item.path) then
+				return nil, "ticket is no longer removed; reload the list", deleted
+			end
+			if storage.read(item.path) ~= item.text then
+				return nil, "removed ticket changed; reload the list", deleted
+			end
+			local clean, draft_err = storage.unmodified(item.path)
+			if not clean then
+				return nil, draft_err, deleted
+			end
+			local ok, err = vim.uv.fs_unlink(item.path)
+			if not ok then
+				return nil, err, deleted
+			end
+			table.insert(deleted, item)
+			local buf = vim.fn.bufnr(item.path)
+			if buf ~= -1 then
+				pcall(vim.api.nvim_buf_delete, buf, { force = true })
+			end
+		end
+		return deleted
+	end)
+end
+
 -- Restore a removed ticket, transferring its file only when the owning board changes.
 function M.recover_ticket(ws, source_path, ticket_path, target_path, state_name, options)
 	return storage.with_lock(ws, function()

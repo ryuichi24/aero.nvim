@@ -62,7 +62,7 @@ local function choose(items, opts)
 		return "review queue"
 	end
 end
-for cancel = 1, 3 do
+for cancel = 1, 2 do
 	local step = 0
 	vim.ui.select = function(items, opts, callback)
 		step = step + 1
@@ -73,6 +73,8 @@ for cancel = 1, 3 do
 		end
 	end
 	viewmod.actions(view).recover()
+	vim.fn.maparg("<CR>", "n", false, true).callback()
+	vim.fn.maparg("q", "n", false, true).callback()
 	assert(storage.read(source.path) == source_text and storage.read(target.path) == target_text)
 	assert(storage.read(ticket.path) == original_ticket)
 end
@@ -115,6 +117,8 @@ vim.ui.select = function(items, opts, callback)
 	callback(choose(items, opts))
 end
 require("aero.tasks.ui").removed(ws, source.path)
+vim.fn.maparg("<CR>", "n", false, true).callback()
+vim.fn.maparg("q", "n", false, true).callback()
 assert(storage.read(target.path) == target_text and storage.read(ticket.path) == original_ticket)
 assert(viewmod.dirty(target_view))
 viewmod.render(target_view, true)
@@ -139,6 +143,9 @@ end
 api.nvim_win_set_cursor(win, { found, 0 })
 assert(vim.uv.fs_chmod(ticket.path, 384))
 vim.fn.maparg("<CR>", "n", false, true).callback()
+assert(api.nvim_get_current_line():find("Retained requirements · from Original", 1, true))
+vim.fn.maparg("<CR>", "n", false, true).callback()
+vim.fn.maparg("q", "n", false, true).callback()
 assert(api.nvim_get_current_win() == win)
 assert(#tasks.list_removed(ws) == 0)
 assert(not vim.uv.fs_stat(ticket.path) and vim.uv.fs_stat(destination))
@@ -196,6 +203,106 @@ end
 assert(invalid and invalid.error)
 assert(not tasks.recover_ticket(ws, source.path, invalid_path, target.path, "todo"))
 assert(storage.read(invalid_path) == "Not a valid Aero ticket.\n")
+
+-- Removed tickets are edited with native motions and deleted only by :w.
+local ui = require("aero.tasks.ui")
+ui.removed(ws)
+local removed_buf = api.nvim_get_current_buf()
+local removed_win = api.nvim_get_current_win()
+local removed_tab = api.nvim_get_current_tabpage()
+assert(#api.nvim_tabpage_list_wins(removed_tab) == 1, "removed list does not have a dedicated tab")
+assert(api.nvim_win_get_width(removed_win) == vim.o.columns, "removed list is constrained by the sidebar")
+assert(vim.t[removed_tab].aero_removed_workspace == ws.root)
+assert(require("aero.tabs").find(ws.root) ~= removed_tab, "removed list was reused as a code tab")
+local window_count = #api.nvim_list_wins()
+ui.removed(ws)
+assert(api.nvim_get_current_buf() == removed_buf and api.nvim_get_current_win() == removed_win)
+assert(#api.nvim_list_wins() == window_count, "reopening created a duplicate window")
+-- Reopening from the board updates the existing clean list with newly removed tickets.
+local latest = assert(tasks.create_ticket(ws, source.path, "todo", "Newly removed"))
+assert(tasks.remove_ticket(ws, source.path, latest.path))
+viewmod.open(ws, source.path)
+local before_reopen = #api.nvim_list_wins()
+ui.removed(ws)
+assert(api.nvim_get_current_buf() == removed_buf and api.nvim_get_current_win() == removed_win)
+assert(#api.nvim_list_wins() == before_reopen)
+assert(api.nvim_get_current_tabpage() == removed_tab, "reopening created a duplicate tab")
+assert(table.concat(api.nvim_buf_get_lines(removed_buf, 0, -1, false), "\n"):find("Newly removed", 1, true))
+local function find_row(text)
+	for row, line in ipairs(api.nvim_buf_get_lines(removed_buf, 0, -1, false)) do
+		if line:find(text, 1, true) then
+			return row
+		end
+	end
+	error("missing removed row: " .. text)
+end
+local row = find_row("invalid.md")
+api.nvim_win_set_cursor(0, { row, 0 })
+vim.cmd("normal! dd")
+assert(storage.read(invalid_path), "motion deleted a file before save")
+local draft = api.nvim_buf_get_lines(removed_buf, 0, -1, false)
+ui.removed(ws)
+assert(vim.bo[removed_buf].modified and vim.deep_equal(draft, api.nvim_buf_get_lines(removed_buf, 0, -1, false)))
+vim.fn.maparg("q", "n", false, true).callback()
+assert(not api.nvim_tabpage_is_valid(removed_tab), "q did not close the removed-ticket tab")
+ui.removed(ws)
+assert(api.nvim_get_current_buf() == removed_buf and vim.bo[removed_buf].modified)
+assert(vim.deep_equal(draft, api.nvim_buf_get_lines(removed_buf, 0, -1, false)), "closing lost the deletion draft")
+assert(#api.nvim_tabpage_list_wins(0) == 1 and api.nvim_win_get_width(0) == vim.o.columns)
+vim.cmd("normal! u")
+assert(find_row("invalid.md"))
+-- Stale files reject the entire deletion draft.
+api.nvim_win_set_cursor(0, { find_row("invalid.md"), 0 })
+vim.cmd("normal! dd")
+assert(storage.write(invalid_path, "Not a valid Aero ticket.\n", "Changed externally.\n"))
+vim.cmd.write()
+assert(storage.read(invalid_path) == "Changed externally.\n" and vim.bo[removed_buf].modified)
+vim.fn.maparg("R", "n", false, true).callback()
+api.nvim_win_set_cursor(0, { find_row("invalid.md"), 0 })
+vim.cmd("normal! dd")
+vim.cmd.write()
+assert(not vim.uv.fs_stat(invalid_path) and not vim.bo[removed_buf].modified)
+assert(not vim.tbl_contains(
+	vim.tbl_map(function(item)
+		return item.path
+	end, tasks.list_removed(ws)),
+	invalid_path
+))
+-- A restored ticket cannot be deleted by a stale removed-list draft.
+vim.fn.maparg("R", "n", false, true).callback()
+api.nvim_win_set_cursor(0, { find_row("Retain on unlink failure"), 0 })
+vim.cmd("normal! dd")
+assert(tasks.recover_ticket(ws, source.path, retained_ticket.path, source.path, "todo"))
+vim.cmd.write()
+assert(vim.uv.fs_stat(retained_ticket.path) and vim.bo[removed_buf].modified)
+-- Bulk deletion is prevalidated, including unsaved hidden ticket buffers.
+local first = assert(tasks.create_ticket(ws, source.path, "todo", "Bulk first"))
+local second = assert(tasks.create_ticket(ws, source.path, "todo", "Bulk second"))
+local spare = assert(tasks.create_ticket(ws, source.path, "todo", "Keep this removed ticket"))
+assert(tasks.remove_ticket(ws, source.path, first.path))
+assert(tasks.remove_ticket(ws, source.path, second.path))
+assert(tasks.remove_ticket(ws, source.path, spare.path))
+vim.fn.maparg("R", "n", false, true).callback()
+local hidden = vim.fn.bufadd(second.path)
+vim.fn.bufload(hidden)
+api.nvim_buf_set_lines(hidden, -1, -1, false, { "Unsaved requirements" })
+api.nvim_win_set_cursor(0, { find_row("Bulk first"), 0 })
+vim.cmd("normal! 2dd")
+vim.cmd.write()
+assert(vim.uv.fs_stat(first.path) and vim.uv.fs_stat(second.path), "batch was not prevalidated")
+assert(vim.bo[removed_buf].modified)
+vim.bo[hidden].modified = false
+vim.cmd.write()
+assert(not vim.uv.fs_stat(first.path) and not vim.uv.fs_stat(second.path))
+assert(not api.nvim_buf_is_valid(hidden), "deleted ticket buffer was left behind")
+-- Editing a label must not accidentally request deletion.
+local lines = api.nvim_buf_get_lines(removed_buf, 0, -1, false)
+if lines[1] ~= "" then
+	api.nvim_buf_set_lines(removed_buf, 0, 1, false, { "Unknown row" })
+	local count = #tasks.list_removed(ws)
+	vim.cmd.write()
+	assert(vim.bo[removed_buf].modified and #tasks.list_removed(ws) == count)
+end
 vim.fn.delete(root, "rf")
-print("Removed-ticket tests passed (discovery, pickers, drafts, transfer, rollback, same-board recovery).")
+print("Removed-ticket tests passed (recovery, motion edits, undo, bulk deletion, drafts, stale files, invalid rows).")
 vim.cmd("qa!")
