@@ -4,6 +4,10 @@ Run agent CLIs in terminals or use native Neovim chat buffers over ACP.
 
 [Back to README](../README.md)
 
+Fresh ACP sessions can be bound to a persisted Kanban ticket with opt-in
+[agent task integration](agent-tasks.md). Assigned task files use revision-checked
+MCP tools instead of generic ACP file writes.
+
 ## Agent setup
 
 Terminal agents run `opencode`, `claude`, or `codex` in `:terminal` buffers. Busy/idle

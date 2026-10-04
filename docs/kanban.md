@@ -4,6 +4,9 @@ Edit workspace-wide task boards with Vim motions and keep their source as ordina
 
 [Back to README](../README.md)
 
+For `gw` / `:Aero ticket work`, guarded task tools, and development setup, see
+[agent task integration](agent-tasks.md). Agent activity never moves tickets automatically.
+
 ## Setup and opening boards
 
 Requires [Mike Farah's Go-based `yq` v4](https://github.com/mikefarah/yq) (MIT).
@@ -73,20 +76,30 @@ Repeated titles create distinct tickets; blank lines are ignored.
 `dd` cuts a row, `<C-w>h/l` switches columns, and `p`/`P` pastes. Visual cut/paste
 moves multiple tickets. `m` and `gK/gJ` stage movement/reordering. **`:w` in any column
 saves all columns together**, including hidden ones, in one board Markdown update.
-Movement leaves existing ticket files unchanged; new title rows create ticket files.
+Movement synchronizes the ticket's `state` frontmatter with its column; new title rows
+create ticket files with that state. Column renames and removal with a destination also
+update affected tickets. Board placement is authoritative: use a move operation to
+change state rather than editing this metadata field. Existing tickets without `state`
+remain valid and receive it on the next Aero board change or explicit move. Removing
+a reference preserves the orphan's last recorded state until it is recovered.
+Unsaved ticket drafts block operations that need to update their state.
 
-Missing, duplicate, unknown-ID, or edited existing rows reject the whole save and keep
+Missing state buffers, duplicate, unknown-ID, or edited existing rows reject the whole save and keep
 the draft. Do not edit existing IDs/titles here; rename with `N`. New tickets are plain
-titles without an ID prefix. Cutting without pasting is not deletion; use `gd/gD`.
-Explicit removal, dialog-based creation (`ga`), and metadata/state edits require a clean draft.
+titles without an ID prefix. **Deleting a whole row and saving removes its board reference**,
+preserving the ticket Markdown file. Undo/paste the original row and save to restore it,
+or use `go` to recover an orphan. `gd` removes a reference immediately; `gD` confirms
+permanent file deletion. Dialog-based removal/creation (`ga`) and metadata/state edits
+require a clean draft.
 
 Validation and source-conflict checks run before creating files. If the final board write
 fails, Aero removes unchanged files created by that attempt when the board is still unchanged.
 Files changed or possibly referenced externally are retained with recovery paths in the error.
 The draft stays editable for retry. Saving again after success does not create duplicates.
 
-Undo/redo is column-local. A cross-column move edits two buffers; undoing one can
-temporarily create missing/duplicate rows. After saving, undo creates a new draft;
+Undo/redo is column-local. A cross-column move edits two buffers; undoing only the
+destination removes the reference, while undoing only the source can create a duplicate
+that must be resolved before saving. After saving, undo creates a new draft;
 save again to persist the reversal. External changes never overwrite dirty columns;
 stale saves fail. Use `e` to compare source or `R` to explicitly discard/reload all columns.
 
@@ -119,16 +132,40 @@ Tabs for the same board share the editing session; resizing does not replace dra
 | `gs` | Add, rename, reorder, remove states; populated removal needs a destination |
 | `gd` | Remove reference, preserving ticket file |
 | `gD` | Confirm permanent ticket deletion |
-| `go` | Recover orphan into a state of its owning board |
+| `go` | Browse removed tickets; choose a destination board and state |
 | `gA` | Archive/unarchive board, keeping files |
 | `R` | Reload with confirmation before discarding column drafts |
 | `q` / `g?` | Close tab / show help |
 
 `:Aero ticket new` creates in the active board's selected state; `:Aero ticket move`
-chooses a state. Override mappings using `tasks.keymaps`, with `false` to disable.
+chooses a state. `:Aero ticket removed` (also `:Aero ticket recover`) opens the
+workspace's removed-ticket picker. Override mappings using `tasks.keymaps`, with `false` to disable.
 Clean views refresh on writes/focus; dirty views retain drafts. Cursor movement does
 not read files; typing updates cached metadata with a debounce, and resizing redraws
 decorations without rereading Markdown.
+
+## Removed tickets
+
+Tickets removed with `dd` and `:w` or with `gd` remain on disk until restored or
+permanently deleted. They are shown explicitly rather than treated as board errors:
+
+- The dashboard's **Removed tickets** row shows the workspace-wide count; press
+  `<CR>` to browse it. Individual boards also show their removed-ticket counts.
+- A board with removed tickets shows **Removed tickets: N (go)** in its header.
+- Press `go`, or run `:Aero ticket removed`, to see ticket titles and original boards.
+
+Choose a ticket, destination board, and destination state. Selecting the original
+board restores the reference at its existing path. Selecting another board transfers
+the Markdown file into that board's `tickets/` folder, preserving its ID, body,
+metadata, and permissions; its state is updated to the selected state. Source and
+destination board drafts and unsaved ticket edits must be resolved first. Cancelling
+any picker changes nothing. Recovery refreshes clean views without changing focus.
+
+Existing destination files/IDs are never overwritten. A failed board commit keeps
+the original file and cleans an unchanged temporary recovery copy. If recovery commits
+but the original subsequently changes or cannot be removed, Aero reports that the
+source was retained instead of discarding its contents. Invalid removed documents
+are labelled in the picker and must be repaired before recovery.
 
 ## Storage
 
@@ -139,8 +176,9 @@ stdpath("data")/Aero/workspaces/<workspace-name-hash>/tasks/
     tickets/task-<stable-id>.md
 ```
 
-All worktrees share this directory. Each board owns its tickets; cross-board transfers
-and links are rejected. Discovery does not create files.
+All worktrees share this directory. Each board owns its tickets; cross-board links
+are rejected. Removed-ticket recovery can explicitly transfer a file to another board
+in the same workspace. Discovery does not create files.
 
 | `tasks.directory` | Location |
 | --- | --- |
@@ -268,3 +306,6 @@ Other operations: `directory`, `list`, `read_board`, `read_ticket`, `rename_boar
 `rename_ticket`, `add_state`, `rename_state`, `reorder_state`, `remove_state`,
 `remove_ticket` (fourth argument `true` permanently deletes), `archive_board`,
 and `delete_board`. `move_ticket` can recover an orphan of the same board.
+`list_removed(ws)` returns workspace-wide removed-ticket summaries;
+`recover_ticket(ws, source_board_path, ticket_path, destination_board_path, state)`
+restores a removed ticket, returning `{ path, board_path, warning? }` or `nil, error`.

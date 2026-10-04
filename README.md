@@ -153,6 +153,27 @@ file. Press `<CR>` to edit a ticket's Markdown; `ga` also offers dialog-based cr
 
 [Kanban workflow, keys, and file format](docs/kanban.md)
 
+### Task-agent integration (opt-in)
+
+Enable `tasks.agent.enabled`, configure the `aero-mcp` executable, and press `gw` on
+a saved ticket to assign it to a fresh ACP session in a chosen worktree. Aero registers
+the task MCP server automatically and appends the assignment without submitting it.
+The tools use revision checks and preserve conflicting user drafts.
+
+| OS | Task-agent integration | MCP binary build targets |
+| --- | --- | --- |
+| macOS | Available via Unix-domain sockets | ARM64 (Apple Silicon), AMD64 (Intel) |
+| Linux | Available via Unix-domain sockets | ARM64, AMD64 |
+| Windows | Not yet supported; a compatible local bridge transport is required | AMD64 `.exe` cross-build only |
+
+Cross-compilation does not establish native-platform runtime support. The workflow
+runs Go tests on Linux; macOS ARM64 integration has also been tested locally.
+OpenCode ACP is the initial task-agent adapter; terminal-provider assignment remains
+a follow-up. Development revisions require a custom executable built with `make build`;
+prebuilt release binaries need no Go runtime.
+
+[Task-agent setup, installation, and limitations](docs/agent-tasks.md)
+
 ### Integrations and customization
 
 Configure agents, pane sizes, shortcuts, persistence, and storage with `setup()`:

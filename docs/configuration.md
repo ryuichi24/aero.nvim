@@ -6,6 +6,25 @@ Customize agent commands, layout, mappings, storage, and appearance with `setup(
 
 Only specify options you want to change. Defaults below match `lua/aero/config.lua`.
 
+## Task-agent integration
+
+```lua
+require("aero").setup({
+  tasks = {
+    agent = {
+      enabled = false,
+      executable = false, -- absolute custom executable; required for development revisions
+      adapters = { "opencode-acp" },
+      -- prompt may override the assignment instructions independently of reports.prompt
+    },
+    keymaps = { work = "gw" },
+  },
+})
+```
+
+See [agent task integration](agent-tasks.md) for builds, version-matched installation,
+draft conflicts, supported transport, and runtime binding lifetime.
+
 ## Core defaults
 
 ```lua
