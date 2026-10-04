@@ -32,7 +32,7 @@ function M.rows(state)
 end
 
 function M.parse(states, columns, registry)
-	local layout, errors, seen = {}, {}, {}
+	local layout, errors, seen, new_tickets = {}, {}, {}, {}
 	for si, state in ipairs(states) do
 		local column = columns[si]
 		local ids = {}
@@ -44,9 +44,23 @@ function M.parse(states, columns, registry)
 				if vim.trim(line) ~= "" then
 					local id, label = line:match("^(%S+)  (.*)$")
 					local item = id and registry[id]
+					local first = vim.trim(line):match("^(%S+)")
 					local err
 					if not item then
-						err = "unknown or malformed ticket row"
+						if
+							registry[first]
+							or (first:match("^task%-") and (id or #first == 25 and first:match("^task%-%x+$")))
+							or first:match("^invalid:")
+							or first:match("^new:")
+						then
+							err = "unknown or malformed ticket row"
+						elseif line:find("%c") then
+							err = "ticket title must be single-line without control characters"
+						else
+							local key = "new:" .. si .. ":" .. row
+							new_tickets[key] = { title = vim.trim(line), state = si, row = row }
+							table.insert(ids, key)
+						end
 					elseif seen[id] then
 						err = "duplicate ticket: " .. id
 					elseif label ~= item.title then
@@ -68,7 +82,7 @@ function M.parse(states, columns, registry)
 			table.insert(errors, { message = "missing ticket: " .. id })
 		end
 	end
-	return layout, errors
+	return layout, errors, new_tickets
 end
 
 return M

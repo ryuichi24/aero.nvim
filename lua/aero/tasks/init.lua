@@ -303,6 +303,10 @@ function M.apply_layout(ws, board_path, request)
 			return nil, "state layout changed"
 		end
 		local registry, seen, changed = {}, {}, false
+		local new_tickets, pending = request.new_tickets or {}, {}
+		if type(new_tickets) ~= "table" then
+			return nil, "invalid new tickets"
+		end
 		for _, state in ipairs(board.states) do
 			for _, item in ipairs(state.entries) do
 				if item.error or not item.ticket or not item.ticket.valid then
@@ -322,19 +326,34 @@ function M.apply_layout(ws, board_path, request)
 			end
 			changed = changed or #state.ticket_ids ~= #original.entries
 			for ti, id in ipairs(state.ticket_ids) do
-				if not registry[id] or seen[id] then
+				if seen[id] then
 					return nil, "unknown or duplicate ticket identity: " .. tostring(id)
 				end
 				seen[id] = true
-				changed = changed or not original.entries[ti] or original.entries[ti].ticket.metadata.id ~= id
-				if request.paths and request.paths[id] ~= registry[id].path then
-					return nil, "ticket identity/path changed; reload draft"
-				end
-				if
-					request.titles
-					and request.titles[id] ~= require("aero.tasks.edit").title(registry[id].ticket.metadata.title)
-				then
-					return nil, "ticket title changed externally; reload draft"
+				if not registry[id] then
+					local new = new_tickets[id]
+					if
+						type(id) ~= "string"
+						or not id:match("^new:%d+:%d+$")
+						or type(new) ~= "table"
+						or not title(new.title)
+					then
+						return nil, "unknown identity or invalid new ticket title: " .. tostring(id)
+					end
+					table.insert(pending, { key = id, title = new.title })
+					changed = true
+				else
+					changed = changed or not original.entries[ti] or original.entries[ti].ticket.metadata.id ~= id
+					if request.paths and request.paths[id] ~= registry[id].path then
+						return nil, "ticket identity/path changed; reload draft"
+					end
+					if
+						request.titles
+						and request.titles[id]
+							~= require("aero.tasks.edit").title(registry[id].ticket.metadata.title)
+					then
+						return nil, "ticket title changed externally; reload draft"
+					end
 				end
 			end
 		end
@@ -343,14 +362,63 @@ function M.apply_layout(ws, board_path, request)
 				return nil, "missing ticket: " .. id
 			end
 		end
+		for key in pairs(new_tickets) do
+			if not seen[key] or registry[key] then
+				return nil, "unreferenced or conflicting new ticket"
+			end
+		end
 		if not changed then
 			return true, nil, board.text
 		end
-		local ok, write_err = save(board, markdown.placements(board, states, registry))
-		if not ok then
-			return nil, write_err
+		local created, files = {}, {}
+		local function rollback(message)
+			local kept = {}
+			for path, text in pairs(files) do
+				-- Never remove a changed file, or a ticket potentially linked by an external edit.
+				if
+					storage.read(board.path) == board.text
+					and storage.read(path) == text
+					and storage.unmodified(path)
+				then
+					if not vim.uv.fs_unlink(path) then
+						table.insert(kept, path)
+					end
+				else
+					table.insert(kept, path)
+				end
+			end
+			return nil,
+				tostring(message) .. (#kept > 0 and "; recover created tickets: " .. table.concat(kept, ", ") or "")
 		end
-		return true, nil, storage.read(board.path)
+		for _, new in ipairs(pending) do
+			local id = storage.id("task")
+			local path, path_err = storage.ticket_path(board.path, "tickets/" .. id .. ".md")
+			if not path then
+				return rollback(path_err)
+			end
+			local text, doc_err =
+				document("ticket", new.title, id, nil, { "## Description", "", "## Acceptance criteria", "" })
+			if not text then
+				return rollback(doc_err)
+			end
+			local ticket = markdown.parse(text, "ticket", path)
+			if not ticket.valid then
+				return rollback(table.concat(ticket.diagnostics, "; "))
+			end
+			vim.fn.mkdir(vim.fs.dirname(path), "p")
+			local ok, create_err = storage.create(path, text)
+			if not ok then
+				return rollback(create_err)
+			end
+			files[path] = text
+			registry[new.key] = { raw = markdown.entry(ticket) }
+			created[new.key] = ticket
+		end
+		local ran, ok, write_err = pcall(save, board, markdown.placements(board, states, registry))
+		if not ran or not ok then
+			return rollback(ran and write_err or ok)
+		end
+		return true, nil, storage.read(board.path), created
 	end)
 end
 

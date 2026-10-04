@@ -84,10 +84,12 @@ decorate = function(view, only)
 			api.nvim_buf_clear_namespace(column.buf, ns, 0, -1)
 			local count = 0
 			for row, line in ipairs(api.nvim_buf_get_lines(column.buf, 0, -1, false)) do
+				if vim.trim(line) ~= "" then
+					count = count + 1
+				end
 				local id = line:match("^(%S+)  ")
 				local item = view.registry[id]
 				if item then
-					count = count + 1
 					api.nvim_buf_set_extmark(column.buf, ns, row - 1, 0, {
 						virt_text = { { detail(item.entry, column.name), "Comment" } },
 						virt_text_pos = "eol",
@@ -129,7 +131,7 @@ function M.save(view)
 			columns[si] = { name = column.name }
 		end
 	end
-	local states, errors = edit.parse(view.board.states, columns, view.registry)
+	local states, errors, new_tickets = edit.parse(view.board.states, columns, view.registry)
 	if #errors > 0 then
 		local by_buffer, messages = {}, {}
 		for _, err in ipairs(errors) do
@@ -153,11 +155,12 @@ function M.save(view)
 		paths[id], titles[id] = item.entry.path, item.title
 	end
 	view.saving = true
-	local ok, err, text = tasks.apply_layout(view.ws, view.path, {
+	local ok, err, text, created = tasks.apply_layout(view.ws, view.path, {
 		expected_text = view.baseline_text,
 		states = states,
 		paths = paths,
 		titles = titles,
+		new_tickets = new_tickets,
 	})
 	view.saving = false
 	if not ok then
@@ -167,7 +170,27 @@ function M.save(view)
 		return nil
 	end
 	view.baseline_text, view.stale = text, false
-	-- Refresh the committed model without touching any column's lines/undo history.
+	-- Add concealed identities to newly created rows only after the board commit succeeds.
+	for si, column in ipairs(view.columns) do
+		if api.nvim_buf_is_valid(column.buf) and api.nvim_buf_get_changedtick(column.buf) == ticks[column.buf] then
+			local rows, changed = vim.deepcopy(columns[si].lines), false
+			for key, ticket in pairs(created or {}) do
+				local new = new_tickets[key]
+				if new.state == si then
+					rows[new.row] = ticket.metadata.id .. "  " .. edit.title(ticket.metadata.title)
+					changed = true
+				end
+			end
+			if changed then
+				api.nvim_buf_call(column.buf, function()
+					pcall(vim.cmd.undojoin)
+					api.nvim_buf_set_lines(column.buf, 0, -1, false, rows)
+				end)
+				ticks[column.buf] = api.nvim_buf_get_changedtick(column.buf)
+			end
+		end
+	end
+	-- Refresh the committed model while retaining native column undo history.
 	local board = tasks.read_board(view.ws, view.path)
 	if board then
 		view.board, view.registry = board, edit.registry(board)
@@ -182,14 +205,25 @@ function M.save(view)
 	return true
 end
 
+local function conceal_identities(view, buf)
+	api.nvim_buf_call(buf, function()
+		vim.cmd("silent! syntax clear AeroTaskIdentity")
+		vim.cmd([[syntax match AeroTaskIdentity /^task-[0-9a-f]\{20}  / conceal]])
+		-- Custom frontmatter IDs remain supported, without concealing ordinary title words.
+		for id in pairs(view.registry) do
+			if not (id:match("^task%-%x+$") and #id == 25) then
+				vim.cmd([[syntax match AeroTaskIdentity /^\V]] .. vim.fn.escape(id, [[\/]]) .. [[\m  / conceal]])
+			end
+		end
+	end)
+end
+
 local function column_buffer(view, state)
 	local buf = api.nvim_create_buf(true, false)
 	vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].swapfile = "acwrite", "hide", false
 	vim.bo[buf].filetype = "AeroBoard"
 	-- Syntax conceal follows native edits/undo without rebuilding identity extmarks.
-	api.nvim_buf_call(buf, function()
-		vim.cmd([[syntax match AeroTaskIdentity /^\S\+  / conceal]])
-	end)
+	conceal_identities(view, buf)
 	api.nvim_buf_set_name(
 		buf,
 		"Aero://board/" .. vim.fn.sha256(view.path) .. "/" .. vim.fn.sha256(state.name):sub(1, 8)
@@ -269,6 +303,7 @@ function M.render(view, discard, metadata_refresh)
 		end
 		old[state.name] = nil
 		view.columns[si] = column
+		conceal_identities(view, column.buf)
 		local rows = edit.rows(state)
 		if not vim.deep_equal(rows, api.nvim_buf_get_lines(column.buf, 0, -1, false)) then
 			api.nvim_buf_set_lines(column.buf, 0, -1, false, rows)
@@ -781,7 +816,8 @@ function M.actions(view)
 			layout(view, view.state_index)
 		end,
 		help = function()
-			local lines = { "Edit ticket rows with dd/p; :w saves ALL columns. Undo is column-local." }
+			local lines =
+				{ "Type a new title to create a ticket; dd/p moves rows. :w saves ALL columns. Undo is column-local." }
 			local data = view.board.metadata or {}
 			if data.description then
 				table.insert(lines, edit.title(data.description))
