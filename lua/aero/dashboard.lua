@@ -364,23 +364,28 @@ local function target_win()
 	local tab_wins = api.nvim_tabpage_list_wins(0)
 	local t = require("aero.buffers").code_win() or state.target
 	if t and api.nvim_win_is_valid(t) and vim.tbl_contains(tab_wins, t) and usable(t) then
+		require("aero.layout").rebalance()
 		return t
 	end
 	for _, w in ipairs(tab_wins) do
 		if usable(w) then
+			require("aero.layout").rebalance()
 			return w
 		end
 	end
 	-- only the dashboard (and maybe the panel) are open: add a window between them
-	local side = config.options.dashboard.position == "right" and "left" or "right"
-	local w = api.nvim_open_win(api.nvim_create_buf(false, true), false, { split = side, win = state.win })
-	if state.win and api.nvim_win_is_valid(state.win) then
-		api.nvim_win_set_width(state.win, require("aero.layout").dashboard_width())
-	end
 	local pw = panel.win()
-	if pw then
-		api.nvim_win_set_width(pw, require("aero.layout").panel_width())
-	end
+	local dashboard_open = state.win and api.nvim_win_is_valid(state.win)
+	local panel_position = panel.enabled() and config.options.panel.position or "right"
+	local side = dashboard_open and (config.options.dashboard.position == "right" and "left" or "right")
+		or (panel_position == "left" and "right" or "left")
+	local w = api.nvim_open_win(
+		api.nvim_create_buf(false, true),
+		false,
+		{ split = side, win = dashboard_open and state.win or pw }
+	)
+	vim.wo[w].winfixwidth = false
+	require("aero.layout").rebalance()
 	return w
 end
 
@@ -426,7 +431,8 @@ function M.open()
 	end
 	set_win_options(state.win)
 	if pos ~= "current" then
-		require("aero.layout").track(state.win, "dashboard")
+		require("aero.layout").track(state.win, "dashboard", nil, width)
+		require("aero.layout").rebalance()
 	end
 	-- git state (and other nvim instances' changes) may have changed while the dashboard was hidden
 	store.load()
@@ -1162,6 +1168,27 @@ function actions.edit()
 	end
 end
 
+function actions.open_board_markdown()
+	local item = current_item()
+	if item and item.kind == "board" then
+		actions.edit()
+		vim.b.aero_board_path, vim.b.aero_workspace_root = item.board.path, item.ws.root
+	end
+end
+
+--- Open the dashboard-selected board source, returning whether a board was selected.
+function M.open_board_markdown()
+	if api.nvim_get_current_buf() ~= state.buf then
+		return false
+	end
+	local item = current_item()
+	if not item or item.kind ~= "board" then
+		return false
+	end
+	actions.open_board_markdown()
+	return true
+end
+
 function actions.edit_enter()
 	actions.edit()
 end
@@ -1243,6 +1270,7 @@ local descriptions = {
 	pull = "pull worktree upstream (fast-forward only)",
 	cd = ":tcd to worktree",
 	edit = "open worktree / restore last code buffer",
+	open_board_markdown = "open selected board's raw Markdown file",
 	edit_enter = "open worktree / restore last code buffer",
 	edit_mouse = "open clicked worktree / restore last code buffer",
 	terminal = "open worktree terminal",

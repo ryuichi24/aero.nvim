@@ -4,6 +4,8 @@ local config = require("aero.config")
 local M = {}
 local tabs, windows, bindings = {}, {}, {}
 local updating = false
+local balancing = false
+local pending_balance = {}
 local resize_mode
 local resize_ns = api.nvim_create_namespace("Aero.resize")
 local directions = {
@@ -83,12 +85,54 @@ function M.keys(prompt)
 	return keys
 end
 
-function M.remember(win)
+local function code_window(win)
+	if api.nvim_win_get_config(win).relative ~= "" then
+		return false
+	end
 	local entry = windows[win]
-	if not entry or not api.nvim_win_is_valid(win) then
+	if
+		entry
+		and (entry.kind == "dashboard" or entry.kind == "panel" or entry.kind == "prompt" or entry.kind == "terminal")
+	then
+		return false
+	end
+	local buf = api.nvim_win_get_buf(win)
+	return vim.bo[buf].filetype ~= "Aero" and not vim.b[buf].aero_chat_key and not vim.b[buf].aero_term
+end
+
+local function has_code(tab)
+	for _, win in ipairs(api.nvim_tabpage_list_wins(tab)) do
+		if code_window(win) then
+			return true
+		end
+	end
+	return false
+end
+
+function M.remember(win, manual)
+	local entry = windows[win]
+	if balancing or not entry or not api.nvim_win_is_valid(win) then
 		return
 	end
-	local state = tab_state(api.nvim_win_get_tabpage(win))
+	local tab = api.nvim_win_get_tabpage(win)
+	local state = tab_state(tab)
+	if entry.kind == "panel" or entry.kind == "dashboard" then
+		if state.screen_size and state.screen_size ~= vim.o.columns .. ":" .. vim.o.lines and not manual then
+			return
+		end
+		if pending_balance[tab] and pending_balance[tab].screen and not manual then
+			return
+		end
+		-- Automatic expansion after closing the editor is not a new user preference.
+		if
+			not has_code(tab)
+			or vim.t[tab].aero_fullscreen
+			or entry.auto_width == api.nvim_win_get_width(win) and not manual
+		then
+			return
+		end
+		entry.auto_width = nil
+	end
 	if entry.kind == "panel" then
 		state.width = api.nvim_win_get_width(win)
 	elseif entry.kind == "prompt" then
@@ -103,9 +147,102 @@ function M.remember(win)
 	end
 end
 
-function M.track(win, kind, key)
+function M.track(win, kind, key, preferred_width)
 	windows[win] = { kind = kind, key = key }
-	M.remember(win)
+	if preferred_width then
+		local state = tab_state(api.nvim_win_get_tabpage(win))
+		if kind == "dashboard" then
+			state.dashboard_width = preferred_width
+		elseif kind == "panel" then
+			state.width = preferred_width
+		end
+	else
+		M.remember(win)
+	end
+end
+
+--- Resize side columns only: preserve buffers, code splits, prompt heights, and focus.
+function M.rebalance()
+	if vim.fn.getcmdwintype() ~= "" then
+		return
+	end
+	if balancing or config.options.layout == false or vim.t.aero_fullscreen or vim.t.aero_board_path then
+		return
+	end
+	tab_state().screen_size = vim.o.columns .. ":" .. vim.o.lines
+	local tree = vim.fn.winlayout()
+	if tree[1] ~= "row" then
+		return
+	end
+	local sidebars, centers = {}, 0
+	local side_minimum = math.max(1, vim.o.winminwidth)
+	local function leaves(node, out)
+		if node[1] == "leaf" then
+			table.insert(out, node[2])
+		else
+			for _, child in ipairs(node[2]) do
+				leaves(child, out)
+			end
+		end
+	end
+	for _, child in ipairs(tree[2]) do
+		local group, side, code = {}, nil, false
+		leaves(child, group)
+		for _, win in ipairs(group) do
+			local entry = windows[win]
+			if entry and (entry.kind == "dashboard" or entry.kind == "panel") then
+				side = { win = win, kind = entry.kind }
+			end
+			code = code or code_window(win)
+		end
+		if side and not code then
+			side.preferred = math.max(side_minimum, side.kind == "dashboard" and M.dashboard_width() or M.panel_width())
+			table.insert(sidebars, side)
+		else
+			centers = centers + 1
+		end
+	end
+	if centers == 0 or #sidebars == 0 or not has_code(0) then
+		return
+	end
+	local available = math.max(1, vim.o.columns - (#tree[2] - 1))
+	local minimum = math.max(
+		side_minimum,
+		math.min(config.options.layout.min_code_width, math.floor((available - #sidebars * side_minimum) / centers))
+	)
+	local budget = math.max(#sidebars * side_minimum, available - centers * minimum)
+	local preferred = 0
+	for _, side in ipairs(sidebars) do
+		preferred = preferred + side.preferred
+	end
+	local remaining = math.min(preferred, budget)
+	for index, side in ipairs(sidebars) do
+		local width = math.min(side.preferred, math.floor(side.preferred * budget / preferred))
+		side.width = math.max(side_minimum, math.min(width, remaining - (#sidebars - index) * side_minimum))
+		remaining = remaining - side.width
+	end
+	balancing = true
+	-- Release excess width before growing either neighbor.
+	for _, side in ipairs(sidebars) do
+		if api.nvim_win_get_width(side.win) > side.width then
+			pcall(api.nvim_win_set_width, side.win, side.width)
+		end
+	end
+	for _, side in ipairs(sidebars) do
+		if api.nvim_win_get_width(side.win) ~= side.width then
+			pcall(api.nvim_win_set_width, side.win, side.width)
+		end
+	end
+	for win, entry in pairs(windows) do
+		if
+			api.nvim_win_is_valid(win)
+			and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage()
+			and (entry.kind == "panel" or entry.kind == "dashboard")
+		then
+			entry.auto_width = api.nvim_win_get_width(win)
+		end
+	end
+	balancing = false
 end
 
 --- Enter a buffer-local repeat mode: h/j/k/l resize until another key or window is used.
@@ -119,7 +256,7 @@ function M.resize(delta, axis)
 	end
 	-- Resizing one split also changes its neighbors.
 	for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do
-		M.remember(w)
+		M.remember(w, true)
 	end
 	if resize_mode and resize_mode.win == win then
 		return
@@ -253,6 +390,27 @@ function M.setup()
 end
 
 local group = api.nvim_create_augroup("Aero.layout", { clear = true })
+api.nvim_create_autocmd({ "WinNew", "WinClosed", "VimResized", "TabEnter", "CmdwinLeave" }, {
+	group = group,
+	callback = function(event)
+		local tab = api.nvim_get_current_tabpage()
+		if event.event == "TabEnter" and tab_state(tab).screen_size == vim.o.columns .. ":" .. vim.o.lines then
+			return
+		end
+		local screen = event.event == "VimResized" or event.event == "TabEnter"
+		if pending_balance[tab] then
+			pending_balance[tab].screen = pending_balance[tab].screen or screen
+			return
+		end
+		pending_balance[tab] = { screen = screen }
+		vim.schedule(function()
+			pending_balance[tab] = nil
+			if api.nvim_tabpage_is_valid(tab) and api.nvim_get_current_tabpage() == tab then
+				M.rebalance()
+			end
+		end)
+	end,
+})
 api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 	group = group,
 	callback = bind_current,

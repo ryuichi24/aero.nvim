@@ -80,17 +80,19 @@ function M.open()
 		return win
 	end
 	local opts = config.options.panel
+	local width = layout.panel_width()
 	local placeholder = api.nvim_create_buf(false, true)
 	layout.bind(placeholder)
 	vim.bo[placeholder].bufhidden = "wipe"
 	win = api.nvim_open_win(placeholder, false, {
 		split = opts.position == "left" and "left" or "right",
 		win = -1,
-		width = layout.panel_width(),
+		width = width,
 	})
 	vim.wo[win].winfixwidth = true
 	tab_state().win = win
-	layout.track(win, "panel")
+	layout.track(win, "panel", nil, width)
+	layout.rebalance()
 	events.emit("panel_opened", { win = win, tab = api.nvim_get_current_tabpage() })
 	return win
 end

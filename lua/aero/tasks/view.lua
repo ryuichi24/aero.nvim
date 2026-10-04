@@ -226,6 +226,9 @@ local function column_buffer(view, state)
 end
 
 function M.render(view, discard, metadata_refresh)
+	if vim.fn.getcmdwintype() ~= "" then
+		return
+	end
 	if view.saving then
 		return
 	end
@@ -317,6 +320,9 @@ end
 
 -- Only manipulate windows owned by this board in the current tab.
 layout = function(view, focus, resized)
+	if vim.fn.getcmdwintype() ~= "" then
+		return
+	end
 	if #view.columns == 0 then
 		notify("board has no states; edit its source")
 		return
@@ -469,7 +475,16 @@ local function open_file(view, path)
 		end
 	end
 	if not win or not api.nvim_win_is_valid(win) then
-		win = api.nvim_open_win(api.nvim_create_buf(false, true), true, { split = "below" })
+		local anchor = api.nvim_get_current_win()
+		if api.nvim_win_get_config(anchor).relative ~= "" then
+			for _, candidate in ipairs(api.nvim_tabpage_list_wins(0)) do
+				if api.nvim_win_get_config(candidate).relative == "" then
+					anchor = candidate
+					break
+				end
+			end
+		end
+		win = api.nvim_open_win(api.nvim_create_buf(false, true), true, { split = "below", win = anchor })
 		view.file_windows[tab] = win
 	else
 		api.nvim_set_current_win(win)
@@ -881,10 +896,13 @@ end
 
 local group = api.nvim_create_augroup("Aero.tasks", { clear = true })
 local pending, metadata_refresh = false, false
-api.nvim_create_autocmd({ "BufWritePost", "FocusGained" }, {
+api.nvim_create_autocmd({ "BufWritePost", "FocusGained", "CmdwinLeave" }, {
 	group = group,
 	callback = function(event)
-		metadata_refresh = metadata_refresh or event.event == "BufWritePost" or event.event == "FocusGained"
+		metadata_refresh = metadata_refresh
+			or event.event == "BufWritePost"
+			or event.event == "FocusGained"
+			or event.event == "CmdwinLeave"
 		if pending then
 			return
 		end
@@ -901,7 +919,7 @@ api.nvim_create_autocmd({ "BufWritePost", "FocusGained" }, {
 	end,
 })
 local resize_pending = false
-api.nvim_create_autocmd({ "VimResized", "WinResized", "TabEnter" }, {
+api.nvim_create_autocmd({ "VimResized", "WinResized", "TabEnter", "CmdwinLeave" }, {
 	group = group,
 	callback = function()
 		if resize_pending then
@@ -910,6 +928,11 @@ api.nvim_create_autocmd({ "VimResized", "WinResized", "TabEnter" }, {
 		resize_pending = true
 		vim.schedule(function()
 			resize_pending = false
+			-- q: / q/ prohibit switching, opening, or closing other windows (E11).
+			-- CmdwinLeave retries any deferred reflow once normal window access resumes.
+			if vim.fn.getcmdwintype() ~= "" then
+				return
+			end
 			local tab = api.nvim_get_current_tabpage()
 			for _, view in pairs(sessions) do
 				if view.tab == tab and view.ticket_window and api.nvim_win_is_valid(view.ticket_window) then

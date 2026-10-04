@@ -40,8 +40,13 @@ for i, line in ipairs(api.nvim_buf_get_lines(source_dashboard, 0, -1, false)) do
 		break
 	end
 end
-vim.fn.maparg("e", "n", false, true).callback()
+vim.fn.maparg("I", "n", false, true).callback()
 assert(api.nvim_buf_get_name(0) == board.path)
+assert(api.nvim_get_current_tabpage() == origin_tab, "open_board_markdown opened a board tab instead of Markdown")
+assert(vim.b.aero_board_path == board.path and vim.b.aero_workspace_root == root)
+api.nvim_set_current_win(vim.fn.bufwinid(source_dashboard))
+vim.cmd("Aero board markdown")
+assert(api.nvim_buf_get_name(0) == board.path and api.nvim_get_current_tabpage() == origin_tab)
 local source_lines = api.nvim_buf_get_lines(0, 0, -1, false)
 local title_line
 for i, line in ipairs(source_lines) do
@@ -120,6 +125,12 @@ assert(api.nvim_buf_get_name(0) == ticket.path, "ticket did not open")
 local ticket_win, ticket_buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
 assert(api.nvim_win_get_config(ticket_win).relative == "editor", "ticket editor is not floating")
 assert(vim.bo[ticket_buf].filetype == "markdown" and vim.bo[ticket_buf].buftype == "")
+vim.cmd("Aero board markdown")
+assert(
+	api.nvim_buf_get_name(0) == board.path and api.nvim_win_get_config(0).relative == "",
+	"command from a ticket float did not open its board source"
+)
+api.nvim_set_current_win(ticket_win)
 api.nvim_buf_set_lines(ticket_buf, -1, -1, false, { "Edited in the floating window." })
 vim.cmd.write()
 assert(require("aero.tasks.storage").read(ticket.path):find("Edited in the floating window.", 1, true))
@@ -152,8 +163,9 @@ vim.cmd("Aero ticket new")
 assert(tasks.read_board(ws, board.path).count == 2)
 assert(vim.tbl_contains(vim.fn.getcompletion("Aero ticket ", "cmdline"), "move"))
 assert(vim.tbl_contains(vim.fn.getcompletion("Aero board ", "cmdline"), "new"))
+assert(vim.tbl_contains(vim.fn.getcompletion("Aero board ", "cmdline"), "markdown"))
 -- Writes to ordinary Markdown refresh the derived view on return.
-action("e")
+vim.cmd("Aero board markdown")
 assert(api.nvim_buf_get_name(0) == board.path)
 local lines = api.nvim_buf_get_lines(0, 0, -1, false)
 table.insert(lines, "## custom")
@@ -181,6 +193,28 @@ assert(api.nvim_get_current_tabpage() == origin_tab, "board close did not return
 assert(api.nvim_win_is_valid(dw) and api.nvim_win_get_buf(dw) == dashboard, "board close changed sidebar")
 require("aero").open_board(ws, board.path)
 assert(view.tab == api.nvim_get_current_tabpage(), "closed board did not reopen")
+api.nvim_set_current_tabpage(origin_tab)
+vim.cmd.enew()
+vim.cmd("Aero board markdown")
+assert(
+	api.nvim_buf_get_name(0) == board.path and api.nvim_get_current_tabpage() == origin_tab,
+	"board picker did not open raw Markdown"
+)
+local other = assert(tasks.create_board(ws, "Second board"))
+vim.ui.select = function()
+	error("explicit board ID should not show a picker")
+end
+assert(vim.tbl_contains(vim.fn.getcompletion("Aero board markdown ", "cmdline"), other.metadata.id))
+vim.cmd("Aero board markdown " .. other.metadata.id)
+assert(api.nvim_buf_get_name(0) == other.path, "explicit ID did not select the requested board")
+local notify, warning = vim.notify
+vim.notify = function(message)
+	warning = message
+end
+vim.cmd("Aero board markdown board-does-not-exist")
+vim.notify = notify
+assert(warning and warning:find("not found", 1, true))
+assert(api.nvim_buf_get_name(0) == other.path, "unknown ID fell back to another board")
 vim.fn.delete(root, "rf")
 print("Task UI tests passed (sidebar, editable columns, metadata, commands, source editing, refresh, diagnostics).")
 vim.cmd.qa({ bang = true })

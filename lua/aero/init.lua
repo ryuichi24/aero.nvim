@@ -107,10 +107,10 @@ function M.report()
 	return ensure().report()
 end
 
---- Pick a workspace board, or create one with action = "new".
-function M.board(action, workspace)
+--- Pick a workspace board; action = "new" creates one, "markdown" opens its source.
+function M.board(action, workspace, board_id)
 	ensure()
-	return require("aero.tasks.ui").board(action, workspace)
+	return require("aero.tasks.ui").board(action, workspace, board_id)
 end
 
 --- Create or move a ticket on the current board.

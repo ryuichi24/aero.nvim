@@ -65,19 +65,73 @@ function M.new_board(ws)
 	end)
 end
 
-function M.board(action, ws)
+function M.board(action, ws, board_id)
 	if action == "new" then
 		return M.new_board(ws)
 	end
-	if action and action ~= "" then
-		notify("use :Aero board [new]")
+	local markdown = action == "markdown"
+	if action and action ~= "" and not markdown then
+		notify("use :Aero board [new|markdown]")
 		return
+	end
+	if markdown and not ws and not board_id then
+		local dashboard = require("aero.dashboard")
+		if dashboard.open_board_markdown() then
+			return
+		end
+		local viewmod = require("aero.tasks.view")
+		local view = viewmod.current()
+		if
+			not dashboard.selected_workspace()
+			and view
+			and (vim.b.aero_board_path == view.path or view.tab == vim.api.nvim_get_current_tabpage())
+		then
+			return viewmod.actions(view).source()
+		end
 	end
 	local function pick(workspace)
 		local boards, diagnostics = tasks.list(workspace)
+		local function open(board)
+			if not board then
+				return
+			end
+			if markdown then
+				local viewmod = require("aero.tasks.view")
+				local view = viewmod.current()
+				if view and view.path == board.path and view.tab == vim.api.nvim_get_current_tabpage() then
+					return viewmod.actions(view).source()
+				end
+				vim.api.nvim_set_current_win(require("aero.dashboard").code_window())
+				vim.cmd.edit(vim.fn.fnameescape(board.path))
+				vim.b.aero_board_path, vim.b.aero_workspace_root = board.path, workspace.root
+			else
+				require("aero.tasks.view").open(workspace, board.path)
+			end
+		end
+		if board_id then
+			local match
+			for _, board in ipairs(boards) do
+				if board.metadata and board.metadata.id == board_id then
+					if match then
+						notify("duplicate board ID: " .. board_id)
+						return
+					end
+					match = board
+				end
+			end
+			if not match then
+				notify("board ID not found in this workspace: " .. board_id)
+				return
+			end
+			return open(match)
+		end
 		if #boards == 0 then
 			if #diagnostics > 0 then
 				notify(table.concat(diagnostics, "\n"))
+				return
+			end
+			if markdown then
+				notify("no boards in this workspace")
 				return
 			end
 			return M.new_board(workspace)
@@ -98,16 +152,31 @@ function M.board(action, ws)
 						or ""
 					)
 			end,
-		}, function(board)
-			if board then
-				require("aero.tasks.view").open(workspace, board.path)
-			end
-		end)
+		}, open)
 	end
 	if ws then
 		return pick(ws)
 	end
 	return M.workspace(pick)
+end
+
+--- Completion never prompts or creates boards.
+function M.board_ids(prefix)
+	local ws = require("aero.dashboard").selected_workspace()
+	local root = vim.b.aero_workspace_root or require("aero.git").main_root(vim.t.aero_worktree or vim.fn.getcwd())
+	ws = ws or root and { root = root }
+	if not ws then
+		return {}
+	end
+	local ids = {}
+	for _, board in ipairs(tasks.list(ws)) do
+		local id = board.metadata and board.metadata.id
+		if type(id) == "string" and vim.startswith(id, prefix) then
+			table.insert(ids, id)
+		end
+	end
+	table.sort(ids)
+	return ids
 end
 
 function M.ticket(action)

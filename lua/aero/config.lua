@@ -75,6 +75,9 @@ M.defaults = {
 		position = "left", -- "left" | "right" | "current"
 		width = 40,
 	},
+	layout = {
+		min_code_width = 20, -- reserve a usable editor between dashboard and agent panel
+	},
 	-- sessions open in a fixed column at the edge of the tab, keeping the other windows for code.
 	-- set to false to open sessions in the last used window instead
 	panel = {
@@ -144,6 +147,7 @@ M.defaults = {
 		pull = "P",
 		cd = ".",
 		edit = "e",
+		open_board_markdown = "I", -- open the selected board's raw Markdown file
 		edit_enter = "<C-CR>", -- open the selected worktree in the code pane
 		edit_mouse = "<C-LeftMouse>", -- open the clicked worktree in the code pane
 		terminal = "t",
