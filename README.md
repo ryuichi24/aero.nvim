@@ -193,3 +193,7 @@ Lifecycle hooks support integrations such as opening new worktrees in Oil.
 [Configuration reference](docs/configuration.md) · [Lifecycle hooks and integrations](docs/integrations.md)
 
 Run `:checkhealth aero` to check dependencies, and `g?` in a dashboard or board for help.
+
+## License
+
+Licensed under the [MIT License](LICENSE).
