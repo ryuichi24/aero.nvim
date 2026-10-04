@@ -109,8 +109,8 @@ function M.all()
 end
 
 --- Register a new (not yet started) session of `agent` in `worktree`.
-function M.create(worktree, agent)
-	local name = store.add_session(worktree, agent, function(n)
+function M.create(worktree, agent, requested_name)
+	local name, err = store.add_session(worktree, agent, function(n)
 		local k = key(worktree, n)
 		if runtime[k] then
 			return true
@@ -121,7 +121,10 @@ function M.create(worktree, agent)
 			end
 		end
 		return false
-	end)
+	end, requested_name)
+	if not name then
+		return nil, err
+	end
 	local s = get(worktree, name)
 	s.fresh = true
 	emit()

@@ -25,6 +25,8 @@ require("aero").setup({
     keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
   },
   persist_sessions = true,
+  prompt_session_name = true, -- ask for a name with `a` or agent shortcuts; false uses automatic names
+  input = { adapter = "auto", select_default = true },
   persist_buffers = true,
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {},
@@ -46,6 +48,30 @@ require("aero").setup({
 
 See [layout](layout.md), [agents](agents.md), [reports](reports.md), [Kanban](kanban.md),
 and [persistence](persistence.md) for behavior and storage options.
+
+## Session-name input adapters
+
+Session creation and renaming use your existing `vim.ui.input`. With the default
+`input = { adapter = "auto", select_default = true }`, Aero recognizes Dressing
+and Snacks input buffers and selects the default name in Select mode: typing
+replaces it, and Enter keeps it. No global input-plugin configuration is changed.
+The built-in command-line prompt and other providers retain their usual behavior.
+
+Set `adapter` to `"dressing"` or `"snacks"` to restrict selection to that provider,
+or `"vim_ui"` to use unmodified `vim.ui.input`. Set `select_default = false` to
+disable selection. A custom adapter can implement another input UI:
+
+```lua
+require("aero").setup({
+  input = {
+    adapter = function(opts, callback)
+      -- opts includes prompt, default, and select_default.
+      -- Call callback(name) on confirmation, or callback(nil) on cancellation.
+      my_input_ui(opts, callback)
+    end,
+  },
+})
+```
 
 ## Agents and worktree paths
 

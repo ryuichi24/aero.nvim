@@ -107,6 +107,12 @@ M.defaults = {
 	},
 	-- remember sessions across restarts so they can be resumed
 	persist_sessions = true,
+	-- ask for a name when creating a session with `a` or an agent shortcut
+	prompt_session_name = true,
+	input = {
+		adapter = "auto", -- "auto" | "dressing" | "snacks" | "vim_ui" | function(opts, callback)
+		select_default = true, -- select session names in supported input UIs
+	},
 	-- remember the last code file/directory in each worktree across restarts
 	persist_buffers = true,
 	state_file = vim.fn.stdpath("data") .. "/Aero/state.json",

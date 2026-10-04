@@ -49,7 +49,12 @@ vim.keymap.set("t", "<leader>ad", "<C-\\><C-n><cmd>Aero toggle<cr>")
 | `R` / `q` / `g?` | Refresh / close / help |
 | `gF` | Toggle fullscreen |
 
-Agent keys reuse existing sessions when available. Ctrl-click also works on workspace
+All agent keys always create a fresh session: lowercase keys (`c`, `x`, `o` by
+default) start terminal agents, and uppercase keys (`C`, `X`, `O`) start ACP agents.
+With `a`, choose an agent first. Both `a` and agent shortcuts then prompt for a
+unique session name; cancelling or submitting an empty name creates
+nothing. Set `prompt_session_name = false` in `setup()` to use automatic names instead.
+Ctrl-click also works on workspace
 and session rows, opening the corresponding worktree. Enable mouse support with
 `:set mouse=a`. Override mappings through `keymaps`; set an entry to `false` to disable it.
 

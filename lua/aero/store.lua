@@ -174,9 +174,12 @@ end
 --- Add a session of `agent` to `worktree`, named `agent`, `agent-2`, … whichever is free
 --- (also among sessions other instances added, and `taken(name)` if given).
 ---@return string name
-function M.add_session(worktree, agent, taken)
+function M.add_session(worktree, agent, taken, requested_name)
 	return update(function(data)
-		local name, n = agent, 2
+		local name, n = requested_name or agent, 2
+		if requested_name and (M.find_session(worktree, name) or (taken and taken(name))) then
+			return nil, "a session with that name already exists"
+		end
 		while M.find_session(worktree, name) or (taken and taken(name)) do
 			name, n = agent .. "-" .. n, n + 1
 		end

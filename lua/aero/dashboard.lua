@@ -700,30 +700,35 @@ local function open_session(s, how)
 	end
 end
 
---- The session to reuse for `agent` in `worktree`: a running one if any, else the first one.
-local function existing_session(worktree, agent)
-	local found
-	for _, s in ipairs(session.list(worktree)) do
-		if s.agent == agent then
-			if session.is_running(s) then
-				return s
-			end
-			found = found or s
-		end
-	end
-	return found
-end
-
---- Open `agent` on the worktree under the cursor. Reuses an existing session of that agent
---- unless `new` is set.
-local function start_agent(item, agent, new)
+--- Start a fresh session of `agent` on the worktree under the cursor.
+local function start_agent(item, agent)
 	if not (item and item.wt) then
 		notify("move the cursor to a worktree first", vim.log.levels.WARN)
 		return
 	end
-	state.expanded[item.wt.path] = true
-	local s = not new and existing_session(item.wt.path, agent) or session.create(item.wt.path, agent)
-	open_session(s, "default")
+	local function create(name)
+		local s, err = session.create(item.wt.path, agent, name)
+		if not s then
+			notify(err, vim.log.levels.WARN)
+			return
+		end
+		state.expanded[item.wt.path] = true
+		open_session(s, "default")
+	end
+	if not config.options.prompt_session_name then
+		return create()
+	end
+	require("aero.input").input({ prompt = "New session name: ", default = agent }, function(name)
+		if not name or vim.trim(name) == "" then
+			return
+		end
+		name = vim.trim(name)
+		if name:find("%c") then
+			notify("use a session name without control characters", vim.log.levels.WARN)
+			return
+		end
+		create(name)
+	end)
 end
 
 local function choose_agent(item)
@@ -731,7 +736,7 @@ local function choose_agent(item)
 	table.sort(names)
 	vim.ui.select(names, { prompt = "New agent for " .. wt_label(item.wt) }, function(choice)
 		if choice then
-			start_agent(item, choice, true)
+			start_agent(item, choice)
 		end
 	end)
 end
@@ -952,7 +957,7 @@ function actions.rename()
 			M.render()
 		end)
 	elseif item.kind == "session" then
-		vim.ui.input({ prompt = "Rename session: ", default = item.session.name }, function(name)
+		require("aero.input").input({ prompt = "Rename session: ", default = item.session.name }, function(name)
 			if not name or vim.trim(name) == "" then
 				return
 			end
