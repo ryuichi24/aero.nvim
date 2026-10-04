@@ -85,6 +85,16 @@ the shell keeps it running, and dashboard file opens never replace the shell win
 
 ## Pulling a worktree
 
+Opening the dashboard or pressing `R` fetches all remotes asynchronously for each
+expanded workspace and shows tracking status beside each branch. `[pull ↓N]`
+means the branch is behind its upstream by N commits: select it and press `P` to
+pull. Other statuses are `[up to date]`, `[ahead ↑N]`, `[diverged ↑N ↓N]`,
+`[no upstream]`, and `[upstream gone]`. Diverged branches cannot be pulled with
+fast-forward only. While checking, rows show `[checking remote…]`; if the fetch
+fails they show `[fetch failed]` rather than a potentially stale status. Fetching
+does not change worktree files. Status reflects the latest completed fetch;
+press `R` to check again.
+
 `P` or `:Aero pull` runs `git -C <worktree> pull --ff-only` asynchronously using its
 configured upstream. Workspace rows select the main checkout; session rows select
 their worktree. Outside the dashboard, selection uses the focused agent, current tab's

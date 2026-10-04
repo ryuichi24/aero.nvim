@@ -36,6 +36,27 @@ git({ "-C", seed, "commit", "-am", "remote main update" })
 git({ "-C", seed, "push", "origin", "main" })
 local main_head = git({ "-C", seed, "rev-parse", "HEAD" })
 
+-- The last branch's empty tracking fields are trimmed from Git output.
+local tracking
+require("aero.git").remote_status(seed, function(statuses, err)
+	assert(not err, err)
+	tracking = statuses
+end)
+assert(vim.wait(5000, function()
+	return tracking ~= nil
+end, 10), "tracking status did not complete")
+assert(tracking.main and not tracking.main.upstream, "last branch without upstream was omitted")
+git({ "-C", seed, "branch", "--set-upstream-to=origin/main", "main" })
+tracking = nil
+require("aero.git").remote_status(seed, function(statuses, err)
+	assert(not err, err)
+	tracking = statuses
+end)
+assert(vim.wait(5000, function()
+	return tracking ~= nil
+end, 10), "tracking status did not complete")
+assert(tracking.main and tracking.main.upstream and tracking.main.ahead == 0 and tracking.main.behind == 0)
+
 local aero = require("aero")
 local opts = { state_file = dir .. "/state.json", animation = false, start_insert = false }
 aero.setup(vim.deepcopy(opts))
@@ -51,6 +72,19 @@ vim.notify = function(message, level)
 end
 aero.open()
 local dashboard_win = api.nvim_get_current_win()
+local function await_status(branch, status)
+	assert(vim.wait(5000, function()
+		for _, text in ipairs(api.nvim_buf_get_lines(api.nvim_win_get_buf(dashboard_win), 0, -1, false)) do
+			if text:find(" " .. branch, 1, true) and text:find(status, 1, true) then
+				return true
+			end
+		end
+	end, 10), "missing remote status for " .. branch .. ": " .. status)
+end
+await_status("feature", "[pull ↓1]")
+await_status("main", "[pull ↓1]")
+await_status("local-only", "[no upstream]")
+assert(git({ "-C", feature, "rev-parse", "HEAD" }) == initial, "status check changed the checkout")
 local function select(branch)
 	api.nvim_set_current_win(dashboard_win)
 	for line, text in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
@@ -80,6 +114,7 @@ vim.cmd("Aero pull")
 aero.pull() -- Must not launch a second concurrent pull.
 assert(messages[#messages].text:find("already running", 1, true))
 await_result(before, true)
+await_status("feature", "[up to date]")
 assert(git({ "-C", feature, "rev-parse", "HEAD" }) == feature_head, "selected worktree was not updated")
 assert(git({ "-C", repo, "rev-parse", "HEAD" }) == initial, "pull updated the wrong checkout")
 assert(api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "remote feature", "open file was not refreshed")
@@ -120,6 +155,7 @@ before = #messages
 vim.cmd("Aero pull")
 failure = await_result(before, false)
 assert(failure.text:find("fast-forward", 1, true))
+await_status("feature", "[diverged ↑1 ↓1]")
 assert(git({ "-C", feature, "rev-parse", "HEAD" }) == diverged)
 assert(vim.bo[buf].modified and api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "unsaved code")
 

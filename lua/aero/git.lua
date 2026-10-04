@@ -105,6 +105,36 @@ function M.remove(root, path, force, cb)
 	end)
 end
 
+--- Fetch remote refs without changing any checkout, then read tracking status for all branches.
+function M.remote_status(root, cb)
+	run_async({ "git", "-C", root, "fetch", "--all", "--prune" }, function(ok, err)
+		if not ok then
+			cb(nil, err ~= "" and err or "fetch failed")
+			return
+		end
+		run_async({ "git", "-C", root, "for-each-ref", "--format=%(refname:short)\t%(upstream)\t%(upstream:track)", "refs/heads/" }, function(read_ok, read_err, out)
+			if not read_ok then
+				cb(nil, read_err ~= "" and read_err or "tracking status failed")
+				return
+			end
+			local statuses = {}
+			for line in out:gmatch("[^\n]+") do
+				local fields = vim.split(line, "\t", { plain = true })
+				local branch, upstream, track = fields[1], fields[2] or "", fields[3] or ""
+				if branch then
+					statuses[branch] = {
+						upstream = upstream ~= "" and upstream or nil,
+						gone = track == "[gone]",
+						ahead = tonumber(track:match("ahead (%d+)")) or 0,
+						behind = tonumber(track:match("behind (%d+)")) or 0,
+					}
+				end
+			end
+			cb(statuses)
+		end)
+	end)
+end
+
 --- Pull the checkout's configured upstream, fast-forwarding without a merge commit.
 function M.pull(path, cb)
 	return run_async({ "git", "-C", path, "pull", "--ff-only" }, function(ok, err, out)

@@ -64,6 +64,17 @@ local function worktrees(ws, force)
 		local list, err = git.list(ws.root)
 		cache = { list = list, err = err }
 		state.worktrees[ws.root] = cache
+		if list then
+			cache.checking = true
+			git.remote_status(ws.root, function(statuses, fetch_err)
+				if state.worktrees[ws.root] ~= cache then
+					return
+				end
+				cache.checking = false
+				cache.statuses, cache.fetch_err = statuses, fetch_err
+				M.render()
+			end)
+		end
 	end
 	return cache
 end
@@ -158,6 +169,28 @@ local function build()
 				}
 				if wt.path == ws.root then
 					table.insert(segs, { " (main)", "AeroMain" })
+				end
+				if wt.branch then
+					local tracking = cache.statuses and cache.statuses[wt.branch]
+					if cache.checking then
+						table.insert(segs, { " [checking remote…]", "AeroDim" })
+					elseif cache.fetch_err then
+						table.insert(segs, { " [fetch failed]", "AeroExited" })
+					elseif tracking then
+						local label, hl = " [up to date]", "AeroIdle"
+						if not tracking.upstream then
+							label, hl = " [no upstream]", "AeroDim"
+						elseif tracking.gone then
+							label, hl = " [upstream gone]", "AeroExited"
+						elseif tracking.ahead > 0 and tracking.behind > 0 then
+							label, hl = string.format(" [diverged ↑%d ↓%d]", tracking.ahead, tracking.behind), "AeroExited"
+						elseif tracking.behind > 0 then
+							label, hl = string.format(" [pull ↓%d]", tracking.behind), "AeroWaiting"
+						elseif tracking.ahead > 0 then
+							label = string.format(" [ahead ↑%d]", tracking.ahead)
+						end
+						table.insert(segs, { label, hl })
+					end
 				end
 				local virt = wopen and {} or summary(sessions)
 				if wt.path ~= ws.root then
