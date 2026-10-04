@@ -61,6 +61,20 @@ reopening, and sending prompts. Initial defaults are dashboard **40 columns**, p
 **80 columns**, prompt **25 lines**, and shell **12 lines**. Once resized, remembered
 sizes take precedence until Neovim exits.
 
+Aero automatically rebalances side columns when panes open/close or the editor changes
+size. Reopening the middle code pane (including raw board Markdown) clears inherited
+fixed-width options and reserves at least **20 columns** where screen space permits.
+Dashboard and agent widths shrink proportionally when necessary; their preferred sizes
+are retained and restored on a larger screen. Closing the editor does not remember the
+neighbors' expanded widths as new preferences. Code buffers, drafts, and focus are kept.
+Dedicated Kanban tabs use their own column layout, and fullscreen panes are excluded.
+
+```lua
+require("aero").setup({
+  layout = { min_code_width = 40 }, -- default 20; layout = false disables rebalancing
+})
+```
+
 ```lua
 require("aero").setup({
   acp = { prompt_height = 12 },

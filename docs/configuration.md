@@ -30,6 +30,7 @@ require("aero").setup({
   persist_buffers = true,
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {},
+  layout = { min_code_width = 20 }, -- false disables automatic side-column rebalancing
   acp = { max_tool_lines = 20, prompt_height = 25, decorations = true, show_usage = true },
   reports = {
     directory = "data",

@@ -33,7 +33,18 @@ before today's UTC date are overdue except in `terminal_states`. Estimates use t
 configured workspace-wide unit (default **points**).
 
 `:Aero board` picks/opens a board; `:Aero board new` creates one. Workspace **Boards**
-rows are independent of worktrees/sessions. `<CR>` opens the view; `e` opens source.
+rows are independent of worktrees/sessions. `<CR>` opens the view; `I` or `e`
+opens the selected board's raw Markdown file in the code pane. Configure this shortcut through
+`keymaps.open_board_markdown` (default `"I"`; `false` disables the mapping).
+
+`:Aero board markdown <board-id>` opens that board's raw Markdown by its frontmatter
+`id` in the current workspace. Tab completion offers matching board IDs. Unknown or
+duplicate IDs produce an error rather than opening another board.
+
+Without an ID, `:Aero board markdown` opens the selected dashboard board's raw file, or the active
+board's source when invoked from its view/ticket. Otherwise it offers a workspace board
+picker. The Lua equivalent is `require("aero").board("markdown", workspace, board_id)`;
+both the workspace and board ID are optional.
 `a` or **New +** creates a board; `N` renames it without changing its folder.
 `d` confirms permanent deletion of the entire board folder, including tickets.
 
