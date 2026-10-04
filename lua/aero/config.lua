@@ -15,7 +15,7 @@ M.defaults = {
 		claude = { cmd = { "claude" }, resume = { "claude", "--continue" }, key = "c" },
 		codex = { cmd = { "codex" }, resume = { "codex", "resume", "--last" }, key = "x" },
 		opencode = { cmd = { "opencode" }, resume = { "opencode", "--continue" }, key = "o" },
-		["claude-acp"] = { type = "acp", cmd = { "npx", "-y", "@agentclientprotocol/claude-agent-acp" }, key = "C" },
+		["claude-agent-acp"] = { type = "acp", cmd = { "npx", "-y", "@agentclientprotocol/claude-agent-acp" }, key = "C" },
 		["codex-acp"] = { type = "acp", cmd = { "npx", "-y", "@agentclientprotocol/codex-acp" }, key = "X" },
 		["opencode-acp"] = { type = "acp", cmd = { "opencode", "acp" }, key = "O" },
 	},

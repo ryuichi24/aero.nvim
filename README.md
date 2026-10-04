@@ -70,7 +70,7 @@ Register repositories, create or remove worktrees, and manage multiple agents pe
   ▾ main (main)
     ● opencode         idle
   ▾ feat/auth
-    ◐ claude-acp       busy
+    ◐ claude-agent-acp busy
 ▸ web ~/dev/web
 ```
 
