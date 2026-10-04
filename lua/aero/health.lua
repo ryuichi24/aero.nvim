@@ -28,6 +28,17 @@ function M.check()
 			vim.health.warn(name .. ": " .. cmd .. " not executable")
 		end
 	end
+	vim.health.start("Aero task MCP server")
+	if require("aero.config").options.tasks.agent.enabled then
+		local executable, err = require("aero.tasks.install").resolve()
+		if executable then
+			vim.health.ok("aero-mcp: " .. executable .. " (executable and version compatibility verified)")
+		else
+			vim.health.error(err)
+		end
+	else
+		vim.health.info("aero-mcp: disabled; enable tasks.agent.enabled to use task-agent integration")
+	end
 end
 
 return M
