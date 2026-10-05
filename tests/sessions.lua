@@ -41,13 +41,20 @@ local lines, list_win = results()
 assert(#lines == 6 and lines[1]:find("/one") and lines[5]:find("/two"))
 assert(lines[2]:find("first") and lines[3]:find("other") and lines[6]:find("thinking"))
 assert(api.nvim_win_get_cursor(list_win)[1] == 2, "selected a heading")
-local down = vim.fn.maparg("<Down>", "i", false, true).callback
+local down = vim.fn.maparg("j", "n", false, true).callback
 down()
 assert(api.nvim_win_get_cursor(list_win)[1] == 3)
 down()
 assert(api.nvim_win_get_cursor(list_win)[1] == 6, "did not skip group heading")
 down()
 assert(api.nvim_win_get_cursor(list_win)[1] == 2, "did not wrap to first session")
+local up = vim.fn.maparg("k", "n", false, true).callback
+up()
+assert(api.nvim_win_get_cursor(list_win)[1] == 6, "k did not select previous session")
+assert(vim.fn.maparg("<Esc>", "i", false, true).rhs == "<Esc>", "insert Escape should leave filtering")
+assert(vim.fn.maparg("<Esc>", "n", false, true).callback == nil, "normal Escape should not close")
+assert(vim.fn.maparg("<C-c>", "i", false, true).callback == nil, "insert Ctrl-c should not close")
+assert(vim.fn.maparg("q", "i", false, true).callback == nil, "insert q should be search text")
 two.chat.activity = function()
 	return "Running tests"
 end
@@ -65,7 +72,7 @@ assert(require("aero.panel").current_session() == two, "did not select session")
 assert(api.nvim_get_current_win() == require("aero.panel").win(), "did not focus panel")
 assert(not api.nvim_buf_is_valid(search), "search buffer leaked")
 require("aero").sessions()
-require("aero.sessions").close()
+vim.fn.maparg("q", "n", false, true).callback()
 assert(not results(), "popup leaked")
 -- Avoid invoking real ACP shutdown on these test doubles.
 one.chat, another.chat, two.chat = nil, nil, nil

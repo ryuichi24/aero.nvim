@@ -97,9 +97,12 @@ terminal busy/idle status is inferred from output. Use `:Aero panel` to toggle t
 Use `:Aero sessions` for a searchable popup of active AI sessions across worktrees.
 Sessions are grouped under worktree headings. Each session row shows its name,
 agent, and live status (idle, busy, or waiting),
-including ACP activity such as thinking or the current tool. Type to filter, use
-`↑`/`↓` or `Ctrl-n`/`Ctrl-p` to select, and press `Enter` to open the worktree and
-focus its session panel. `Esc` closes the popup. Stopped and exited sessions are
+including ACP activity such as thinking or the current tool. The popup opens in
+normal mode: use `j`/`k` to select and press `i` to enter insert mode and type to
+filter. `↑`/`↓` or `Ctrl-n`/`Ctrl-p` also select sessions in either mode. Press
+`Enter` to open the worktree and focus its session panel. `Esc` returns from
+filtering to normal mode; `q` in normal mode closes the popup. In insert mode,
+`q` is ordinary search text. Stopped and exited sessions are
 excluded; use `:Aero pick` to browse those too.
 
 Press `gF` or run `:Aero fullscreen` to expand the focused pane; toggle again to restore

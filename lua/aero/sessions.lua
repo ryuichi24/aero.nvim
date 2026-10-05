@@ -104,7 +104,6 @@ end
 function M.open()
 	if popup then
 		api.nvim_set_current_win(popup.search_win)
-		vim.cmd.startinsert()
 		return
 	end
 	if not vim.iter(session.all()):any(session.is_running) then
@@ -131,7 +130,7 @@ function M.open()
 		style = "minimal",
 		border = "rounded",
 		focusable = false,
-		footer = " Enter: open · ↑/↓ or Ctrl-n/p: select · Esc: close ",
+		footer = " j/k: select · i: filter · Enter: open · q: close ",
 	})
 	vim.wo[p.list_win].cursorline = true
 	vim.wo[p.list_win].wrap = false
@@ -188,9 +187,16 @@ function M.open()
 			end, { buffer = p.search })
 		end
 		vim.keymap.set(mode, "<CR>", select, { buffer = p.search })
-		vim.keymap.set(mode, "<Esc>", M.close, { buffer = p.search })
-		vim.keymap.set(mode, "<C-c>", M.close, { buffer = p.search })
 	end
+	vim.keymap.set("n", "q", M.close, { buffer = p.search })
+	vim.keymap.set("n", "j", function()
+		move(1)
+	end, { buffer = p.search })
+	vim.keymap.set("n", "k", function()
+		move(-1)
+	end, { buffer = p.search })
+	-- Leave filtering mode without dismissing the popup.
+	vim.keymap.set("i", "<Esc>", "<Esc>", { buffer = p.search })
 	api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, { buffer = p.search, callback = render })
 	api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(p.search_win),
@@ -211,7 +217,7 @@ function M.open()
 		end)
 	)
 	render()
-	vim.cmd.startinsert()
+	vim.cmd.stopinsert()
 end
 
 return M
