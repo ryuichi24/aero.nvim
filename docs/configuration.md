@@ -79,7 +79,7 @@ require("aero").setup({
   tasks = {
     directory = "data", -- data | worktree | custom root | function(workspace_root)
     yq = vim.env.AERO_TASKS_YQ or "yq",
-    states = { "backlog", "todo", "in progress", "review", "test", "done" },
+    states = { "todos", "working", "waiting", "done" },
     terminal_states = { "done" },
     estimate_unit = "points",
     column_width = 32,

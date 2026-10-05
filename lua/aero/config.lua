@@ -38,7 +38,7 @@ M.defaults = {
 	},
 	tasks = {
 		directory = "data", -- workspace scoped; "worktree" means the main checkout
-		states = { "backlog", "todo", "in progress", "review", "test", "done" },
+		states = { "todos", "working", "waiting", "done" },
 		terminal_states = { "done" }, -- overdue excludes these states
 		estimate_unit = "points",
 		column_width = 32, -- minimum width; hidden states remain editable through [s / ]s

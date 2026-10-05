@@ -22,7 +22,7 @@ require("aero").setup({
   tasks = {
     yq = "yq", -- defaults to AERO_TASKS_YQ when set, otherwise yq
     directory = "data",
-    states = { "backlog", "todo", "in progress", "review", "test", "done" },
+    states = { "todos", "working", "waiting", "done" },
     terminal_states = { "done" },
     estimate_unit = "points",
     column_width = 32,
