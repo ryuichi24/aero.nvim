@@ -263,12 +263,11 @@ local function build()
 				{ { " " .. #boards, "AeroDim" } }
 			)
 			if bopen then
-				local removed_count = 0
+				local removed_count = #require("aero.tasks").list_removed(ws)
 				for _, board in ipairs(boards) do
 					local data = board.metadata or {}
 					local label = tostring(data.title or vim.fs.basename(vim.fs.dirname(board.path))):gsub("[%c]", " ")
 					local summary_text = " " .. board.count .. " tickets" .. (data.archived and " · archived" or "")
-					removed_count = removed_count + #board.orphans
 					if #board.orphans > 0 then
 						summary_text = summary_text .. " · " .. #board.orphans .. " removed"
 					end

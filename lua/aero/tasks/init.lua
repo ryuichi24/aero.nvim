@@ -106,7 +106,7 @@ function M.read_board(ws, path)
 	return board
 end
 
-function M.list(ws)
+function M.list(ws, include_removed)
 	local directory, err = storage.directory(ws)
 	if not directory then
 		return {}, { err }
@@ -118,7 +118,7 @@ function M.list(ws)
 	end
 	for _, folder in ipairs(folders) do
 		local path = vim.fs.joinpath(folder, "board.md")
-		if vim.uv.fs_lstat(path) then
+		if vim.uv.fs_lstat(path) and (include_removed or not vim.fs.basename(folder):match("^%.removed%-")) then
 			local board, read_err = M.read_board(ws, path)
 			if board then
 				table.insert(boards, board)
@@ -418,7 +418,7 @@ end
 
 function M.list_removed(ws)
 	local removed = {}
-	local boards, diagnostics = M.list(ws)
+	local boards, diagnostics = M.list(ws, true)
 	for _, board in ipairs(boards) do
 		for _, orphan in ipairs(board.orphans) do
 			local ticket = orphan.ticket
@@ -1128,6 +1128,33 @@ function M.delete_board(ws, path)
 		end
 		if storage.read(board.path) ~= board.text then
 			return nil, "board changed externally; refresh"
+		end
+		-- Retained tickets belong to the workspace even after their source board
+		-- disappears. Keep a private recovery manifest, excluded from board pickers.
+		if #board.orphans > 0 then
+			local retained = vim.fs.joinpath(assert(storage.directory(ws)), ".removed-" .. storage.id("archive"))
+			vim.fn.mkdir(vim.fs.joinpath(retained, "tickets"), "p")
+			local states = {}
+			for _, state in ipairs(board.states) do
+				table.insert(states, { name = state.name, ticket_ids = {} })
+			end
+			local manifest = vim.fs.joinpath(retained, "board.md")
+			local created, create_err =
+				storage.create(manifest, storage.text(markdown.placements(board, states, {}), board.text))
+			if not created then
+				return nil, create_err
+			end
+			for _, orphan in ipairs(board.orphans) do
+				local destination = vim.fs.joinpath(retained, "tickets", vim.fs.basename(orphan.path))
+				local moved, move_err = vim.uv.fs_rename(orphan.path, destination)
+				if not moved then
+					return nil, "could not retain removed ticket: " .. tostring(move_err)
+				end
+				local buf = vim.fn.bufnr(orphan.path)
+				if buf > 0 then
+					pcall(vim.api.nvim_buf_set_name, buf, destination)
+				end
+			end
 		end
 		if vim.fn.delete(folder, "rf") ~= 0 then
 			return nil, "could not delete board folder"
