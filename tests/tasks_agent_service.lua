@@ -12,6 +12,7 @@ local operations = require("aero.tasks.operations")
 local ws = { root = root }
 local board = assert(tasks.create_board(ws, "Agent board"))
 local ticket = assert(tasks.create_ticket(ws, board.path, "todo", "Assigned"))
+assert(ticket.metadata.task_type == "general", "new tickets must default to general")
 local ticket_text = assert(storage.read(ticket.path))
 assert(
 	storage.write(
@@ -25,6 +26,19 @@ local binding =
 	{ workspace = ws, board_id = board.metadata.id, ticket_id = ticket.metadata.id, session_key = "fixture" }
 local read = assert(operations.get_ticket(binding))
 assert(read.committed and read.state == "todo")
+local typed = assert(operations.update_ticket_metadata(binding, {
+	operation_id = "report-type",
+	expected_ticket_revision = read.ticket_revision,
+	changes = { task_type = "report" },
+}))
+assert(typed.metadata.task_type == "report")
+local invalid_type, type_err = operations.update_ticket_metadata(binding, {
+	operation_id = "invalid-type",
+	expected_ticket_revision = typed.ticket_revision,
+	changes = { task_type = "unknown" },
+})
+assert(not invalid_type and type_err.code == "INVALID_ARGUMENT")
+read = assert(operations.get_ticket(binding))
 local before = assert(storage.read(board.path))
 local create_request = {
 	operation_id = "create",
@@ -35,6 +49,7 @@ local create_request = {
 }
 local created = assert(operations.create_ticket(binding, create_request))
 assert(created.title == create_request.title and created.state == "review")
+assert(created.metadata.task_type == "general", "MCP creation must default to general")
 assert(created.body:find(create_request.body, 1, true))
 assert(created.ticket_id ~= binding.ticket_id and created.board_id == binding.board_id)
 assert(vim.deep_equal(created, assert(operations.create_ticket(binding, create_request))))

@@ -21,6 +21,9 @@ local function document(kind, name, id, options, body)
 		options or {},
 		{ aero_type = kind, schema_version = 1, id = id, title = name, created_at = now(), updated_at = now() }
 	)
+	if kind == "ticket" and data.task_type == nil then
+		data.task_type = "general"
+	end
 	local errors = fm.validate(data, kind)
 	if #errors > 0 then
 		return nil, table.concat(errors, "; ")

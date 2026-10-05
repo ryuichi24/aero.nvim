@@ -53,6 +53,7 @@ end))
 assert(s.chat.state == "ready", table.concat(s.chat.client.stderr, ""))
 local draft = table.concat(vim.api.nvim_buf_get_lines(s.chat:get_prompt_buf(), 0, -1, false), "\n")
 assert(draft:find(ticket.metadata.id, 1, true), "assignment was not appended")
+assert(draft:find("metadata.task_type", 1, true) and draft:find("aero_create_report", 1, true), "report workflow missing from assignment")
 assert(
 	require("aero.tasks.operations").get_ticket(s.task_binding).state == "todo",
 	"assignment submitted automatically"

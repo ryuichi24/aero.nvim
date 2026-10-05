@@ -41,7 +41,7 @@ for line in sys.stdin:
         rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "acp-fixture", "version": "1"}})
         adapter.stdin.write(json.dumps(dict(jsonrpc="2.0", method="notifications/initialized")) + "\n")
         adapter.stdin.flush()
-        assert len(rpc("tools/list", {})["tools"]) == 7
+        assert len(rpc("tools/list", {})["tools"]) == 8
         send({"id": request["id"], "result": {"sessionId": "task-fixture"}})
     elif method == "session/prompt":
         def tool(name, arguments):

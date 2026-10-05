@@ -6,6 +6,7 @@ vim.fn.mkdir(root, "p")
 require("aero").setup({
 	state_file = root .. "/state.json",
 	animation = false,
+	reports = { directory = "worktree" },
 	tasks = { directory = "worktree", states = { "todo", "review" } },
 })
 local tasks = require("aero.tasks")
@@ -54,7 +55,9 @@ assert(first_result.code == 0, first_result.stderr)
 local first = vim.json.decode(first_result.stdout)
 assert(first.body:find("Initial content on an empty board.", 1, true))
 local ticket = assert(tasks.read_ticket(board.path, first.ticket_path))
-local binding = assert(bridge.bind({ workspace = ws, board_id = board.metadata.id, ticket_id = ticket.metadata.id }))
+local execution = root .. "/execution"
+vim.fn.mkdir(execution, "p")
+local binding = assert(bridge.bind({ workspace = ws, board_id = board.metadata.id, ticket_id = ticket.metadata.id, worktree = execution }))
 local pipe, framed, received = vim.uv.new_pipe(false), "", {}
 pipe:connect(binding.socket, function(err)
 	assert(not err, err)
@@ -159,7 +162,7 @@ rpc(1, "initialize", {
 	clientInfo = { name = "aero-test", version = "1" },
 })
 vim.fn.chansend(job, vim.json.encode({ jsonrpc = "2.0", method = "notifications/initialized" }) .. "\n")
-assert(#rpc(2, "tools/list", vim.empty_dict()).tools == 7)
+assert(#rpc(2, "tools/list", vim.empty_dict()).tools == 8)
 local tool = rpc(3, "tools/call", { name = "aero_get_ticket", arguments = vim.empty_dict() })
 assert(not tool.isError)
 assert(vim.json.decode(tool.content[1].text).ticket_id == ticket.metadata.id)
@@ -167,6 +170,7 @@ local arguments = {
 	operation_id = "mcp-create",
 	expected_board_revision = updated.board_revision,
 	title = "Created through MCP",
+	task_type = "report",
 	target_state = "todo",
 	body = "## Requirements\n\nInitial content from the agent.",
 }
@@ -174,11 +178,27 @@ local creation = rpc(4, "tools/call", { name = "aero_create_ticket", arguments =
 assert(not creation.isError, vim.inspect(creation))
 local created = vim.json.decode(creation.content[1].text)
 assert(created.title == arguments.title and created.state == "todo")
+assert(created.metadata.task_type == "report")
 assert(created.body:find(arguments.body, 1, true))
 assert(created.ticket_id ~= ticket.metadata.id)
 local replay = rpc(5, "tools/call", { name = "aero_create_ticket", arguments = arguments })
 assert(not replay.isError and vim.json.decode(replay.content[1].text).ticket_id == created.ticket_id)
 assert(tasks.read_board(ws, board.path).count == 2)
+local report_args = { operation_id = "mcp-report", name = "findings", body = "# Findings\n\nInvestigated through MCP.\n" }
+local report_tool = rpc(6, "tools/call", { name = "aero_create_report", arguments = report_args })
+assert(not report_tool.isError, vim.inspect(report_tool))
+local report = vim.json.decode(report_tool.content[1].text)
+assert(report.path == require("aero.storage").canonical(execution) .. "/.aero/reports/findings.md")
+assert(require("aero.tasks.storage").read(report.path) == report_args.body)
+local repeated = rpc(7, "tools/call", { name = "aero_create_report", arguments = report_args })
+assert(not repeated.isError and vim.json.decode(repeated.content[1].text).path == report.path)
+report_args.body = "Changed retry"
+assert(rpc(8, "tools/call", { name = "aero_create_report", arguments = report_args }).isError)
+report_args.operation_id = "collision"
+assert(rpc(9, "tools/call", { name = "aero_create_report", arguments = report_args }).isError)
+report_args.name = "../escape"
+assert(rpc(10, "tools/call", { name = "aero_create_report", arguments = report_args }).isError)
+assert(require("aero.tasks.storage").read(report.path) == "# Findings\n\nInvestigated through MCP.\n")
 vim.fn.jobstop(job)
 bridge.stop()
 vim.fn.delete(root, "rf")

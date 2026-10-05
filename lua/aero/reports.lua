@@ -68,6 +68,52 @@ function M.list(worktree, ws)
 	return reports
 end
 
+--- Create a report exclusively, for either the UI or a bound MCP session.
+function M.create_file(worktree, ws, name, body)
+	if type(name) ~= "string" or vim.trim(name) == "" then
+		return nil, "a report filename is required"
+	end
+	if type(body) ~= "string" then
+		return nil, "report body must be a Markdown string"
+	end
+	name = vim.trim(name)
+	if not name:match("%.md$") then
+		name = name .. ".md"
+	end
+	if name == ".md" or name:find("[/\\%c]") then
+		return nil, "use a report filename without directory separators or control characters"
+	end
+	local directory, err = M.directory(worktree, ws)
+	if not directory then
+		return nil, err
+	end
+	local ok, mkdir_err = pcall(vim.fn.mkdir, directory, "p")
+	if not ok then
+		return nil, "could not create report directory: " .. tostring(mkdir_err)
+	end
+	local path = vim.fs.joinpath(directory, name)
+	local fd, open_err = vim.uv.fs_open(path, "wx", 420)
+	if not fd then
+		return nil, "could not create report: " .. tostring(open_err)
+	end
+	local offset = 0
+	while offset < #body do
+		local written, write_err = vim.uv.fs_write(fd, body:sub(offset + 1), offset)
+		if not written or written == 0 then
+			vim.uv.fs_close(fd)
+			vim.uv.fs_unlink(path)
+			return nil, "could not write report: " .. tostring(write_err)
+		end
+		offset = offset + written
+	end
+	local closed, close_err = vim.uv.fs_close(fd)
+	if not closed then
+		vim.uv.fs_unlink(path)
+		return nil, "could not close report: " .. tostring(close_err)
+	end
+	return { name = name, path = path }
+end
+
 --- Ask for a name and create an empty report exclusively, preserving existing files.
 function M.create(worktree, ws, callback)
 	local directory, err = M.directory(worktree, ws)
@@ -79,28 +125,13 @@ function M.create(worktree, ws, callback)
 		if not name or vim.trim(name) == "" then
 			return
 		end
-		name = vim.trim(name)
-		if not name:match("%.md$") then
-			name = name .. ".md"
-		end
-		if name == ".md" or name:find("[/\\%c]") then
-			notify("use a report filename without directory separators or control characters")
+		local report, create_err = M.create_file(worktree, ws, name, "")
+		if not report then
+			notify(create_err)
 			return
 		end
-		local ok, mkdir_err = pcall(vim.fn.mkdir, directory, "p")
-		if not ok then
-			notify("could not create report directory: " .. tostring(mkdir_err))
-			return
-		end
-		local path = vim.fs.joinpath(directory, name)
-		local fd, open_err = vim.uv.fs_open(path, "wx", 420)
-		if not fd then
-			notify("could not create report: " .. tostring(open_err))
-			return
-		end
-		vim.uv.fs_close(fd)
 		require("aero.dashboard").render()
-		callback({ name = name, path = path })
+		callback(report)
 	end)
 end
 

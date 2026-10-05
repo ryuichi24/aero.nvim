@@ -745,7 +745,7 @@ function M.actions(view)
 				return
 			end
 			local item = selected(view)
-			local fields = item and { "title", "priority", "assignees", "tags", "due_date", "estimate" }
+			local fields = item and { "title", "task_type", "priority", "assignees", "tags", "due_date", "estimate" }
 				or { "title", "description", "tags", "archived" }
 			local data = item and item.ticket and item.ticket.metadata or view.board.metadata or {}
 			vim.ui.select(fields, { prompt = "Edit metadata" }, function(field)

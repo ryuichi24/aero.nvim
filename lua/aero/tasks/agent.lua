@@ -128,6 +128,7 @@ function M.expand_new_ticket(session, text)
 		"First call aero_get_board to discover the current board revision and available state names.",
 		"Use aero_create_ticket with a unique operation_id, the returned expected_board_revision, a concise title, an existing target_state, and an initial Markdown body containing the description and acceptance criteria.",
 		"Use the requested state if specified; otherwise use the board's first state. Derive the ticket content from the request below and our conversation. Ask for clarification if the requirements are unclear.",
+		"Set task_type to report for investigation/findings tasks, or implementation for code changes; otherwise omit it to use general.",
 		"Do not create or edit task files directly. For retries, reuse the operation_id only with identical arguments. If a revision conflict occurs, reread the board before retrying with a new operation_id. Report the created ticket ID and state. Do not implement the ticket or change the original assigned ticket.",
 		"",
 		"Ticket request:",
@@ -268,6 +269,7 @@ function M.work(board_id, ticket_id, board_only)
 						data.ticket_path and ("Ticket file: " .. vim.json.encode(data.ticket_path))
 							or "Use /new-ticket to create tickets on this board.",
 						"Execution worktree: " .. vim.json.encode(wt.path),
+						"Read metadata.task_type through aero_get_ticket. If it is report, investigate the ticket and call aero_create_report with a unique operation_id, a filename, and your complete Markdown findings. Record the returned report path in the ticket using aero_update_ticket_body. Reuse an operation_id only for identical retries; existing report files must not be overwritten. A report task calls for findings rather than implementation unless the ticket explicitly requests code changes.",
 						"",
 						board_only
 								and "Use Aero's MCP tools to read this board and create tickets when asked. Do not write task documents directly."

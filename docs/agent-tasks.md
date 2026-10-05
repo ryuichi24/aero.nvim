@@ -17,8 +17,11 @@ make check # runs Go tests and vet
 make clean # removes the built executable
 ```
 
-Rebuild after Go changes. For a custom output location, run
-`CGO_ENABLED=0 go build -o /absolute/path/aero-mcp ./cmd/aero-mcp` from `mcp/`.
+Rebuild after Go changes. `make build` reads the required version from
+`mcp/release.json` and embeds it in the executable (requires Python 3).
+For a custom output location, run
+`CGO_ENABLED=0 go build -ldflags '-X main.version=0.2.0' -o /absolute/path/aero-mcp ./cmd/aero-mcp`
+from `mcp/`, replacing `0.2.0` with the manifest's version if it changes.
 
 ```lua
 require("aero").setup({
@@ -151,3 +154,42 @@ binding. Fresh OpenCode ACP is the initial intended provider. Automated fixtures
 verify the bridge and SDK tool discovery; real provider tool execution, terminal
 provider configuration, and cross-restart reassignment need separate verification.
 No busy/idle/exit event changes ticket progress.
+
+## Report tasks
+
+Set `task_type: report` in a ticket's YAML frontmatter to request investigation
+and a Markdown report. New tickets default to `task_type: general`; general tasks
+follow the ticket's requirements. `task_type: implementation` explicitly requests
+implementation. Older tickets without the field remain valid.
+The board's metadata editor (`gi`) exposes
+`task_type`; enter the JSON string `"report"`.
+
+Assign the saved ticket through the normal task-agent workflow and select its
+execution worktree. The agent reads `metadata.task_type` with `aero_get_ticket`,
+investigates, and calls `aero_create_report`:
+
+```json
+{
+  "operation_id": "investigation-report-1",
+  "name": "investigation-findings.md",
+  "body": "# Findings\n\nSummary, evidence, and recommendations.\n"
+}
+```
+
+Aero creates the file under that execution worktree's configured
+`reports.directory`, including custom or data-directory storage, and returns
+`name`, `path`, `worktree`, `board_id`, `ticket_id`, and `committed`. The report
+appears in the dashboard's Reports section. The agent records its returned path
+in the ticket body through `aero_update_ticket_body`.
+
+The tool accepts a filename rather than an arbitrary destination path, appends
+`.md` when needed, and never overwrites an existing report. Identical retries
+with the same operation ID return the original result during the current Aero
+runtime (subject to the bounded operation cache); changed arguments with the
+same ID are rejected. After restart or cache eviction, an existing filename
+remains protected and a new report needs a new filename.
+
+`aero_create_ticket` also accepts optional `task_type`, and
+`aero_update_ticket_metadata` can change it. Report creation requires a live
+ticket binding with an execution worktree. Creating a report does not move the
+ticket or submit the agent prompt automatically.

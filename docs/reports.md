@@ -66,3 +66,12 @@ require("aero").setup({
 vim.keymap.set("n", "<leader>ar", "<cmd>Aero report<cr>")
 vim.keymap.set("i", "<leader>ar", "<cmd>Aero report<cr>")
 ```
+
+## Agent-generated reports
+
+Kanban tickets with `task_type: report` instruct assigned agents to investigate
+and publish findings through `aero_create_report`. The MCP tool creates a new
+Markdown file in the execution worktree's configured report directory and returns
+its path. It uses the same storage as manually created reports and never
+overwrites an existing file. See [report tasks](agent-tasks.md#report-tasks) for
+the frontmatter and tool arguments.

@@ -139,6 +139,9 @@ function M.validate(data, kind)
 	if data.priority ~= nil then
 		check(vim.tbl_contains({ "low", "normal", "high", "urgent" }, data.priority), "invalid priority")
 	end
+	if kind == "ticket" and data.task_type ~= nil then
+		check(vim.tbl_contains({ "general", "implementation", "report" }, data.task_type), "task_type must be general, implementation, or report")
+	end
 	if data.due_date ~= nil then
 		check(date(data.due_date), "due_date must be YYYY-MM-DD")
 	end

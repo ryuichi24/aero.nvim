@@ -245,6 +245,7 @@ assignees: ["ryu"]
 tags: ["performance"]
 due_date: "2026-10-15"
 estimate: 3
+task_type: report
 ---
 
 # Fix startup

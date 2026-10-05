@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var version = "0.1.0-dev"
+var version = "0.2.0-dev"
 
 const protocol = 1
 const maxMessage = 1024 * 1024
@@ -72,10 +72,16 @@ func (c client) call(ctx context.Context, method string, params any) (json.RawMe
 }
 
 type readArgs struct{}
+type reportArgs struct {
+	OperationID string `json:"operation_id" jsonschema:"Unique retry identifier; reuse only for identical arguments"`
+	Name        string `json:"name" jsonschema:"Report filename without directory separators; .md is appended if omitted"`
+	Body        string `json:"body" jsonschema:"Complete Markdown report with findings"`
+}
 type createArgs struct {
 	OperationID           string `json:"operation_id" jsonschema:"Unique retry identifier; reuse only for identical arguments"`
 	ExpectedBoardRevision string `json:"expected_board_revision"`
 	Title                 string `json:"title" jsonschema:"Nonempty single-line ticket title"`
+	TaskType              string `json:"task_type,omitempty" jsonschema:"general, implementation, or report; defaults to general"`
 	TargetState           string `json:"target_state" jsonschema:"Existing state on the assigned board"`
 	Body                  string `json:"body" jsonschema:"Initial Markdown content below the generated ticket title"`
 }
@@ -94,7 +100,7 @@ type bodyArgs struct {
 type metadataArgs struct {
 	OperationID            string         `json:"operation_id"`
 	ExpectedTicketRevision string         `json:"expected_ticket_revision"`
-	Changes                map[string]any `json:"changes" jsonschema:"Only priority tags assignees due_date and estimate"`
+	Changes                map[string]any `json:"changes" jsonschema:"Only task_type priority tags assignees due_date and estimate; task_type is general implementation or report"`
 }
 
 func addTool[T any](server *mcp.Server, c client, method, description string) {
@@ -148,6 +154,7 @@ func run() error {
 		addTool[readArgs](server, c, "list_boards", "List committed board summaries in the assigned workspace")
 		addTool[readArgs](server, c, "get_board", "Read assigned board states, placements, revision and draft indicators")
 		addTool[readArgs](server, c, "get_ticket", "Read assigned committed ticket and revisions before making changes")
+		addTool[reportArgs](server, c, "create_report", "Create a new Markdown findings report in the assigned execution worktree's configured report directory; never overwrites existing reports")
 		addTool[createArgs](server, c, "create_ticket", "Create a ticket with initial Markdown content on the assigned board; read the board revision first")
 		addTool[moveArgs](server, c, "move_ticket", "Conditionally move assigned ticket; never changes progress automatically")
 		addTool[bodyArgs](server, c, "update_ticket_body", "Replace ticket Markdown body while preserving frontmatter and drafts")

@@ -159,6 +159,34 @@ local function mutate(binding, method, request)
 		end
 		return unpack(vim.deepcopy(cache[key].result), 1, 2)
 	end
+	if method == "create_report" then
+		if type(request.name) ~= "string" or vim.trim(request.name) == "" or request.name:find("[/\\%c]") or vim.trim(request.name) == ".md" or type(request.body) ~= "string" then
+			return failure("INVALID_ARGUMENT", "a report filename without separators and a Markdown body are required")
+		end
+		if type(binding.worktree) ~= "string" or binding.worktree == "" then
+			return failure("INVALID_ARGUMENT", "an execution worktree is required")
+		end
+		local reports = require("aero.reports")
+		local report, report_err = reports.create_file(binding.worktree, binding.workspace, request.name, request.body)
+		if not report then
+			return failure("IO_ERROR", report_err)
+		end
+		local result = {
+			name = report.name,
+			path = report.path,
+			worktree = binding.worktree,
+			board_id = binding.board_id,
+			ticket_id = binding.ticket_id,
+			committed = true,
+		}
+		cache[key] = { payload = vim.deepcopy(payload), result = { result } }
+		table.insert(order, key)
+		if #order > limit then
+			cache[table.remove(order, 1)] = nil
+		end
+		require("aero.dashboard").render()
+		return result
+	end
 	local creating = method == "create_ticket"
 	local placement = method == "move_ticket" or creating
 	local expected = placement and request.expected_board_revision or request.expected_ticket_revision
@@ -205,6 +233,10 @@ local function mutate(binding, method, request)
 	}
 	local ok
 	if creating then
+		if request.task_type ~= nil and not vim.tbl_contains({ "general", "implementation", "report" }, request.task_type) then
+			return failure("INVALID_ARGUMENT", "task_type must be general, implementation, or report")
+		end
+		options.task_type = request.task_type
 		if type(request.title) ~= "string" or vim.trim(request.title) == "" or request.title:find("%c") then
 			return failure("INVALID_ARGUMENT", "title must be nonempty and single-line")
 		end
@@ -265,7 +297,7 @@ local function mutate(binding, method, request)
 	elseif method == "update_ticket_body" then
 		ok, err = tasks.update_body(binding.workspace, context.board.path, context.ticket.path, request.body, options)
 	else
-		local allowed = { priority = true, tags = true, assignees = true, due_date = true, estimate = true }
+		local allowed = { task_type = true, priority = true, tags = true, assignees = true, due_date = true, estimate = true }
 		if type(request.changes) ~= "table" then
 			return failure("INVALID_ARGUMENT", "changes must be an object")
 		end
@@ -332,7 +364,7 @@ local function mutate(binding, method, request)
 	return result, err
 end
 
-for _, method in ipairs({ "create_ticket", "move_ticket", "update_ticket_body", "update_ticket_metadata" }) do
+for _, method in ipairs({ "create_report", "create_ticket", "move_ticket", "update_ticket_body", "update_ticket_metadata" }) do
 	M[method] = function(binding, request)
 		return mutate(binding, method, request)
 	end
