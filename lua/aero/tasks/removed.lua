@@ -63,6 +63,10 @@ function M.open(ws, restore)
 				.. require("aero.tasks.edit").title(item.title)
 				.. " · from "
 				.. require("aero.tasks.edit").title(item.board_title)
+				.. " · "
+				.. require("aero.tasks.edit").title(
+					item.ticket and item.ticket.metadata and item.ticket.metadata.id or vim.fs.basename(item.path)
+				)
 				.. (item.error and " [invalid]" or "")
 			registry[id] = item
 			table.insert(lines, item.row)
