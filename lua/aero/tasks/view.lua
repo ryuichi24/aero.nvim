@@ -134,10 +134,6 @@ decorate = function(view, only)
 				local title = edit.title((view.board.metadata or {}).title or "Board")
 				local archived = (view.board.metadata or {}).archived and " [archived]" or ""
 				local errors = #view.board.diagnostics > 0 and " [diagnostics: g?]" or ""
-				local recover_key = config.options.tasks.keymaps.recover
-				local removed = #view.board.orphans > 0
-						and (" · Removed tickets: " .. #view.board.orphans .. (recover_key and " (" .. recover_key .. ")" or ""))
-					or ""
 				vim.wo[win].winbar = (
 					title
 					.. archived
@@ -148,7 +144,6 @@ decorate = function(view, only)
 					.. ")"
 					.. (view.stale and " [stale]" or "")
 					.. errors
-					.. removed
 				):gsub("%%", "%%%%")
 			end
 		end
