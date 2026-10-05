@@ -7,8 +7,13 @@ local M = {}
 local ns = api.nvim_create_namespace("Aero.acp.render")
 local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
 local tool_names = {
-	read = "Read", edit = "Edit", delete = "Delete", search = "Search",
-	execute = "Command", fetch = "Fetch", think = "Thinking",
+	read = "Read",
+	edit = "Edit",
+	delete = "Delete",
+	search = "Search",
+	execute = "Command",
+	fetch = "Fetch",
+	think = "Thinking",
 }
 
 local function one_line(text)
@@ -97,9 +102,11 @@ function M.setup_highlights()
 	end
 end
 
-function M.build(chat)
+function M.build(chat, opts)
+	opts = opts or {}
 	local lines, marks, options = {}, {}, {}
-	local max_lines = math.max(1, math.floor(tonumber(config.options.acp.max_tool_lines) or 20))
+	local max_lines = opts.export and math.huge
+		or math.max(1, math.floor(tonumber(config.options.acp.max_tool_lines) or 20))
 	local function push(text, group, style, prefix)
 		table.insert(lines, text)
 		if group or style then
@@ -152,7 +159,12 @@ function M.build(chat)
 	end
 	local function tool(block)
 		local command = command_input(block)
-		if not command and block.tool_kind == "execute" and type(block.title) == "string" and block.title:find("\n", 1, true) then
+		if
+			not command
+			and block.tool_kind == "execute"
+			and type(block.title) == "string"
+			and block.title:find("\n", 1, true)
+		then
 			command = block.title
 		end
 		local execute = block.tool_kind == "execute" or command ~= nil
@@ -162,7 +174,8 @@ function M.build(chat)
 		local running = chat.busy and (status == "pending" or status == "in_progress")
 		local icon = running and spinner.frame() or tool_icons[status] or "•"
 		local status_group = status == "failed" and "AeroChatError"
-			or status == "completed" and "AeroChatSuccess" or "AeroChatPending"
+			or status == "completed" and "AeroChatSuccess"
+			or "AeroChatPending"
 		header(icon .. " " .. kind .. " · " .. status:gsub("_", " "), group)
 		marks[#marks].status_group = status_group
 		if block.title and block.title ~= command then
@@ -286,7 +299,7 @@ function M.build(chat)
 		body(split(text), nil, "AeroChatPending")
 		finish("AeroChatPending")
 	end
-	if chat.usage and config.options.acp.show_usage ~= false then
+	if chat.usage and (opts.export or config.options.acp.show_usage ~= false) then
 		header("Usage", "AeroChatMeta")
 		body(usage.lines(chat), "AeroChatMeta")
 		finish("AeroChatMeta")
@@ -319,7 +332,8 @@ function M.decorate(buf, lines, marks, first)
 				opts.hl_group, opts.end_col = mark.group, #text
 			end
 			if mark.style then
-				local prefix = mark.prefix or (mark.style == "header" and "┌ " or mark.style == "footer" and "└─" or "│ ")
+				local prefix = mark.prefix
+					or (mark.style == "header" and "┌ " or mark.style == "footer" and "└─" or "│ ")
 				opts.virt_text = { { prefix, mark.border_group or mark.group or "AeroChatBorder" } }
 				opts.virt_text_pos = "inline"
 			end

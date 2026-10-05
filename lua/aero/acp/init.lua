@@ -766,6 +766,9 @@ function Chat:new_session(params)
 end
 
 function Chat:prompt(text)
+	if vim.trim(text) == "/export" then
+		return require("aero.exports").export(self)
+	end
 	if self.state == "exited" then
 		local message = self.resume_error and "Aero: session could not be resumed; retry with r in the dashboard"
 			or "Aero: agent has exited; restart it with r in the dashboard"
@@ -877,7 +880,7 @@ function Chat:send_prompt_buf()
 		vim.bo[buf].modified = false
 		return
 	end
-	if self.state == "exited" then
+	if self.state == "exited" and text ~= "/export" then
 		-- Report the failed backend without clearing a prompt that cannot be sent.
 		return self:prompt(text)
 	end
@@ -948,7 +951,7 @@ function Chat:get_prompt_buf()
 	-- Enter handles local draft actions; other drafts keep normal newlines.
 	vim.keymap.set("i", "<CR>", function()
 		local text = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-		if vim.trim(text) == "/report" or vim.trim(text) == "/cancel" then
+		if vim.trim(text) == "/report" or vim.trim(text) == "/cancel" or vim.trim(text) == "/export" then
 			with_chat("send_prompt_buf")()
 		else
 			api.nvim_feedkeys(api.nvim_replace_termcodes("<CR>", true, false, true), "in", false)
@@ -1164,6 +1167,9 @@ function M.omnifunc(findstart, base)
 		return start and start - 1 or -3
 	end
 	local out = {}
+	if not prefix and ("/export"):sub(1, #base) == base then
+		table.insert(out, { word = "/export", menu = "Save this conversation as Markdown" })
+	end
 	if prefix then
 		for _, choice in ipairs(selector.options(chat).choices) do
 			if choice.id:sub(1, #base) == base then
@@ -1194,6 +1200,7 @@ function M.omnifunc(findstart, base)
 		local word = "/" .. c.name
 		if
 			word ~= "/model"
+			and word ~= "/export"
 			and word ~= "/mode"
 			and word ~= "/report"
 			and word ~= "/cancel"

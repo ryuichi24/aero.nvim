@@ -21,6 +21,11 @@ for line in sys.stdin:
     method = request.get("method")
     result = {}
     if method == "initialize":
+        assert isinstance(request["params"]["clientCapabilities"], dict), "clientCapabilities must be an object"
+        info = request["params"].get("clientInfo")
+        if info is not None:
+            assert isinstance(info.get("name"), str), "clientInfo.name is required"
+            assert isinstance(info.get("version"), str), "clientInfo.version is required"
         result = {"agentCapabilities": {"loadSession": mode != "unsupported"}}
     elif method == "session/new":
         assert mode not in {"replay", "recover-id", "fail", "recover", "recover-fail", "missing-rollout", "replay-recovered"}, "expected session/load, got session/new"
@@ -41,6 +46,9 @@ for line in sys.stdin:
             }})
             continue
     elif method == "session/prompt":
+        prompt = request["params"]["prompt"][0]["text"]
+        if mode == "export":
+            assert prompt.startswith("EXPORT_CUSTOM_PROMPT: Organize the transcript by topic.\n\n# Test chat"), "custom export prompt or appended transcript missing"
         assert mode != "fail", "prompt was sent after a failed session/load"
         assert request["params"]["sessionId"] == "fixture-session"
         if mode == "cancel":

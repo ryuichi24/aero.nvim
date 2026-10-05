@@ -22,6 +22,7 @@ local state = {
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
 	reports_expanded = {}, -- worktree path -> report section expanded
+	exports_expanded = {}, -- worktree path -> exported logs section expanded
 	boards_expanded = {}, -- workspace root -> board section expanded
 	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
 	pulling = {}, -- worktree path -> in-flight pull
@@ -183,7 +184,8 @@ local function build()
 						elseif tracking.gone then
 							label, hl = " [upstream gone]", "AeroExited"
 						elseif tracking.ahead > 0 and tracking.behind > 0 then
-							label, hl = string.format(" [diverged ↑%d ↓%d]", tracking.ahead, tracking.behind), "AeroExited"
+							label, hl =
+								string.format(" [diverged ↑%d ↓%d]", tracking.ahead, tracking.behind), "AeroExited"
 						elseif tracking.behind > 0 then
 							label, hl = string.format(" [pull ↓%d]", tracking.behind), "AeroWaiting"
 						elseif tracking.ahead > 0 then
@@ -222,6 +224,27 @@ local function build()
 							{ session.icon(s), status_hl[st] },
 							{ " " .. s.name, "AeroSession" },
 						}, { kind = "session", id = "s:" .. s.key, ws = ws, wt = wt, session = s }, virt_s)
+					end
+					local exports = require("aero.exports").list(wt.path)
+					local eopen = state.exports_expanded[wt.path] ~= false
+					add(
+						{
+							{ "     " .. (eopen and icons.expanded or icons.collapsed) .. " " },
+							{ "Exported logs", "AeroWorkspace" },
+						},
+						{ kind = "exports", id = "exports:" .. wt.path, ws = ws, wt = wt },
+						{ { " " .. #exports, "AeroDim" } }
+					)
+					if eopen then
+						for _, log in ipairs(exports) do
+							add({ { "       " }, { log.name, "AeroSession" } }, {
+								kind = "export",
+								id = "export:" .. log.path,
+								ws = ws,
+								wt = wt,
+								report = log,
+							})
+						end
 					end
 					local report_list, report_err = reports.list(wt.path, ws)
 					local ropen = state.reports_expanded[wt.path] ~= false
@@ -871,7 +894,7 @@ function actions.open(how)
 		require("aero.tasks.ui").removed(item.ws)
 	elseif item.kind == "session" then
 		open_session(item.session, how or "default")
-	elseif item.kind == "report" then
+	elseif item.kind == "report" or item.kind == "export" then
 		open_report(item, how)
 	elseif item.kind == "report_new" then
 		new_report(item)
@@ -889,6 +912,8 @@ function actions.toggle()
 		store.set_expanded(item.ws.root, item.ws.expanded == false)
 	elseif item.kind == "worktree" then
 		state.expanded[item.wt.path] = not wt_expanded(item.wt, session.list(item.wt.path))
+	elseif item.kind == "exports" then
+		state.exports_expanded[item.wt.path] = state.exports_expanded[item.wt.path] == false
 	elseif item.kind == "reports" then
 		state.reports_expanded[item.wt.path] = state.reports_expanded[item.wt.path] == false
 	elseif item.kind == "boards" then
@@ -904,6 +929,7 @@ function actions.expand()
 	end
 	if
 		item.kind == "session"
+		or item.kind == "export"
 		or item.kind == "report"
 		or item.kind == "report_new"
 		or item.kind == "board"
@@ -915,6 +941,8 @@ function actions.expand()
 	local expanded
 	if item.kind == "workspace" then
 		expanded = item.ws.expanded ~= false
+	elseif item.kind == "exports" then
+		expanded = state.exports_expanded[item.wt.path] ~= false
 	elseif item.kind == "reports" then
 		expanded = state.reports_expanded[item.wt.path] ~= false
 	elseif item.kind == "boards" then
@@ -939,10 +967,15 @@ function actions.collapse()
 		return
 	end
 	local lnum = api.nvim_win_get_cursor(0)[1]
-	local is_header = item.id:match("^ws:") or item.id:match("^wt:") or item.kind == "reports" or item.kind == "boards"
+	local is_header = item.id:match("^ws:")
+		or item.id:match("^wt:")
+		or item.kind == "reports"
+		or item.kind == "boards"
+		or item.kind == "exports"
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
 		or item.kind == "reports" and state.reports_expanded[item.wt.path] ~= false
+		or item.kind == "exports" and state.exports_expanded[item.wt.path] ~= false
 		or item.kind == "boards" and state.boards_expanded[item.ws.root] ~= false
 	if is_header and open then
 		return actions.toggle()
@@ -950,6 +983,8 @@ function actions.collapse()
 	-- jump to the parent line
 	local parent = (item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed")
 			and "boards:" .. item.ws.root
+		or item.kind == "export" and "exports:" .. item.wt.path
+		or item.kind == "exports" and "wt:" .. item.wt.path
 		or (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
 		or (item.kind == "session" or item.kind == "reports") and "wt:" .. item.wt.path
 		or "ws:" .. item.ws.root
@@ -1202,7 +1237,7 @@ function actions.edit()
 	if item and (item.kind == "boards" or item.kind == "board_new") then
 		return require("aero.tasks.ui").new_board(item.ws)
 	end
-	if item and item.kind == "report" then
+	if item and (item.kind == "report" or item.kind == "export") then
 		return open_report(item)
 	end
 	if item and item.kind == "report_new" then
