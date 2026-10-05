@@ -105,6 +105,11 @@ filtering to normal mode; `q` in normal mode closes the popup. In insert mode,
 `q` is ordinary search text. Stopped and exited sessions are
 excluded; use `:Aero pick` to browse those too.
 
+`:Aero worktrees` lists worktrees grouped by workspace, and `:Aero workspaces`
+lists registered workspaces. Both use the same navigation and filtering controls;
+`Enter` opens the selected checkout's code window (the root checkout for a
+workspace). Call `aero.worktrees()` or `aero.workspaces()` from Lua keymaps.
+
 Press `gF` or run `:Aero fullscreen` to expand the focused pane; toggle again to restore
 the layout. Aero maps `<C-w>h/j/k/l` to resizing in Aero panes; use `<C-w>w` to switch
 windows, or set `resize = false` to retain ordinary directional navigation.

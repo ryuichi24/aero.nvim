@@ -17,9 +17,26 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero add [path]` | Register the repository containing the path (default: cwd) |
 | `:Aero pick` | Pick any session using `vim.ui.select` |
 | `:Aero sessions` | Search active sessions across worktrees in a live popup |
+| `:Aero worktrees` | Search worktrees grouped by workspace and open the selected checkout |
+| `:Aero workspaces` | Search registered workspaces and open the selected root checkout |
 | `:Aero refresh` | Re-read worktrees |
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero term` | Toggle the current worktree's shell |
+
+The session, worktree, and workspace popups open in normal mode. Use `j`/`k` to
+select, `i` to filter, and `Enter` to open the selected item. `Esc` returns to
+normal mode; `q` in normal mode closes the popup. Worktree search matches workspace
+names, paths, and branch names. Selecting a worktree or workspace focuses its code
+window, reusing its tab when available.
+
+The matching Lua APIs can be passed directly to keymaps:
+
+```lua
+local aero = require("aero")
+vim.keymap.set("n", "<leader>as", aero.sessions, { desc = "Search active AI sessions" })
+vim.keymap.set("n", "<leader>aw", aero.worktrees, { desc = "Search worktrees" })
+vim.keymap.set("n", "<leader>aW", aero.workspaces, { desc = "Search workspaces" })
+```
 
 The dashboard toggles even when focus is in code, a prompt, or a terminal.
 

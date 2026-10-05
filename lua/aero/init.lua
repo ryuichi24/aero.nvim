@@ -70,6 +70,18 @@ function M.sessions()
 	require("aero.sessions").open()
 end
 
+--- Search registered workspaces and focus the selected workspace's code window.
+function M.workspaces()
+	ensure()
+	require("aero.workspaces").open()
+end
+
+--- Search worktrees grouped by workspace and focus the selected code window.
+function M.worktrees()
+	ensure()
+	require("aero.workspaces").worktrees()
+end
+
 --- Reconnect the selected ACP session to an existing adapter conversation ID.
 function M.resume(session_id)
 	return ensure().resume(session_id)

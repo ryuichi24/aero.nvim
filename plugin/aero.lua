@@ -25,6 +25,12 @@ local subcommands = {
 	sessions = function()
 		require("aero").sessions()
 	end,
+	workspaces = function()
+		require("aero").workspaces()
+	end,
+	worktrees = function()
+		require("aero").worktrees()
+	end,
 	resume = function(args)
 		require("aero").resume(args[1])
 	end,
