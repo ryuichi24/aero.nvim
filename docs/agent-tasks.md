@@ -80,9 +80,24 @@ Save board and ticket edits, then press `gw` on a persisted board row, or run:
 :Aero ticket work <board-id> <ticket-id>
 ```
 
-Choose the execution worktree, ACP adapter, and a new session name. The assignment
-is appended to the prompt draft without submission. Board tabs are excluded from
-worktree reuse. Title-only rows must be saved before assignment. Binding credentials
+Choose **New session** or **Existing session**. For a new session, choose the
+execution worktree, ACP adapter, and a session name. For an existing session,
+choose a ready, idle or stopped/saved ACP conversation in the ticket's workspace.
+The picker shows its name, adapter, status, and execution worktree; that worktree
+is retained. Selecting a stopped session attaches the ticket and resumes its
+saved conversation automatically. Sessions that have never started a conversation
+and have no saved ACP conversation ID are excluded; choose **New session** instead.
+The adapter must be allowed by `tasks.agent.adapters` and advertise ACP
+`session/load` support. Busy sessions, pending session changes, and unsupported
+adapters cannot be assigned; wait for readiness or choose a new session. For a
+stopped session, Aero checks `session/load` support during initialization and
+never falls back to creating a new conversation if resume fails.
+
+Aero revalidates drafts and session eligibility after selection. Existing-session
+assignment reloads the same ACP conversation with ticket-scoped MCP tools,
+retaining its ID, transcript, usage, model/mode state, and existing prompt draft.
+The assignment is appended to the prompt draft without submission. Board tabs are
+excluded from worktree reuse. Title-only rows must be saved before assignment. Binding credentials
 are runtime-only. Assignment identities (workspace root, board ID, and optional
 ticket ID) are saved with the session when `persist_sessions` is enabled. On resume,
 Aero validates the assignment and supplies a fresh MCP socket and credential before
@@ -90,6 +105,21 @@ loading the ACP conversation. Board-only sessions reconnect the same way. Missin
 or ambiguous boards/tickets stop resume with an explicit error rather than silently
 dropping task tools. Existing ticket sessions can recover their assignment from
 Aero's generated assignment prompt in saved conversation history.
+
+Replacing a board or ticket assignment requires **Replace assignment** confirmation.
+Assigning the same ticket to a ready session again only appends fresh instructions;
+it does not reload or rotate credentials. A stopped session is resumed even when
+it already has the same ticket. Successful replacement revokes the superseded credential.
+On failure, Aero revokes the failed-attempt credential and restores the previous
+binding and provider MCP configuration without changing the persisted assignment.
+An originally unbound session remains unbound. If the provider also rejects the
+recovery reload, Aero stops the conversation and asks you to resume it rather than
+send prompts with uncertain tool state. Assignment identity is persisted when
+`persist_sessions` is enabled; sockets and credentials are never persisted and are
+regenerated on resume. `:Aero board work` retains its fresh board-session workflow.
+Failed stopped-session assignment leaves the previous saved assignment intact and
+the session stopped, with the failed-attempt credential revoked. Instructions are
+appended only after successful resume and are never submitted automatically.
 
 If a resumed OpenCode conversation still claims the Aero tools are unavailable,
 ask it to actually call `aero-tasks_aero_get_ticket` (or `aero-tasks_aero_get_board`

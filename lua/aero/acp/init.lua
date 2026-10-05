@@ -400,6 +400,11 @@ end
 ---------------------------------------------------------------------------
 
 function Chat:on_update(u)
+	-- Ticket reassignment reloads the same conversation, not a new history/settings
+	-- snapshot. Ignore its replay (including historical usage and setting changes).
+	if self.task_reloading then
+		return
+	end
 	local kind = u.sessionUpdate
 	-- The local transcript already contains the history replayed by session/load.
 	if
@@ -623,7 +628,7 @@ function Chat:status()
 		return "exited"
 	elseif self.permission then
 		return "waiting"
-	elseif self.busy or self.model_pending or self.mode_pending or self.state == "starting" then
+	elseif self.busy or self.model_pending or self.mode_pending or self.task_pending or self.state == "starting" then
 		return "busy"
 	end
 	return "idle"
@@ -643,6 +648,14 @@ function Chat:ready(session_id, response)
 		"session_ready",
 		events.session(self.s, { session_id = session_id, resumed = self.resumed == true, type = "acp" })
 	)
+	if self.on_resume then
+		local callback = self.on_resume
+		self.on_resume = nil
+		callback(self)
+	end
+	if self.state ~= "ready" then
+		return
+	end
 	self:flush_queue()
 end
 
@@ -665,6 +678,11 @@ function Chat:resume_failed(session_id, err)
 	self:changed()
 	self:stop()
 	events.emit("session_resume_failed", events.session(self.s, { session_id = session_id, type = "acp", error = err }))
+	if self.on_resume then
+		local callback = self.on_resume
+		self.on_resume = nil
+		callback(self, err)
+	end
 end
 
 function Chat:handshake(resume)
@@ -674,6 +692,9 @@ function Chat:handshake(resume)
 		clientInfo = { name = "Aero.nvim", title = "Aero.nvim", version = "0.1.0" },
 	}, function(err, res)
 		if err then
+			if self.requested_session_id then
+				return self:resume_failed(self.requested_session_id, err)
+			end
 			return self:fail("initialize", err)
 		end
 		self.agent_info = res.agentInfo
@@ -1026,7 +1047,8 @@ end
 ---@param resume boolean
 ---@param session_id? string explicit conversation ID for recovery
 ---@return Aero.acp.Chat|nil
-function M.start(s, buf, agent, resume, session_id)
+function M.start(s, buf, agent, resume, session_id, opts)
+	opts = opts or {}
 	local chat = setmetatable({
 		s = s,
 		buf = buf,
@@ -1037,6 +1059,8 @@ function M.start(s, buf, agent, resume, session_id)
 		queue = {},
 		revealing = {},
 		requested_session_id = session_id,
+		on_resume = opts.on_resume,
+		task_pending = opts.on_resume ~= nil,
 	}, Chat)
 	local old = chats_by_key[s.key]
 	local saved = resume and history.load(s)

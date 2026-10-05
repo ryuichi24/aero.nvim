@@ -236,6 +236,23 @@ function M.expand_new_ticket(session, text)
 	}, "\n")
 end
 
+local function assignment_prompt(binding, data, worktree, board_only)
+	return table.concat({
+		"Workspace root: " .. vim.json.encode(binding.workspace.root),
+		"Board ID: " .. binding.board_id,
+		"Board file: " .. vim.json.encode(data.board_path),
+		binding.ticket_id and ("Ticket ID: " .. binding.ticket_id) or "Board-only session: no ticket is assigned.",
+		data.ticket_path and ("Ticket file: " .. vim.json.encode(data.ticket_path))
+			or "Use /new-ticket to create tickets on this board.",
+		"Execution worktree: " .. vim.json.encode(worktree),
+		"Read metadata.task_type through aero_get_ticket. If it is report, investigate the ticket and call aero_create_report with a unique operation_id, a filename, and your complete Markdown findings. Record the returned report path in the ticket using aero_update_ticket_body. Reuse an operation_id only for identical retries; existing report files must not be overwritten. A report task calls for findings rather than implementation unless the ticket explicitly requests code changes.",
+		"",
+		board_only
+				and "Use Aero's MCP tools to read this board and create tickets when asked. Do not write task documents directly."
+			or require("aero.config").options.tasks.agent.prompt,
+	}, "\n")
+end
+
 function M.work(board_id, ticket_id, board_only)
 	local config = require("aero.config").options
 	if not config.tasks.agent.enabled then
@@ -288,89 +305,102 @@ function M.work(board_id, ticket_id, board_only)
 		if not validate() then
 			return
 		end
-		local worktrees, err = require("aero.git").list(ws.root)
-		if not worktrees then
-			return notify(err)
-		end
-		vim.ui.select(worktrees, {
-			prompt = "Execution worktree",
-			format_item = function(wt)
-				return wt.path
-			end,
-		}, function(wt)
-			if not wt then
-				return
+		local function new_session()
+			local worktrees, err = require("aero.git").list(ws.root)
+			if not worktrees then
+				return notify(err)
 			end
-			local agents = {}
-			for name, def in pairs(config.agents) do
-				if def.type == "acp" and vim.tbl_contains(config.tasks.agent.adapters, name) then
-					table.insert(agents, name)
-				end
-			end
-			table.sort(agents)
-			vim.ui.select(agents, { prompt = "New task-enabled ACP session" }, function(agent)
-				if not agent then
+			vim.ui.select(worktrees, {
+				prompt = "Execution worktree",
+				format_item = function(wt)
+					return wt.path
+				end,
+			}, function(wt)
+				if not wt then
 					return
 				end
-				vim.ui.input({ prompt = "Task session name: ", default = ticket_id or board_id }, function(name)
-					if not name or vim.trim(name) == "" then
+				local agents = {}
+				for name, def in pairs(config.agents) do
+					if def.type == "acp" and vim.tbl_contains(config.tasks.agent.adapters, name) then
+						table.insert(agents, name)
+					end
+				end
+				table.sort(agents)
+				vim.ui.select(agents, { prompt = "New task-enabled ACP session" }, function(agent)
+					if not agent then
 						return
 					end
-					local data = validate()
-					if not data then
-						return
-					end
-					local definition = require("aero.config").options.agents[agent]
-					if not definition or definition.type ~= "acp" then
-						return notify("selected ACP adapter is no longer configured")
-					end
-					local live = require("aero.git").list(ws.root) or {}
-					if not vim.iter(live):any(function(candidate)
-						return candidate.path == wt.path
-					end) then
-						return notify("worktree disappeared")
-					end
-					local session, create_err = require("aero.session").create(wt.path, agent, vim.trim(name))
-					if not session then
-						return notify(create_err)
-					end
-					local attached, bridge_err = M.attach(session, binding, executable)
-					if not attached then
-						require("aero.session").delete(session)
-						return notify(bridge_err)
-					end
-					M.remember(session)
-					if require("aero.tabs").enabled() then
-						require("aero.tabs").enter(wt.path)
-					else
-						if vim.t.aero_board_path or vim.t.aero_removed_workspace then
-							vim.cmd.tabnew()
+					vim.ui.input({ prompt = "Task session name: ", default = ticket_id or board_id }, function(name)
+						if not name or vim.trim(name) == "" then
+							return
 						end
-						vim.cmd.tcd(vim.fn.fnameescape(wt.path))
-					end
-					local prompt = table.concat({
-						"Workspace root: " .. vim.json.encode(ws.root),
-						"Board ID: " .. board_id,
-						"Board file: " .. vim.json.encode(data.board_path),
-						ticket_id and ("Ticket ID: " .. ticket_id) or "Board-only session: no ticket is assigned.",
-						data.ticket_path and ("Ticket file: " .. vim.json.encode(data.ticket_path))
-							or "Use /new-ticket to create tickets on this board.",
-						"Execution worktree: " .. vim.json.encode(wt.path),
-						"Read metadata.task_type through aero_get_ticket. If it is report, investigate the ticket and call aero_create_report with a unique operation_id, a filename, and your complete Markdown findings. Record the returned report path in the ticket using aero_update_ticket_body. Reuse an operation_id only for identical retries; existing report files must not be overwritten. A report task calls for findings rather than implementation unless the ticket explicitly requests code changes.",
-						"",
-						board_only
-								and "Use Aero's MCP tools to read this board and create tickets when asked. Do not write task documents directly."
-							or config.tasks.agent.prompt,
-					}, "\n")
-					local ok, compose_err = require("aero.compose").append(session, prompt)
-					if not ok then
-						require("aero.tasks.bridge").unbind(session.task_transport.credential)
-						require("aero.session").delete(session)
-						notify(compose_err)
-					end
+						local data = validate()
+						if not data then
+							return
+						end
+						local definition = require("aero.config").options.agents[agent]
+						if
+							not definition
+							or definition.type ~= "acp"
+							or not vim.tbl_contains(require("aero.config").options.tasks.agent.adapters, agent)
+						then
+							return notify(
+								"selected ACP adapter is no longer configured or allowed by tasks.agent.adapters"
+							)
+						end
+						local live = require("aero.git").list(ws.root) or {}
+						if
+							not vim.iter(live):any(function(candidate)
+								return candidate.path == wt.path
+							end)
+						then
+							return notify("worktree disappeared")
+						end
+						local session, create_err = require("aero.session").create(wt.path, agent, vim.trim(name))
+						if not session then
+							return notify(create_err)
+						end
+						local attached, bridge_err = M.attach(session, binding, executable)
+						if not attached then
+							require("aero.session").delete(session)
+							return notify(bridge_err)
+						end
+						M.remember(session)
+						if require("aero.tabs").enabled() then
+							require("aero.tabs").enter(wt.path)
+						else
+							if vim.t.aero_board_path or vim.t.aero_removed_workspace then
+								vim.cmd.tabnew()
+							end
+							vim.cmd.tcd(vim.fn.fnameescape(wt.path))
+						end
+						local prompt = assignment_prompt(binding, data, wt.path, board_only)
+						local ok, compose_err = require("aero.compose").append(session, prompt)
+						if not ok then
+							require("aero.tasks.bridge").unbind(session.task_transport.credential)
+							require("aero.session").delete(session)
+							notify(compose_err)
+						end
+					end)
 				end)
 			end)
-		end)
+		end
+		if board_only then
+			return new_session()
+		end
+		vim.ui.select(
+			{ "New session", "Existing session" },
+			{ prompt = "Assign ticket to ACP session" },
+			function(choice)
+				if choice == "New session" then
+					new_session()
+				elseif choice == "Existing session" then
+					require("aero.tasks.assignment").pick(binding, executable, validate, function(data, worktree)
+						return assignment_prompt(binding, data, worktree, false)
+					end)
+				end
+			end
+		)
 	end)
 end
 return M

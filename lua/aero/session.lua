@@ -204,7 +204,10 @@ end
 
 --- Start (or restart) the session's agent in a new buffer shown in `win`.
 --- An explicit ACP session ID is persisted only after the adapter accepts it.
-function M.start(s, win, resume, session_id)
+--- Task assignment may supply staged tools (restore_tasks=false) and a one-shot
+--- on_resume(chat, err) callback to commit or roll back after strict loading.
+function M.start(s, win, resume, session_id, opts)
+	opts = opts or {}
 	win = win == 0 and vim.api.nvim_get_current_win() or win
 	local agent = config.options.agents[s.agent]
 	if not agent then
@@ -212,7 +215,7 @@ function M.start(s, win, resume, session_id)
 		return false
 	end
 	M.stop(s)
-	if agent.type == "acp" then
+	if agent.type == "acp" and opts.restore_tasks ~= false then
 		local restored, err = require("aero.tasks.agent").restore(s)
 		if not restored then
 			vim.notify(
@@ -257,7 +260,7 @@ function M.start(s, win, resume, session_id)
 
 	if agent.type == "acp" then
 		s.buf, s.job, s.exit_code, s.fresh = buf, nil, nil, false
-		s.chat = require("aero.acp").start(s, buf, agent, resume, session_id)
+		s.chat = require("aero.acp").start(s, buf, agent, resume, session_id, opts)
 		if not s.chat then
 			s.buf = nil
 			vim.api.nvim_buf_delete(buf, { force = true })
