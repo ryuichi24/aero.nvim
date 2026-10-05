@@ -64,6 +64,12 @@ function M.pick()
 	ensure().pick()
 end
 
+--- Search active sessions across worktrees in a live popup.
+function M.sessions()
+	ensure()
+	require("aero.sessions").open()
+end
+
 --- Reconnect the selected ACP session to an existing adapter conversation ID.
 function M.resume(session_id)
 	return ensure().resume(session_id)

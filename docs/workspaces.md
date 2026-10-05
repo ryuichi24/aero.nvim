@@ -16,6 +16,7 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero open` / `:Aero close` | Show and focus / explicitly hide the dashboard |
 | `:Aero add [path]` | Register the repository containing the path (default: cwd) |
 | `:Aero pick` | Pick any session using `vim.ui.select` |
+| `:Aero sessions` | Search active sessions across worktrees in a live popup |
 | `:Aero refresh` | Re-read worktrees |
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero term` | Toggle the current worktree's shell |
