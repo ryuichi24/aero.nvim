@@ -3,18 +3,117 @@ local function notify(err)
 	vim.notify("Aero tasks: " .. (type(err) == "table" and err.message or tostring(err)), vim.log.levels.WARN)
 end
 
+function M.remember(session)
+	local binding = session.task_binding
+	require("aero.store").set_session_field(session.worktree, session.name, "task_assignment", {
+		workspace_root = binding.workspace.root,
+		board_id = binding.board_id,
+		ticket_id = binding.ticket_id,
+	})
+end
+
+local function saved_assignment(session)
+	local store = require("aero.store")
+	store.load()
+	local definition = store.find_session(session.worktree, session.name)
+	if definition and definition.task_assignment ~= nil then
+		return definition.task_assignment
+	end
+	if session.task_binding then
+		local binding = session.task_binding
+		return { workspace_root = binding.workspace.root, board_id = binding.board_id, ticket_id = binding.ticket_id }
+	end
+	-- Migrate pre-persistence assignments from Aero's generated initial prompt.
+	local history = require("aero.history").load(session)
+	for _, block in ipairs(history and history.blocks or {}) do
+		if block.kind == "user" and type(block.text) == "string" then
+			local root, board = block.text:match("^Workspace root: ([^\n]+)\nBoard ID: ([^\n]+)\nBoard file: ")
+			local ticket = block.text:match("\nTicket ID: ([^\n]+)\nTicket file: ")
+			if root and board and block.text:find("\nExecution worktree: ", 1, true) then
+				local ok, workspace = pcall(vim.json.decode, root)
+				if ok and type(workspace) == "string" then
+					return { workspace_root = workspace, board_id = board, ticket_id = ticket }
+				end
+			end
+		end
+	end
+end
+
+-- Rebuild transport state before session/new or session/load, including after restart.
+function M.restore(session)
+	local assignment = saved_assignment(session)
+	if assignment == nil then
+		return true
+	end
+	if
+		type(assignment) ~= "table"
+		or type(assignment.workspace_root) ~= "string"
+		or assignment.workspace_root == ""
+		or type(assignment.board_id) ~= "string"
+		or assignment.board_id == ""
+		or (assignment.ticket_id ~= nil and (type(assignment.ticket_id) ~= "string" or assignment.ticket_id == ""))
+	then
+		return nil, "invalid saved task assignment"
+	end
+	local config = require("aero.config").options
+	if not config.tasks.agent.enabled then
+		return nil, "enable tasks.agent.enabled to resume this task session"
+	end
+	if not vim.tbl_contains(config.tasks.agent.adapters, session.agent) then
+		return nil, "add this adapter to tasks.agent.adapters to resume this task session"
+	end
+	local executable, err = require("aero.tasks.install").resolve()
+	if not executable then
+		return nil, err
+	end
+	local store = require("aero.store")
+	local ws = store.find_workspace(assignment.workspace_root) or { root = assignment.workspace_root }
+	local ok, attach_err = M.attach(session, {
+		workspace = ws,
+		board_id = assignment.board_id,
+		ticket_id = assignment.ticket_id,
+	}, executable)
+	if not ok then
+		local message = type(attach_err) == "table" and attach_err.message or tostring(attach_err)
+		return nil,
+			message
+				.. " (session: "
+				.. session.name
+				.. ", board: "
+				.. assignment.board_id
+				.. (assignment.ticket_id and (", ticket: " .. assignment.ticket_id) or "")
+				.. ")"
+	end
+	M.remember(session)
+	return true
+end
+
 function M.attach(session, binding, executable)
 	local board, board_err = require("aero.tasks").resolve_board(binding.workspace, binding.board_id)
 	if not board then
 		return nil, board_err
+	end
+	local ticket
+	if binding.ticket_id then
+		local err
+		ticket, err = require("aero.tasks").resolve_ticket(board, binding.ticket_id)
+		if not ticket then
+			return nil, err
+		end
 	end
 	binding.worktree, binding.session_key = session.worktree, session.key
 	local transport, err = require("aero.tasks.bridge").bind(binding)
 	if not transport then
 		return nil, err
 	end
+	if session.task_transport then
+		require("aero.tasks.bridge").unbind(session.task_transport.credential)
+	end
 	session.task_binding = vim.deepcopy(binding)
 	session.task_documents = { board.path }
+	if ticket then
+		table.insert(session.task_documents, ticket.path)
+	end
 	session.task_transport = transport
 	session.runtime_env = { AERO_TASK_SOCKET = transport.socket, AERO_TASK_CREDENTIAL = transport.credential }
 	session.mcp_servers = {
@@ -87,6 +186,7 @@ function M.prepare_new_ticket(chat, callback)
 				chat.s.mcp_servers, chat.s.runtime_env = nil, nil
 				notify(load_err)
 			else
+				M.remember(chat.s)
 				callback()
 			end
 			chat:flush_queue()
@@ -234,25 +334,12 @@ function M.work(board_id, ticket_id, board_only)
 					if not session then
 						return notify(create_err)
 					end
-					binding.worktree, binding.session_key = wt.path, session.key
-					local transport, bridge_err = require("aero.tasks.bridge").bind(binding)
-					if not transport then
+					local attached, bridge_err = M.attach(session, binding, executable)
+					if not attached then
 						require("aero.session").delete(session)
 						return notify(bridge_err)
 					end
-					session.task_binding = vim.deepcopy(binding)
-					session.task_documents = { data.board_path, data.ticket_path }
-					session.task_transport = transport
-					session.runtime_env =
-						{ AERO_TASK_SOCKET = transport.socket, AERO_TASK_CREDENTIAL = transport.credential }
-					session.mcp_servers = {
-						{
-							name = "aero-tasks",
-							command = executable,
-							args = { "serve", "--socket", transport.socket },
-							env = { { name = "AERO_TASK_CREDENTIAL", value = transport.credential } },
-						},
-					}
+					M.remember(session)
 					if require("aero.tabs").enabled() then
 						require("aero.tabs").enter(wt.path)
 					else
@@ -277,7 +364,7 @@ function M.work(board_id, ticket_id, board_only)
 					}, "\n")
 					local ok, compose_err = require("aero.compose").append(session, prompt)
 					if not ok then
-						require("aero.tasks.bridge").unbind(transport.credential)
+						require("aero.tasks.bridge").unbind(session.task_transport.credential)
 						require("aero.session").delete(session)
 						notify(compose_err)
 					end

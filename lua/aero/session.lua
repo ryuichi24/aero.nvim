@@ -212,6 +212,16 @@ function M.start(s, win, resume, session_id)
 		return false
 	end
 	M.stop(s)
+	if agent.type == "acp" then
+		local restored, err = require("aero.tasks.agent").restore(s)
+		if not restored then
+			vim.notify(
+				"Aero: cannot reconnect task tools: " .. (type(err) == "table" and err.message or tostring(err)),
+				vim.log.levels.ERROR
+			)
+			return false
+		end
+	end
 	local old = s.buf
 	local buf = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_win_set_buf(win, buf)

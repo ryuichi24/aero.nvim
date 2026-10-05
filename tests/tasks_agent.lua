@@ -53,7 +53,10 @@ end))
 assert(s.chat.state == "ready", table.concat(s.chat.client.stderr, ""))
 local draft = table.concat(vim.api.nvim_buf_get_lines(s.chat:get_prompt_buf(), 0, -1, false), "\n")
 assert(draft:find(ticket.metadata.id, 1, true), "assignment was not appended")
-assert(draft:find("metadata.task_type", 1, true) and draft:find("aero_create_report", 1, true), "report workflow missing from assignment")
+assert(
+	draft:find("metadata.task_type", 1, true) and draft:find("aero_create_report", 1, true),
+	"report workflow missing from assignment"
+)
 assert(
 	require("aero.tasks.operations").get_ticket(s.task_binding).state == "todo",
 	"assignment submitted automatically"
@@ -72,6 +75,7 @@ assert(
 local read = assert(require("aero.tasks.operations").get_ticket(s.task_binding))
 assert(read.body:find("Implemented and verified", 1, true))
 -- A loaded conversation must receive the same MCP configuration.
+local old_credential = s.task_transport.credential
 sessions.stop(s)
 assert(vim.wait(10000, function()
 	return s.chat.state == "exited"
@@ -81,6 +85,7 @@ assert(vim.wait(10000, function()
 	return s.chat.state == "ready" or s.chat.state == "exited"
 end))
 assert(s.chat.state == "ready", table.concat(s.chat.client.stderr, ""))
+assert(s.task_transport.credential ~= old_credential, "resume reused an old credential")
 sessions.delete(s)
 require("aero.config").options.worktree_tabs = false
 vim.api.nvim_set_current_tabpage(board_tab)

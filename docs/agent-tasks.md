@@ -83,7 +83,22 @@ Save board and ticket edits, then press `gw` on a persisted board row, or run:
 Choose the execution worktree, ACP adapter, and a new session name. The assignment
 is appended to the prompt draft without submission. Board tabs are excluded from
 worktree reuse. Title-only rows must be saved before assignment. Binding credentials
-are runtime-only; assignments do not survive an Aero restart.
+are runtime-only. Assignment identities (workspace root, board ID, and optional
+ticket ID) are saved with the session when `persist_sessions` is enabled. On resume,
+Aero validates the assignment and supplies a fresh MCP socket and credential before
+loading the ACP conversation. Board-only sessions reconnect the same way. Missing
+or ambiguous boards/tickets stop resume with an explicit error rather than silently
+dropping task tools. Existing ticket sessions can recover their assignment from
+Aero's generated assignment prompt in saved conversation history.
+
+If a resumed OpenCode conversation still claims the Aero tools are unavailable,
+ask it to actually call `aero-tasks_aero_get_ticket` (or `aero-tasks_aero_get_board`
+for a board-only session). A successful ACP resume alone does not verify tool use.
+If the MCP connection is working but that conversation keeps repeating the old
+unavailable-tool state, submit OpenCode's `/compact`, then retry the read-only
+call. This refreshes the active conversation context while retaining its session
+identity and saved history. This recovery was verified with OpenCode 1.18.34;
+compaction is not a fix for a missing assignment or a failed MCP connection.
 
 Available tools: `aero_list_boards`, `aero_get_board`, `aero_get_ticket`,
 `aero_create_ticket`, `aero_move_ticket`, `aero_update_ticket_body`, and
@@ -151,8 +166,8 @@ AERO_TASK_CREDENTIAL=<runtime-credential> aero-mcp call --socket <socket> get_ti
 
 ACP descriptors are supplied for both new and loaded sessions that retain a runtime
 binding. Fresh OpenCode ACP is the initial intended provider. Automated fixtures
-verify the bridge and SDK tool discovery; real provider tool execution, terminal
-provider configuration, and cross-restart reassignment need separate verification.
+verify the bridge, SDK tool discovery, and task reconnection across Neovim restarts;
+real provider tool execution and terminal provider configuration need separate verification.
 No busy/idle/exit event changes ticket progress.
 
 ## Report tasks
