@@ -7,6 +7,14 @@ connects two independently buildable modules:
 - `companion/`: `aero-companion`, the mobile web bridge with its frontend under
   `companion/web/`.
 
+The companion's **Source** tab lets paired devices select a worktree, expand
+nested folders in a persistent file tree, and read files with syntax highlighting
+and line numbers. Markdown files open in preview mode with a source toggle.
+It defaults to the selected session's worktree and remembers your position when
+switching tabs. Use **Refresh** to reload changes from disk.
+Source browsing requires a connected Neovim host and supports UTF-8 text files up
+to 2 MiB.
+
 `scripts/` packages both tools into the ignored `dist/` directory. The shared
 version comes from `../release.json`; root Makefile commands build and test the
 workspace.

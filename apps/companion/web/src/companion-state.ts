@@ -1,6 +1,6 @@
 import type { PendingAction, Selection } from './types';
 
-export type View = 'sessions' | 'inbox' | 'conversation';
+export type View = 'sessions' | 'inbox' | 'conversation' | 'source';
 export interface CompanionState {
   pending: PendingAction | null;
   selected: Selection | null;

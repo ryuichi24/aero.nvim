@@ -11,6 +11,7 @@ import { CompanionProvider, useCompanionDispatch, useCompanionState } from './co
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
 import { SessionBrowser } from './session-browser';
+import { SourceBrowser } from './source-browser';
 import { LifecycleForm } from './lifecycle-controls';
 import { groupSessions, sessionLocation } from './sessionGroups';
 import type {
@@ -77,6 +78,11 @@ function Companion() {
   const submittingRef = useRef(false);
   const streamRef = useRef<EventSource | null>(null);
   const resumedRef = useRef<string | null>(null);
+  const [sourceVisited, setSourceVisited] = useState(false);
+
+  useEffect(() => {
+    if (view === 'source') setSourceVisited(true);
+  }, [view]);
 
   const connect = useCallback(() => {
     streamRef.current?.close();
@@ -319,6 +325,15 @@ function Companion() {
           </span>
           Transcript
         </button>
+        <button
+          aria-current={view === 'source' ? 'page' : undefined}
+          onClick={() => dispatch({ type: 'navigate', view: 'source' })}
+        >
+          <span className="nav-icon" aria-hidden="true">
+            ⌘
+          </span>
+          Source
+        </button>
       </nav>
       <main className="mx-auto w-full max-w-4xl px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6">
         {pairing && (
@@ -414,6 +429,11 @@ function Companion() {
           onAction={act}
           actionsDisabled={!online || !!pending || !snapshot?.epoch}
         />
+        {!pairing && sourceVisited && (
+          <div hidden={view !== 'source'}>
+            <SourceBrowser snapshot={snapshot} selectedWorktree={session?.worktree} />
+          </div>
+        )}
         {selected && (
           <section id="conversation" hidden={view !== 'conversation'}>
             <button

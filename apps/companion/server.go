@@ -181,6 +181,10 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if r.URL.Path == "/api/source" {
+		b.source(w, r)
+		return
+	}
 	method := map[string]string{"/api/prompt": "prompt", "/api/cancel": "cancel", "/api/permission": "permission"}[r.URL.Path]
 	for _, lifecycle := range []string{"session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		if r.URL.Path == "/api/"+lifecycle {
