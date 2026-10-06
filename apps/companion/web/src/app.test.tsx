@@ -66,6 +66,186 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it.each(['before', 'after'])(
+    'waits for initialization when the starting snapshot arrives %s the creation receipt',
+    async (timing) => {
+      let resolveCreation!: (value: Response) => void;
+      const fetch = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              resolveCreation = resolve;
+            }),
+        )
+        .mockResolvedValue(response({ result: { status: 'accepted' } }));
+      vi.stubGlobal('fetch', fetch);
+      render(<App />);
+      const snapshot: Snapshot = {
+        ...initial,
+        epoch: 'host-epoch',
+        agents: ['fixture'],
+        sessions: [],
+        workspaces: [{ root: '/workspace', name: 'Project' }],
+        worktrees: [{ path: '/workspace', workspace: '/workspace', branch: 'main' }],
+      };
+      connect(snapshot);
+      await userEvent.click(screen.getByText('New AI session', { selector: 'summary' }));
+      await userEvent.click(screen.getByRole('button', { name: 'New AI session' }));
+      const starting: Snapshot = {
+        ...snapshot,
+        cursor: 'epoch:2',
+        sessions: [
+          { ...initial.sessions[0], status: 'starting', conversation: 'initializing-generation' },
+        ],
+      };
+      if (timing === 'before') connect(starting);
+      resolveCreation(response({ result: { status: 'accepted', session: 'stable-session' } }));
+      await screen.findByText('Action accepted');
+      if (timing === 'after') connect(starting);
+      expect(screen.queryByText('Session or conversation unavailable')).toBeNull();
+      expect(screen.getByRole('heading', { name: 'Agent sessions' })).toBeTruthy();
+      connect({
+        ...starting,
+        cursor: 'epoch:3',
+        sessions: [{ ...initial.sessions[0], conversation: 'ready-generation' }],
+      });
+      expect(screen.getByRole('heading', { name: 'Test agent · idle' })).toBeTruthy();
+      expect(screen.queryByText('Session or conversation unavailable')).toBeNull();
+      draft('First prompt');
+      await userEvent.click(screen.getByRole('button', { name: 'Send prompt' }));
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+      expect(JSON.parse(fetch.mock.calls[1][1].body).conversation).toBe('ready-generation');
+    },
+  );
+  it.each([
+    { status: 'accepted', httpStatus: 200, clear: true },
+    { status: 'unknown', httpStatus: 200, clear: false },
+    { status: 'rejected', httpStatus: 409, clear: false },
+  ])(
+    'resets the new-session form only after success ($status)',
+    async ({ status, httpStatus, clear }) => {
+      const fetch = vi
+        .fn()
+        .mockResolvedValue(
+          response(
+            status === 'rejected' ? { error: 'Name already exists' } : { result: { status } },
+            httpStatus,
+          ),
+        );
+      vi.stubGlobal('fetch', fetch);
+      render(<App />);
+      connect({
+        ...initial,
+        epoch: 'host-epoch',
+        agents: ['fixture'],
+        sessions: [],
+        workspaces: [{ root: '/workspace', name: 'Project' }],
+        worktrees: [{ path: '/workspace', workspace: '/workspace', branch: 'main' }],
+      });
+      const summary = screen.getByText('New AI session', { selector: 'summary' });
+      await userEvent.click(summary);
+      const input = screen.getByRole('textbox', {
+        name: 'Session name (optional)',
+      }) as HTMLInputElement;
+      await userEvent.type(input, 'Phone');
+      await userEvent.click(screen.getByRole('button', { name: 'New AI session' }));
+      await waitFor(() => {
+        expect(input.value).toBe(clear ? '' : 'Phone');
+        expect((summary.parentElement as HTMLDetailsElement).open).toBe(!clear);
+        expect(
+          screen.getByText(
+            clear
+              ? 'Action accepted'
+              : status === 'unknown'
+                ? 'Outcome unknown. Retry the identical action or check the host.'
+                : 'Action rejected: Name already exists',
+          ),
+        ).toBeTruthy();
+      });
+      if (clear) {
+        await userEvent.click(summary);
+        expect(
+          (screen.getByRole('textbox', { name: 'Session name (optional)' }) as HTMLInputElement)
+            .value,
+        ).toBe('');
+      }
+    },
+  );
+  it('resumes a stopped session explicitly and follows its new conversation', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(response({ result: { status: 'accepted', session: 'stable-session' } }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect({
+      ...initial,
+      epoch: 'host-epoch',
+      sessions: [
+        {
+          ...initial.sessions[0],
+          conversation: undefined,
+          status: 'stopped',
+          target: 'session-target',
+        },
+      ],
+    });
+    await open();
+    expect(fetch).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Resume session' }));
+    await screen.findByText('Action accepted');
+    expect(fetch.mock.calls[0][0]).toBe('/api/session_resume');
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      epoch: 'host-epoch',
+      session: 'stable-session',
+      target: 'session-target',
+    });
+    connect({
+      ...initial,
+      epoch: 'host-epoch',
+      sessions: [{ ...initial.sessions[0], conversation: 'resumed-generation' }],
+    });
+    expect(screen.getByText('Existing transcript')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Send prompt' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+  it('creates sessions in an empty worktree and retains unknown lifecycle actions across remounts', async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Disconnected'))
+      .mockResolvedValueOnce(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    const first = render(<App />);
+    const snapshot: Snapshot = {
+      ...initial,
+      epoch: 'host-epoch',
+      agents: ['fixture'],
+      sessions: [],
+      workspaces: [{ root: '/workspace', name: 'Project' }],
+      worktrees: [{ path: '/workspace', workspace: '/workspace', branch: 'main' }],
+    };
+    connect(snapshot);
+    await userEvent.click(screen.getByText('New AI session', { selector: 'summary' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name (optional)' }), 'Phone');
+    await userEvent.click(screen.getByRole('button', { name: 'New AI session' }));
+    await screen.findByText(/Outcome unknown/);
+    const body = fetch.mock.calls[0][1].body;
+    expect(JSON.parse(body)).toMatchObject({
+      epoch: 'host-epoch',
+      workspace: '/workspace',
+      worktree: '/workspace',
+      agent: 'fixture',
+      name: 'Phone',
+    });
+    first.unmount();
+    render(<App />);
+    connect(snapshot);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry identical action' }));
+    await screen.findByText('Action accepted');
+    expect(fetch.mock.calls[1][1].body).toBe(body);
+    expect(sessionStorage.getItem('aero_pending')).toBeNull();
+  });
   it('pairs using exactly six digits while preserving leading zeros', async () => {
     const fetch = vi.fn().mockResolvedValue(response({ device: 'device-id' }));
     vi.stubGlobal('fetch', fetch);

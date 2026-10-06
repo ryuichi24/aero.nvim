@@ -10,6 +10,18 @@ local permissions = setmetatable({}, { __mode = "k" })
 local conversation_ids = setmetatable({}, { __mode = "k" })
 local operations, operation_count = {}, 0
 local worktree_cache, worktree_cache_at, worktree_roots = {}, -5000, ""
+local epoch = (assert(uv.random(24)):gsub(".", function(c)
+	return ("%02x"):format(c:byte())
+end))
+local lifecycle = {
+	session_create = true,
+	session_resume = true,
+	session_rename = true,
+	session_delete = true,
+	worktree_create = true,
+	worktree_rename = true,
+	worktree_delete = true,
+}
 
 local function worktrees()
 	local workspaces = require("aero.store").data.workspaces
@@ -50,7 +62,8 @@ local function describe(s)
 		name = s.name,
 		agent = s.agent,
 		worktree = s.worktree,
-		status = require("aero.session").status(s),
+		status = chat and chat.state == "starting" and "starting" or require("aero.session").status(s),
+		target = identity(s, identities),
 	}
 	if chat then
 		if conversation_ids[chat] ~= (chat.session_id or chat.saved_session_id or false) then
@@ -79,8 +92,23 @@ function M.dispatch(method, params)
 	params = params or {}
 	local sessions = require("aero.session").all()
 	if method == "snapshot" then
-		local result =
-			{ workspaces = require("aero.store").data.workspaces, worktrees = worktrees(), sessions = {}, inbox = {} }
+		local result = {
+			epoch = epoch,
+			agents = {},
+			workspaces = require("aero.store").data.workspaces,
+			worktrees = worktrees(),
+			sessions = {},
+			inbox = {},
+		}
+		for _, wt in ipairs(result.worktrees) do
+			wt.target = require("aero.companion_lifecycle").target(epoch, wt)
+		end
+		for id, agent in pairs(require("aero.config").options.agents) do
+			if agent.type == "acp" then
+				table.insert(result.agents, id)
+			end
+		end
+		table.sort(result.agents)
 		for _, s in ipairs(sessions) do
 			local agent = require("aero.config").options.agents[s.agent]
 			if s.chat or agent and agent.type == "acp" then
@@ -100,7 +128,7 @@ function M.dispatch(method, params)
 		end
 		return result
 	end
-	if method ~= "prompt" and method ~= "cancel" and method ~= "permission" then
+	if not lifecycle[method] and method ~= "prompt" and method ~= "cancel" and method ~= "permission" then
 		return nil, "unknown method"
 	end
 	if type(params.operation_id) ~= "string" or #params.operation_id < 16 or #params.operation_id > 128 then
@@ -113,6 +141,14 @@ function M.dispatch(method, params)
 		params.text or false,
 		params.permission or false,
 		params.option or false,
+		params.epoch or false,
+		params.target or false,
+		params.workspace or false,
+		params.worktree or false,
+		params.agent or false,
+		params.name or false,
+		params.branch or false,
+		params.force or false,
 	})
 	local previous = operations[params.operation_id]
 	if previous then
@@ -126,8 +162,13 @@ function M.dispatch(method, params)
 		return nil, "operation receipt capacity reached"
 	end
 	local function finish(result, err)
+		if not operations[params.operation_id] then
+			operation_count = operation_count + 1
+		end
 		operations[params.operation_id] = { fingerprint = fingerprint, result = result, error = err }
-		operation_count = operation_count + 1
+		if lifecycle[method] then
+			worktree_cache_at = -5000
+		end
 		return result, err
 	end
 	local selected
@@ -137,6 +178,20 @@ function M.dispatch(method, params)
 		end
 	end
 	local chat = selected and selected.chat
+	if lifecycle[method] then
+		if params.epoch ~= epoch then
+			return finish(nil, "stale host epoch")
+		end
+		if method ~= "session_create" and method:match("^session_") then
+			if not selected or params.target ~= identity(selected, identities) then
+				return finish(nil, "stale session")
+			end
+		end
+		finish({ status = "unknown" })
+		require("aero.companion_lifecycle").run(method, params, sessions, finish)
+		worktree_cache_at = -5000
+		return operations[params.operation_id].result, operations[params.operation_id].error
+	end
 	if not chat then
 		return finish(nil, "session unavailable")
 	end

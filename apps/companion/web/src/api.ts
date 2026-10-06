@@ -46,13 +46,30 @@ export function readPending(): PendingAction | null {
     const action = value as Partial<PendingAction>;
     const data = action.data;
     if (
-      !['prompt', 'cancel', 'permission'].includes(action.path || '') ||
+      ![
+        'prompt',
+        'cancel',
+        'permission',
+        'session_create',
+        'session_resume',
+        'session_rename',
+        'session_delete',
+        'worktree_create',
+        'worktree_rename',
+        'worktree_delete',
+      ].includes(action.path || '') ||
       !data ||
-      typeof data.operation_id !== 'string' ||
-      typeof data.session !== 'string' ||
-      typeof data.conversation !== 'string'
+      typeof data.operation_id !== 'string'
     )
       return null;
+    if (
+      ['prompt', 'cancel', 'permission'].includes(action.path || '') &&
+      (typeof data.session !== 'string' || typeof data.conversation !== 'string')
+    )
+      return null;
+    if (action.path?.startsWith('session_') || action.path?.startsWith('worktree_')) {
+      if (typeof data.epoch !== 'string') return null;
+    }
     if (action.path === 'prompt' && typeof data.text !== 'string') return null;
     if (
       action.path === 'permission' &&

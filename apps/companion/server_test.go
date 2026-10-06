@@ -23,6 +23,37 @@ import (
 
 type hostFunc func(context.Context, string, any) (hostResponse, error)
 
+func TestLifecycleRoutes(t *testing.T) {
+	for _, method := range []string{"session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
+		t.Run(method, func(t *testing.T) {
+			calls := 0
+			c := newClient(t, hostFunc(func(_ context.Context, got string, params any) (hostResponse, error) {
+				calls++
+				if got != method {
+					t.Errorf("method = %s", got)
+				}
+				encoded, _ := json.Marshal(params)
+				var data map[string]any
+				_ = json.Unmarshal(encoded, &data)
+				if data["epoch"] != "host" || data["target"] != "target" || data["name"] != "Phone" {
+					t.Errorf("lost lifecycle fields: %s", encoded)
+				}
+				return hostResponse{Result: json.RawMessage(`{"status":"accepted"}`)}, nil
+			}))
+			data := map[string]any{"operation_id": "lifecycle-route-0001", "epoch": "host", "target": "target", "name": "Phone", "workspace": "/repo", "worktree": "/repo/feature", "agent": "fixture", "branch": "feature", "force": true}
+			c.json("POST", "/api/"+method, data, http.StatusUnauthorized)
+			if calls != 0 {
+				t.Fatal("unauthenticated lifecycle reached host")
+			}
+			c.pair()
+			c.json("POST", "/api/"+method, data, http.StatusOK)
+			if calls != 1 {
+				t.Fatalf("host calls = %d", calls)
+			}
+		})
+	}
+}
+
 func (f hostFunc) Call(ctx context.Context, method string, params any) (hostResponse, error) {
 	return f(ctx, method, params)
 }

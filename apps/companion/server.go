@@ -182,17 +182,30 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	method := map[string]string{"/api/prompt": "prompt", "/api/cancel": "cancel", "/api/permission": "permission"}[r.URL.Path]
+	for _, lifecycle := range []string{"session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
+		if r.URL.Path == "/api/"+lifecycle {
+			method = lifecycle
+		}
+	}
 	if method == "" {
 		reject(w, http.StatusNotFound, "unknown route")
 		return
 	}
 	var action struct {
-		OperationID  string `json:"operation_id"`
-		Session      string `json:"session"`
-		Conversation string `json:"conversation"`
-		Text         string `json:"text,omitempty"`
-		Permission   string `json:"permission,omitempty"`
-		Option       string `json:"option,omitempty"`
+		OperationID  string  `json:"operation_id"`
+		Session      string  `json:"session"`
+		Conversation string  `json:"conversation"`
+		Text         string  `json:"text,omitempty"`
+		Permission   string  `json:"permission,omitempty"`
+		Option       string  `json:"option,omitempty"`
+		Epoch        string  `json:"epoch,omitempty"`
+		Target       string  `json:"target,omitempty"`
+		Workspace    string  `json:"workspace,omitempty"`
+		Worktree     string  `json:"worktree,omitempty"`
+		Agent        string  `json:"agent,omitempty"`
+		Name         *string `json:"name,omitempty"`
+		Branch       string  `json:"branch,omitempty"`
+		Force        bool    `json:"force,omitempty"`
 	}
 	if !decodeBody(w, r, &action) {
 		return

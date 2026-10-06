@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useReducer, useRef } from 'react';
 import { filterGroups, groupSessions, sessionLocation } from './sessionGroups';
 import { browserReducer, initialBrowserState } from './session-browser-state';
 import type { Selection, Session, Snapshot } from './types';
+import { LifecycleForm } from './lifecycle-controls';
+import type { LifecycleAction } from './lifecycle-controls';
 
 function countLabel(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -17,9 +19,18 @@ interface Props {
   selected: Selection | null;
   active: boolean;
   onSelect: (selection: Selection) => void;
+  onAction?: LifecycleAction;
+  actionsDisabled?: boolean;
 }
 
-export function SessionBrowser({ snapshot, selected, active, onSelect }: Props) {
+export function SessionBrowser({
+  snapshot,
+  selected,
+  active,
+  onSelect,
+  onAction,
+  actionsDisabled = true,
+}: Props) {
   const groups = useMemo(() => (snapshot ? groupSessions(snapshot) : []), [snapshot]);
   const id = useId();
   const currentButton = useRef<HTMLButtonElement>(null);
@@ -127,6 +138,16 @@ export function SessionBrowser({ snapshot, selected, active, onSelect }: Props) 
                 </button>
               </h3>
               <div className="workspace-worktrees" id={panelID} hidden={!expanded}>
+                {onAction && workspace.root && (
+                  <LifecycleForm
+                    title="New worktree"
+                    path="worktree_create"
+                    data={{ workspace: workspace.root }}
+                    field="branch"
+                    disabled={actionsDisabled}
+                    onAction={onAction}
+                  />
+                )}
                 {workspace.worktrees.length === 0 && (
                   <p className="navigation-empty">No worktrees available.</p>
                 )}
@@ -172,6 +193,49 @@ export function SessionBrowser({ snapshot, selected, active, onSelect }: Props) 
                         </button>
                       </h4>
                       <div className="worktree-sessions" id={worktreeID} hidden={!worktreeExpanded}>
+                        {onAction && workspace.root && (
+                          <>
+                            <LifecycleForm
+                              title="New AI session"
+                              path="session_create"
+                              data={{ workspace: workspace.root, worktree: worktree.path }}
+                              agents={snapshot?.agents || []}
+                              field="name"
+                              disabled={actionsDisabled}
+                              onAction={onAction}
+                            />
+                            {worktree.branch && (
+                              <LifecycleForm
+                                title="Rename worktree branch"
+                                path="worktree_rename"
+                                data={{
+                                  workspace: workspace.root,
+                                  worktree: worktree.path,
+                                  target: worktree.target,
+                                }}
+                                field="name"
+                                initial={worktree.branch}
+                                disabled={actionsDisabled}
+                                onAction={onAction}
+                              />
+                            )}
+                            {worktree.path !== workspace.root && (
+                              <LifecycleForm
+                                title="Delete worktree"
+                                path="worktree_delete"
+                                data={{
+                                  workspace: workspace.root,
+                                  worktree: worktree.path,
+                                  target: worktree.target,
+                                }}
+                                destructive
+                                force
+                                disabled={actionsDisabled}
+                                onAction={onAction}
+                              />
+                            )}
+                          </>
+                        )}
                         {worktree.sessions.length === 0 && (
                           <p className="navigation-empty">No ACP sessions in this worktree.</p>
                         )}

@@ -203,6 +203,7 @@ local function save_terminal(s)
 end
 
 --- Start (or restart) the session's agent in a new buffer shown in `win`.
+--- ACP sessions may use nil `win` to start without displaying the transcript.
 --- An explicit ACP session ID is persisted only after the adapter accepts it.
 --- Task assignment may supply staged tools (restore_tasks=false) and a one-shot
 --- on_resume(chat, err) callback to commit or roll back after strict loading.
@@ -212,6 +213,9 @@ function M.start(s, win, resume, session_id, opts)
 	local agent = config.options.agents[s.agent]
 	if not agent then
 		vim.notify("aero: unknown agent " .. s.agent, vim.log.levels.ERROR)
+		return false
+	end
+	if not win and agent.type ~= "acp" then
 		return false
 	end
 	M.stop(s)
@@ -227,7 +231,9 @@ function M.start(s, win, resume, session_id, opts)
 	end
 	local old = s.buf
 	local buf = vim.api.nvim_create_buf(true, false)
-	vim.api.nvim_win_set_buf(win, buf)
+	if win then
+		vim.api.nvim_win_set_buf(win, buf)
+	end
 	local function cleanup_old()
 		if old and old ~= buf and vim.api.nvim_buf_is_valid(old) then
 			vim.api.nvim_buf_delete(old, { force = true })

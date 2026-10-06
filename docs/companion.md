@@ -1,7 +1,8 @@
-# Mobile companion MVP
+# Mobile companion
 
-Aero's responsive web companion monitors **ACP sessions** and sends follow-up
-prompts, cancellation requests, and explicit permission choices. Neovim owns the
+Aero's responsive web companion creates and resumes **ACP sessions**, manages
+sessions and worktrees, and sends follow-up prompts, cancellation requests, and
+explicit permission choices. Neovim owns the
 agents, transcripts, queues, worktrees, and permissions. **The computer and
 Neovim must stay running.** Terminal agents are not supported by this MVP.
 
@@ -351,6 +352,18 @@ The opt-in defaults to `false` and does not require disabling authentication.
 
 ## Workflow and reconnect semantics
 
+- Expand a workspace to **New worktree**. Enter an existing or new branch;
+  Aero uses your configured `worktree_path` and creates new branches from HEAD.
+- Expand a worktree to **New AI session**, choose a configured ACP agent, and
+  optionally name the session. It starts immediately without changing the host's
+  focused window. Open a stopped/exited session and choose **Resume session** to
+  load its saved conversation using Aero's normal resume behavior.
+- Open a session to **Rename session** or **Delete session**. Deletion stops the
+  agent and removes Aero's saved history, with an explicit confirmation form.
+- **Rename worktree branch** changes the branch name, keeping its checkout path
+  and session identities intact. **Delete worktree** removes the checkout and its
+  Aero sessions/history; the main worktree cannot be deleted. Git rejects dirty
+  checkouts unless you explicitly choose **Force removal**.
 - The **Sessions** view groups ACP sessions by **workspace → worktree → session**.
   Expand workspace/worktree cards to browse, or search by workspace, branch,
   path, agent, session name, or status. Counts and waiting badges update live;
@@ -436,6 +449,13 @@ as its `id`. POST routes require JSON and the exact configured Origin:
 | `/api/cancel`     | `operation_id`, `session`, `conversation`                         |
 | `/api/permission` | `operation_id`, `session`, `conversation`, `permission`, `option` |
 | `/api/revoke`     | empty object (revokes the requesting device)                      |
+| `/api/session_create` | `operation_id`, `epoch`, `workspace`, `worktree`, `agent`, optional `name` |
+| `/api/session_resume` | `operation_id`, `epoch`, `session`, `target` |
+| `/api/session_rename` | `operation_id`, `epoch`, `session`, `target`, `name` |
+| `/api/session_delete` | `operation_id`, `epoch`, `session`, `target` |
+| `/api/worktree_create` | `operation_id`, `epoch`, `workspace`, `branch` |
+| `/api/worktree_rename` | `operation_id`, `epoch`, `workspace`, `worktree`, `target`, `name` (branch name) |
+| `/api/worktree_delete` | `operation_id`, `epoch`, `workspace`, `worktree`, `target`, optional `force` |
 
 Actions return `{ "result": { "status": "accepted|queued|unknown" } }` or an
 explicit error. Unknown transport outcomes use HTTP 503; stale/rejected actions
@@ -443,7 +463,11 @@ use 409, missing credentials use 401, and browser-origin failures use 403.
 Operation IDs are 16–128 characters; use a fresh UUID for each new action and
 retain it unchanged for retries. The private adapter socket is inside a
 mode-0700 runtime directory with mode-0600 socket permissions, accessible only to
-the host user. It accepts only snapshot/prompt/cancel/permission operations.
+the host user. It accepts only snapshots and the scoped actions listed above.
+Snapshots include the host `epoch`, configured ACP `agents`, and a random session
+`target` for lifecycle actions. Session create/resume receipts also include the
+session key. Long-running Git actions may return `unknown`; retry the identical
+operation to read its eventual receipt without repeating the Git command.
 
 ## Verification
 

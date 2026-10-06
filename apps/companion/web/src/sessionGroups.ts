@@ -4,6 +4,7 @@ export interface WorktreeGroup {
   path: string;
   label: string;
   branch?: string;
+  target?: string;
   sessions: Session[];
 }
 
@@ -58,6 +59,7 @@ export function groupSessions(snapshot: Snapshot): WorkspaceGroup[] {
     const group = {
       path,
       branch: worktree.branch,
+      target: worktree.target,
       label: worktree.branch || (path === workspace.root ? 'Main worktree' : pathName(path)),
       sessions: [],
     };

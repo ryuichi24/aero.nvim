@@ -44,6 +44,7 @@ export interface Session {
   blocks?: TranscriptBlock[];
   queue?: string[];
   permission?: Permission;
+  target?: string;
 }
 
 export interface InboxEvent {
@@ -63,7 +64,9 @@ export interface Snapshot {
   sessions: Session[];
   inbox: InboxEvent[];
   workspaces: { root: string; name: string; expanded?: boolean }[];
-  worktrees: { path: string; workspace?: string; branch?: string }[];
+  worktrees: { path: string; workspace?: string; branch?: string; target?: string }[];
+  epoch?: string;
+  agents?: string[];
 }
 
 export interface Selection {
@@ -71,19 +74,37 @@ export interface Selection {
   conversation?: string;
 }
 
-export type ActionPath = 'prompt' | 'cancel' | 'permission';
+export type ActionPath =
+  | 'prompt'
+  | 'cancel'
+  | 'permission'
+  | 'session_create'
+  | 'session_resume'
+  | 'session_rename'
+  | 'session_delete'
+  | 'worktree_create'
+  | 'worktree_rename'
+  | 'worktree_delete';
 export interface ActionData {
   operation_id: string;
-  session: string;
-  conversation: string;
+  session?: string;
+  conversation?: string;
   text?: string;
   permission?: string;
   option?: string;
+  epoch?: string;
+  target?: string;
+  workspace?: string;
+  worktree?: string;
+  agent?: string;
+  name?: string;
+  branch?: string;
+  force?: boolean;
 }
 export interface PendingAction {
   path: ActionPath;
   data: ActionData;
 }
 export interface ActionResponse {
-  result: { status: 'accepted' | 'queued' | 'unknown' };
+  result: { status: 'accepted' | 'queued' | 'unknown'; session?: string };
 }

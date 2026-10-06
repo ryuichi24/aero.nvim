@@ -11,6 +11,7 @@ import { CompanionProvider, useCompanionDispatch, useCompanionState } from './co
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
 import { SessionBrowser } from './session-browser';
+import { LifecycleForm } from './lifecycle-controls';
 import { groupSessions, sessionLocation } from './sessionGroups';
 import type {
   ActionData,
@@ -75,6 +76,7 @@ function Companion() {
   const prompt = state.drafts[draftKey(selected)] || '';
   const submittingRef = useRef(false);
   const streamRef = useRef<EventSource | null>(null);
+  const resumedRef = useRef<string | null>(null);
 
   const connect = useCallback(() => {
     streamRef.current?.close();
@@ -85,6 +87,19 @@ function Companion() {
       try {
         const value = parseSnapshot(event.data);
         client.setQueryData(['snapshot'], value);
+        const resumed = value.sessions.find((item) => item.id === resumedRef.current);
+        if (
+          resumed?.conversation &&
+          resumed.status !== 'starting' &&
+          resumed.status !== 'exited' &&
+          resumed.status !== 'stopped'
+        ) {
+          resumedRef.current = null;
+          dispatch({
+            type: 'select-session',
+            selection: { id: resumed.id, conversation: resumed.conversation },
+          });
+        }
         dispatch({
           type: 'connection',
           online: value.connected,
@@ -142,7 +157,7 @@ function Companion() {
   }
 
   async function submitPending(action: PendingAction) {
-    if (submittingRef.current) return;
+    if (submittingRef.current) return false;
     submittingRef.current = true;
     dispatch({ type: 'action-started', action });
     try {
@@ -155,11 +170,27 @@ function Companion() {
           type: 'action-uncertain',
           message: 'Outcome unknown. Retry the identical action or check the host.',
         });
-        return;
+        return false;
       }
       savePending(null);
       pendingRef.current = null;
       dispatch({ type: 'action-accepted', action, status });
+      if (response.result.session) {
+        resumedRef.current = response.result.session;
+        const current = client
+          .getQueryData<Snapshot>(['snapshot'])
+          ?.sessions.find((item) => item.id === response.result.session);
+        if (
+          current?.conversation &&
+          current.status !== 'starting' &&
+          current.status !== 'exited' &&
+          current.status !== 'stopped'
+        ) {
+          resumedRef.current = null;
+          openSession({ id: current.id, conversation: current.conversation });
+        }
+      }
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request interrupted';
       if (!(error instanceof RequestError) || error.unknownOutcome) {
@@ -172,19 +203,22 @@ function Companion() {
         pendingRef.current = null;
         dispatch({ type: 'action-rejected', message });
       }
+      return false;
     } finally {
       submittingRef.current = false;
       dispatch({ type: 'action-finished' });
     }
   }
 
-  function act(path: ActionPath, extra: Partial<ActionData> = {}) {
-    if (pendingRef.current || !online || !selected?.conversation) return;
+  async function act(path: ActionPath, extra: Partial<ActionData> = {}) {
+    const lifecycle = path.startsWith('session_') || path.startsWith('worktree_');
+    if (pendingRef.current || !online || (!lifecycle && !selected?.conversation)) return false;
     const action: PendingAction = {
       path,
       data: {
-        session: selected.id,
-        conversation: selected.conversation,
+        ...(!lifecycle && selected
+          ? { session: selected.id, conversation: selected.conversation }
+          : { epoch: snapshot?.epoch }),
         operation_id: operationID(),
         ...extra,
       },
@@ -197,10 +231,10 @@ function Companion() {
         type: 'notice',
         message: 'Browser storage unavailable; action was not sent.',
       });
-      return;
+      return false;
     }
     pendingRef.current = action;
-    void submitPending(action);
+    return submitPending(action);
   }
   const session = snapshot?.sessions.find(
     (item) => item.id === selected?.id && item.conversation === selected?.conversation,
@@ -342,6 +376,15 @@ function Companion() {
         <p id="notice" role="status">
           {notice}
         </p>
+        {retry && pending && (
+          <button
+            id="retry"
+            disabled={submitting || pairing || !online}
+            onClick={() => void submitPending(pending)}
+          >
+            Retry identical action
+          </button>
+        )}
         <section hidden={view !== 'inbox'}>
           <h2>Attention inbox</h2>
           <div id="inbox">
@@ -368,6 +411,8 @@ function Companion() {
           selected={selected}
           active={view === 'sessions'}
           onSelect={openSession}
+          onAction={act}
+          actionsDisabled={!online || !!pending || !snapshot?.epoch}
         />
         {selected && (
           <section id="conversation" hidden={view !== 'conversation'}>
@@ -391,6 +436,38 @@ function Companion() {
                 ? `${session.name} · ${session.status}`
                 : 'Session or conversation unavailable'}
             </h2>
+            {session && (
+              <div aria-label="Session actions">
+                {(session.status === 'stopped' || session.status === 'exited') && (
+                  <button
+                    disabled={!online || !!pending || !session.target}
+                    onClick={() =>
+                      act('session_resume', { session: session.id, target: session.target })
+                    }
+                  >
+                    Resume session
+                  </button>
+                )}
+                <LifecycleForm
+                  key={`rename:${session.id}`}
+                  title="Rename session"
+                  path="session_rename"
+                  data={{ session: session.id, target: session.target }}
+                  field="name"
+                  initial={session.name}
+                  disabled={!online || !!pending || !session.target}
+                  onAction={act}
+                />
+                <LifecycleForm
+                  title="Delete session"
+                  path="session_delete"
+                  data={{ session: session.id, target: session.target }}
+                  destructive
+                  disabled={!online || !!pending || !session.target}
+                  onAction={act}
+                />
+              </div>
+            )}
             <Transcript
               key={`${selected.id}:${selected.conversation}`}
               session={session}
@@ -439,15 +516,6 @@ function Companion() {
                 Cancel turn &amp; queue
               </button>
             </form>
-            {retry && pending && (
-              <button
-                id="retry"
-                disabled={submitting || pairing || !online}
-                onClick={() => void submitPending(pending)}
-              >
-                Retry identical action
-              </button>
-            )}
           </section>
         )}
       </main>

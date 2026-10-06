@@ -21,13 +21,13 @@ export function draftKey(selection: Selection | null): string {
 }
 
 export function initialState(pending: PendingAction | null): CompanionState {
-  const selected = pending
+  const selected = pending?.data.session
     ? { id: pending.data.session, conversation: pending.data.conversation }
     : null;
   return {
     pending,
     selected,
-    view: pending ? 'conversation' : 'sessions',
+    view: selected ? 'conversation' : 'sessions',
     online: false,
     connection: 'Disconnected',
     pairing: true,
@@ -86,7 +86,7 @@ export function companionReducer(state: CompanionState, action: CompanionAction)
       return { ...state, notice: action.message, retry: true };
     case 'action-accepted': {
       const selection = {
-        id: action.action.data.session,
+        id: action.action.data.session || '',
         conversation: action.action.data.conversation,
       };
       return {
@@ -94,6 +94,13 @@ export function companionReducer(state: CompanionState, action: CompanionAction)
         pending: null,
         retry: false,
         notice: 'Action ' + action.status,
+        ...(action.action.path === 'session_delete' &&
+        state.selected?.id === action.action.data.session
+          ? { selected: null, view: 'sessions' as const }
+          : {}),
+        ...(action.action.path === 'worktree_delete'
+          ? { selected: null, view: 'sessions' as const }
+          : {}),
         drafts:
           action.action.path === 'prompt'
             ? { ...state.drafts, [draftKey(selection)]: '' }

@@ -24,6 +24,7 @@ build-companion: build-companion-ui
 test-companion: build-companion
 	nvim --headless -u NONE -l tests/companion_install.lua
 	nvim --headless -u NONE -l tests/companion.lua
+	nvim --headless -u NONE -l tests/companion_lifecycle.lua
 	nvim --headless -u NONE -l tests/companion_managed.lua
 	$(GO) -C apps/companion test -race ./...
 	$(GO) -C apps/companion vet ./...
