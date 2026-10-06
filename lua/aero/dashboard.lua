@@ -1166,6 +1166,47 @@ local function item_dir(item)
 	return item and (item.wt and item.wt.path or item.ws and item.ws.root)
 end
 
+local function yank(value)
+	if value then
+		vim.fn.setreg(vim.v.register, value, "v")
+		if vim.v.register == '"' then
+			vim.fn.setreg("0", value, "v")
+		end
+		notify("yanked " .. value)
+	end
+end
+
+function actions.yank_name()
+	local item = current_item()
+	if not item then
+		return
+	end
+	local name
+	if item.kind == "workspace" then
+		name = item.ws.name
+	elseif item.kind == "worktree" then
+		name = wt_label(item.wt)
+	elseif item.kind == "session" then
+		name = item.session.name
+	elseif item.kind == "report" or item.kind == "export" then
+		name = item.report.name
+	elseif item.kind == "board" then
+		name = tostring(item.board.metadata and item.board.metadata.title or vim.fs.basename(vim.fs.dirname(item.board.path)))
+	end
+	yank(name)
+end
+
+function actions.yank_path()
+	local item = current_item()
+	if not item then
+		return
+	end
+	local path = item.report and item.report.path or item.board and item.board.path or item_dir(item)
+	if path then
+		yank(vim.fs.normalize(vim.fn.fnamemodify(path, ":p")))
+	end
+end
+
 --- Pull the dashboard selection, or the current tab's checkout when called outside it.
 function M.pull(path)
 	if not path then
@@ -1345,6 +1386,8 @@ local descriptions = {
 	add_workspace = "add workspace",
 	delete = "delete selected item: session (confirm) / report (confirm) / worktree / workspace",
 	rename = "rename selected session, report, or board",
+	yank_name = "copy selected item name",
+	yank_path = "copy selected item absolute path",
 	stop = "stop session",
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",

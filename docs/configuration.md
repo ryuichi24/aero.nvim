@@ -106,6 +106,7 @@ require("aero").setup({
     open_vsplit = "<C-v>", open_split = "<C-x>", open_tab = "<C-t>",
     add = "a", add_workspace = "A", delete = "d", stop = "s", restart = "r",
     rename = "N", refresh = "R", pull = "P", cd = ".", edit = "e",
+    yank_name = "yy", yank_path = "yY",
     open_board_markdown = "I", edit_enter = "<C-CR>", edit_mouse = "<C-LeftMouse>",
     terminal = "t", next_workspace = "]]", prev_workspace = "[[", close = "q", help = "g?",
   },
@@ -231,6 +232,7 @@ require("aero").setup({
     open_vsplit = "<C-v>", open_split = "<C-x>", open_tab = "<C-t>",
     add = "a", add_workspace = "A", delete = "d", stop = "s", restart = "r",
     rename = "N", refresh = "R", pull = "P", cd = ".", edit = "e",
+    yank_name = "yy", yank_path = "yY",
     open_board_markdown = "I",
     edit_enter = "<C-CR>", edit_mouse = "<C-LeftMouse>", terminal = "t",
     next_workspace = "]]", prev_workspace = "[[", close = "q", help = "g?",
@@ -239,6 +241,11 @@ require("aero").setup({
 ```
 
 Set entries to `false` to disable them. See [dashboard actions](workspaces.md#dashboard-keys).
+`yank_name` copies the selected workspace, worktree (displayed branch), session,
+report, exported log, or board name. `yank_path` copies its absolute path; sessions
+use their worktree directory, while reports, exported logs, and boards use their
+file path. These characterwise yanks respect explicit registers and Neovim's
+`clipboard` setting.
 Kanban mappings are separate under `tasks.keymaps`:
 
 ```lua
