@@ -20,8 +20,8 @@ make clean # removes the built executable
 Rebuild after Go changes. `make build` reads the required version from
 the root `release.json` and embeds it in the executable (requires Python 3).
 For a custom output location, run
-`CGO_ENABLED=0 go build -ldflags '-X main.version=0.3.0' -o /absolute/path/aero-mcp ./cmd/aero-mcp`
-from `apps/mcp/`, replacing `0.3.0` with the manifest's version if it changes.
+`CGO_ENABLED=0 go build -ldflags '-X main.version=0.4.0' -o /absolute/path/aero-mcp ./cmd/aero-mcp`
+from `apps/mcp/`, replacing `0.4.0` with the manifest's version if it changes.
 
 ```lua
 require("aero").setup({

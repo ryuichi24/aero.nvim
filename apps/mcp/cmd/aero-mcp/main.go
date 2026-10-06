@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var version = "0.3.0-dev"
+var version = "0.4.0-dev"
 
 const protocol = 1
 const maxMessage = 1024 * 1024

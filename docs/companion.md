@@ -64,14 +64,14 @@ Assets are named `aero-companion-VERSION-OS-ARCH`. Download
 file (replace the example version with your release):
 
 ```sh
-shasum -a 256 aero-companion-0.3.0-darwin-arm64
+shasum -a 256 aero-companion-0.4.0-darwin-arm64
 ```
 
 Compare the result with its entry in `SHA256SUMS`, then install:
 
 ```sh
 mkdir -p "$HOME/.local/bin"
-install -m 755 aero-companion-0.3.0-darwin-arm64 "$HOME/.local/bin/aero-companion"
+install -m 755 aero-companion-0.4.0-darwin-arm64 "$HOME/.local/bin/aero-companion"
 "$HOME/.local/bin/aero-companion" --version
 ```
 
