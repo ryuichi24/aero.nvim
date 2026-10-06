@@ -1,6 +1,7 @@
 name: Aero host tools
 on:
   push:
+    branches: ['**']
     paths: ['apps/**', 'lua/**', 'plugin/**', 'tests/**', 'release.json', 'Makefile', '.github/workflows/release.yml']
     tags: ['v*']
   pull_request:
