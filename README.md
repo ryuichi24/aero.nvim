@@ -221,6 +221,32 @@ Lifecycle hooks support integrations such as opening new worktrees in Oil.
 
 Run `:checkhealth aero` to check dependencies, and `g?` in a dashboard or board for help.
 
+## Mobile companion
+
+Run `:Aero companion install` to download and verify the matching release binary
+on your Neovim host (macOS/Linux). Requires `curl` and `sha256sum` or `shasum`.
+You can also download from [GitHub Releases](https://github.com/ryuichi24/aero.nvim/releases)
+or build from source with `make build-companion`
+using Go, Node.js, and pnpm. Release binaries embed the web UI and need no
+Go or Node.js runtime; the phone only needs a browser.
+
+Use `:Aero companion start` to automatically launch the Go bridge and show its
+URL and six-digit pairing code in a popup. The embedded React/TypeScript UI lets
+you monitor ACP agents from a phone, send queued follow-ups, cancel turns, and answer live
+permissions. Supports external SSH tunnels and explicitly configured HTTPS over
+local Wi-Fi/private VPNs. Paired devices are remembered across restarts.
+See [mobile companion setup](docs/companion.md) for
+pairing, revocation, startup, and reconnect limitations. The host and Neovim must
+remain running.
+
+## Development and releases
+
+The MCP and companion projects live under `apps/`, sharing `apps/go.work` and
+the root `release.json` version. Use `make build-all` to build both tools, `make check-all`
+to verify them, and `make release` to package both binary families.
+See [host-tool development and releases](docs/releasing.md) for requirements
+and publishing instructions.
+
 ## License
 
 Licensed under the [MIT License](LICENSE).

@@ -1,2 +1,11 @@
-/mcp/aero-mcp
-/mcp/aero-mcp.exe
+/apps/mcp/aero-mcp
+/apps/mcp/aero-mcp.exe
+__pycache__/
+/.playwright-mcp/
+/apps/companion/aero-companion
+/apps/companion/aero-companion.exe
+/apps/companion/web/node_modules/
+/apps/companion/web/dist/
+/apps/companion/web/.vite/
+/apps/companion/dist/
+/apps/dist/

@@ -28,6 +28,9 @@ local subcommands = {
 	inbox = function()
 		require("aero").inbox()
 	end,
+	companion = function(args)
+		require("aero.companion").command(args[1])
+	end,
 	workspaces = function()
 		require("aero").workspaces()
 	end,
@@ -102,6 +105,11 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "companion" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(s)
+				return vim.startswith(s, arglead)
+			end, { "install", "start", "stop", "pair", "devices", "revoke" })
+		end
 		if
 			words[2] == "board"
 			and (words[3] == "markdown" or words[3] == "work")

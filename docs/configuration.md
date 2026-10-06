@@ -72,6 +72,16 @@ require("aero").setup({
     decorations = true, -- native transcript cards, colors, and visual borders
     show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
   },
+  companion = {
+    executable = false, -- auto-detect a local build, installed release, or aero-companion on PATH
+    devices_file = false, -- private origin-scoped remembered devices under stdpath("data")/Aero/companion
+    bind = "127.0.0.1",
+    port = 8765,
+    origin = "http://localhost:8765",
+    allow_http = false, -- explicit opt-in for direct HTTP over a trusted private network
+    cert = false, -- HTTPS certificate file
+    key = false, -- HTTPS private key file
+  },
   exports = {
     location = "data", -- "data" or "worktree"
     worktree_dir = ".aero/exports",

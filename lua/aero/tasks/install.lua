@@ -1,10 +1,10 @@
 local M = {}
 local plugin_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(debug.getinfo(1, "S").source:sub(2)))))
 local function manifest()
-	local text, err = require("aero.tasks.storage").read(plugin_root .. "/mcp/release.json")
+	local text, err = require("aero.tasks.storage").read(plugin_root .. "/release.json")
 	local ok, data = pcall(vim.json.decode, text or "")
 	if not ok or type(data) ~= "table" then
-		return nil, err or "invalid companion release manifest"
+		return nil, err or "invalid Aero release manifest"
 	end
 	return data
 end
@@ -41,7 +41,7 @@ function M.resolve()
 	local path = require("aero.config").options.tasks.agent.executable
 	if type(path) ~= "string" or path == "" then
 		if not release.published then
-			return nil, "this development revision requires tasks.agent.executable; build mcp/cmd/aero-mcp locally"
+			return nil, "this development revision requires tasks.agent.executable; build apps/mcp/cmd/aero-mcp locally"
 		end
 		local err
 		path, err = installed_path(release)

@@ -12,23 +12,23 @@ Build with Go 1.24 or newer (contributors only):
 From the repository root:
 
 ```sh
-make build # creates mcp/aero-mcp
+make build # creates apps/mcp/aero-mcp
 make check # runs Go tests and vet
 make clean # removes the built executable
 ```
 
 Rebuild after Go changes. `make build` reads the required version from
-`mcp/release.json` and embeds it in the executable (requires Python 3).
+the root `release.json` and embeds it in the executable (requires Python 3).
 For a custom output location, run
 `CGO_ENABLED=0 go build -ldflags '-X main.version=0.2.0' -o /absolute/path/aero-mcp ./cmd/aero-mcp`
-from `mcp/`, replacing `0.2.0` with the manifest's version if it changes.
+from `apps/mcp/`, replacing `0.2.0` with the manifest's version if it changes.
 
 ```lua
 require("aero").setup({
   tasks = {
     agent = {
       enabled = true,
-      executable = vim.fn.expand("~/dev/personal/projects/aero.nvim/mcp/aero-mcp"),
+      executable = vim.fn.expand("~/dev/personal/projects/aero.nvim/apps/mcp/aero-mcp"),
       adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" },
     },
   },
@@ -37,12 +37,12 @@ require("aero").setup({
 
 Run `:checkhealth aero` to verify the exact executable and bridge version.
 Unpublished development manifests require a custom build instead of
-`:Aero tasks install`. Tagged releases must update `mcp/release.json` and publish matching assets;
+`:Aero tasks install`. Tagged releases must update the root `release.json` and publish matching assets;
 the installer then downloads the exact release, verifies SHA-256, and installs
 outside the plugin checkout under `stdpath("data")/Aero/bin/<version>`.
 Installation uses curl and sha256sum or shasum. Runtime prebuilt users need no Go.
 
-Maintainers: see [releasing the MCP server](releasing.md) for the manifest,
+Maintainers: see [releasing Aero's host tools](releasing.md) for the shared manifest,
 tagging, and publishing procedure.
 
 For published releases, a lazy.nvim build hook can call

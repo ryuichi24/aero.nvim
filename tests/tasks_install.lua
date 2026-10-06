@@ -3,6 +3,17 @@ local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 require("aero").setup({ state_file = root .. "/state.json" })
 local install = require("aero.tasks.install")
+local storage = require("aero.tasks.storage")
+local read, system, stdpath = storage.read, vim.system, vim.fn.stdpath
+storage.read = function(file)
+	local text, read_err = read(file)
+	if file:match("/release.json$") and text then
+		local manifest = vim.json.decode(text)
+		manifest.published = false
+		return vim.json.encode(manifest)
+	end
+	return text, read_err
+end
 local path, err = install.resolve()
 assert(not path and err:find("development revision", 1, true))
 local config = require("aero.config").options.tasks.agent
@@ -15,13 +26,11 @@ if vim.env.AERO_MCP_EXECUTABLE then
 end
 assert(install.platform())
 -- Published installation uses exact assets and hashes binary bytes, including NUL.
-local storage = require("aero.tasks.storage")
-local read, system, stdpath = storage.read, vim.system, vim.fn.stdpath
 local binary = "fake\0standalone\255binary"
 local version = "9.8.7-fixture"
 local asset = "aero-mcp-" .. version .. "-" .. install.platform()
 storage.read = function(file)
-	if file:match("/mcp/release.json$") then
+	if file:match("/release.json$") then
 		return vim.json.encode({ version = version, bridge_protocol = 1, published = true })
 	end
 	return read(file)

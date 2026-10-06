@@ -1,0 +1,8 @@
+{
+  "name": "Aero companion",
+  "short_name": "Aero",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101722",
+  "theme_color": "#142032"
+}

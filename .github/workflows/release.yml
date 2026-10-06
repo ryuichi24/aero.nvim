@@ -1,0 +1,66 @@
+name: Aero host tools
+on:
+  push:
+    paths: ['apps/**', 'lua/**', 'plugin/**', 'tests/**', 'release.json', 'Makefile', '.github/workflows/release.yml']
+    tags: ['v*']
+  pull_request:
+    paths: ['apps/**', 'lua/**', 'plugin/**', 'tests/**', 'release.json', 'Makefile', '.github/workflows/release.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/companion/web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: apps/companion/web/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/go.work
+          cache-dependency-path: |
+            apps/mcp/go.sum
+            apps/go.work.sum
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          version: v0.11.6
+          neovim: true
+      - run: make check-all
+      - run: go -C apps test -race ./mcp/...
+      - run: nvim --headless -u NONE -l tests/tasks_install.lua
+      - run: pnpm --dir apps/companion/web run format:check
+      - name: Package both host tools
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: python3 apps/scripts/build-release.py ${RELEASE_TAG:+--tag "$RELEASE_TAG"}
+      - name: Smoke test packaged Linux executables
+        run: |
+          apps/dist/aero-mcp-*-linux-amd64 --version
+          apps/dist/aero-companion-*-linux-amd64 --version
+          cd apps/dist
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aero-host-tools
+          path: apps/dist/*
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: aero-host-tools
+          path: dist
+      - name: Upload unified release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber

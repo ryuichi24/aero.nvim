@@ -32,6 +32,16 @@ M.defaults = {
 		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
 		-- resize_keys may override the shared shortcuts for prompt buffers
 	},
+	companion = {
+		executable = false, -- auto-detect a local build, installed release, or aero-companion on PATH
+		devices_file = false, -- default: a private, origin-scoped file under stdpath("data")/Aero/companion
+		bind = "127.0.0.1",
+		port = 8765,
+		origin = "http://localhost:8765",
+		allow_http = false, -- opt in to direct HTTP over a trusted private network, e.g. Tailscale
+		cert = false, -- HTTPS certificate file; false uses HTTP
+		key = false, -- HTTPS private key file
+	},
 	exports = {
 		location = "data", -- "data" or "worktree"
 		worktree_dir = ".aero/exports",

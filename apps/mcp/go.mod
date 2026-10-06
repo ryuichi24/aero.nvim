@@ -1,4 +1,4 @@
-module github.com/ryuichi24/aero.nvim/mcp
+module github.com/ryuichi24/aero.nvim/apps/mcp
 
 go 1.24.0
 
