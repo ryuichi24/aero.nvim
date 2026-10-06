@@ -25,6 +25,9 @@ local subcommands = {
 	sessions = function()
 		require("aero").sessions()
 	end,
+	inbox = function()
+		require("aero").inbox()
+	end,
 	workspaces = function()
 		require("aero").workspaces()
 	end,
@@ -42,6 +45,9 @@ local subcommands = {
 	end,
 	prompt = function()
 		require("aero").prompt()
+	end,
+	prompts = function()
+		require("aero").prompts()
 	end,
 	cancel = function()
 		require("aero").cancel()

@@ -690,8 +690,8 @@ function M.resume(session_id)
 	return s
 end
 
---- Show agent-reported usage for the focused/selected session without starting it.
-function M.usage()
+--- Resolve the focused or dashboard-selected session without starting it.
+function M.viewed_session()
 	local s = session.from_buf(0)
 	local key = vim.b.aero_chat_key
 	if not s and key then
@@ -717,6 +717,12 @@ function M.usage()
 	elseif not s then
 		s = panel.current_session()
 	end
+	return s
+end
+
+--- Show agent-reported usage for the focused/selected session without starting it.
+function M.usage()
+	local s = M.viewed_session()
 	if not s then
 		notify("select an agent session in the dashboard or focus its panel first", vim.log.levels.WARN)
 		return

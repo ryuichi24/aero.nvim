@@ -232,13 +232,16 @@ function M.build(chat, opts)
 		finish(group)
 	end
 	local speaker, index = nil, 1
+	local block_lines = {}
 	while index <= #chat.blocks do
 		local block = chat.blocks[index]
+		block_lines[block] = #lines + 1
 		if block.kind == "info" then
 			local category = info_kind(block)
 			local group = category == "error" and "AeroChatError" or "AeroChatMeta"
 			header(category == "error" and "Error" or "Session", group)
 			repeat
+				block_lines[block] = #lines + 1
 				body(split(vim.trim(block.text)), group)
 				index = index + 1
 				block = chat.blocks[index]
@@ -314,7 +317,7 @@ function M.build(chat, opts)
 	elseif chat.state == "ready" and #chat.blocks == 0 then
 		push("Press i to write a prompt, :w or <C-s> to send it.", "AeroChatMeta")
 	end
-	return lines, marks, options
+	return lines, marks, options, block_lines
 end
 
 function M.decorate(buf, lines, marks, first)

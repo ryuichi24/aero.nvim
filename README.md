@@ -105,6 +105,17 @@ filtering to normal mode; `q` in normal mode closes the popup. In insert mode,
 `q` is ordinary search text. Stopped and exited sessions are
 excluded; use `:Aero pick` to browse those too.
 
+Use `:Aero prompts` (or `gP` in an ACP transcript) to review that session's
+submitted prompts in chronological order. The selected prompt is previewed in full;
+`Ctrl-d`/`Ctrl-u` scroll the preview, and `Enter` jumps to its chat log line.
+Use `i` to filter, `j`/`k` to select, and `q` to close. Empty sessions report no prompts.
+
+Use `:Aero inbox` for a searchable attention inbox across ACP sessions: pending
+permissions, errors, and completed turns awaiting review. `Enter` opens the relevant
+transcript and marks the event read; `r` marks it read without opening, and `d`
+dismisses it. Events remain after a session becomes idle. The inbox tracks events
+in the current Neovim instance; see [attention inbox](docs/workspaces.md#attention-inbox).
+
 `:Aero worktrees` lists worktrees grouped by workspace, and `:Aero workspaces`
 lists registered workspaces. Both use the same navigation and filtering controls;
 `Enter` opens the selected checkout's code window (the root checkout for a

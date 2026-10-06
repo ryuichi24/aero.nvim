@@ -51,6 +51,11 @@ for line in sys.stdin:
             assert prompt.startswith("EXPORT_CUSTOM_PROMPT: Organize the transcript by topic.\n\n# Test chat"), "custom export prompt or appended transcript missing"
         assert mode != "fail", "prompt was sent after a failed session/load"
         assert request["params"]["sessionId"] == "fixture-session"
+        if mode == "inbox" and prompt == "fail":
+            send({"id": request["id"], "error": {"code": -32603, "message": "inbox prompt failure"}})
+            continue
+        if mode == "inbox" and prompt == "exit":
+            sys.exit(3)
         if mode == "cancel":
             text = request["params"]["prompt"][0]["text"]
             assert text not in {"queued", "/cancel"}, "cancelled prompt reached agent"

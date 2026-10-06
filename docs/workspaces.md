@@ -17,6 +17,7 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero add [path]` | Register the repository containing the path (default: cwd) |
 | `:Aero pick` | Pick any session using `vim.ui.select` |
 | `:Aero sessions` | Search active sessions across worktrees in a live popup |
+| `:Aero inbox` | Review ACP permissions, errors, and completed turns across worktrees |
 | `:Aero worktrees` | Search worktrees grouped by workspace and open the selected checkout |
 | `:Aero workspaces` | Search registered workspaces and open the selected root checkout |
 | `:Aero refresh` | Re-read worktrees |
@@ -34,9 +35,44 @@ The matching Lua APIs can be passed directly to keymaps:
 ```lua
 local aero = require("aero")
 vim.keymap.set("n", "<leader>as", aero.sessions, { desc = "Search active AI sessions" })
+vim.keymap.set("n", "<leader>ai", aero.inbox, { desc = "Agent attention inbox" })
 vim.keymap.set("n", "<leader>aw", aero.worktrees, { desc = "Search worktrees" })
 vim.keymap.set("n", "<leader>aW", aero.workspaces, { desc = "Search workspaces" })
 ```
+
+## Attention inbox
+
+`:Aero inbox` collects events from ACP conversations in this Neovim instance, across
+workspaces and worktrees. Entries are newest first and show the event type, session
+name, agent, workspace/worktree paths, and assigned ticket ID when available.
+Assignment context is captured when the event occurs; unassigned sessions also appear.
+
+- **permission:** a live request awaiting an answer. Resolved or cancelled requests
+  disappear automatically.
+- **error:** a session/turn error, including failed requests and nonzero adapter exits.
+- **completed:** a successfully completed prompt turn. Cancelled or otherwise stopped
+  turns do not count as successful completions.
+
+Use `j`/`k`, arrows, or `Ctrl-n`/`Ctrl-p` to select, `i` to filter by words, and
+`Enter` to open the event. Permission entries jump to their live options; errors jump
+to their error text; completions jump to the corresponding user prompt in the transcript.
+Opening marks the event read. Normal-mode `r` marks it read without opening, `d`
+dismisses it, and `q` closes the picker. `Esc` leaves insert-mode filtering; `r`,
+`d`, and `q` remain ordinary search text in insert mode.
+
+Read and dismissed entries leave the inbox and the same event is not surfaced again.
+A later distinct event from the same session still appears. Error and completion
+events remain after the agent becomes idle or exits; opening an exited transcript
+does not restart the agent. Forgotten/replaced conversations are removed, and missing
+worktrees or transcript buffers are reported when opening. An empty inbox reports
+“no attention events”; a filter with no results shows “No matching attention events”.
+
+Inbox events and read/dismiss state last for the current Neovim instance, not across
+restarts. Saved transcript replay does not create new inbox events. Terminal-agent
+output is not used to infer completion or errors. Inbox actions never answer a
+permission, submit a prompt, or change ticket state.
+
+## Dashboard toggle
 
 The dashboard toggles even when focus is in code, a prompt, or a terminal.
 

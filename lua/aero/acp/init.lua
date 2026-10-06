@@ -161,8 +161,8 @@ function Chat:activity()
 end
 
 function Chat:build_lines()
-	local lines, marks, options = renderer.build(self)
-	self.render_marks, self.option_lines = marks, options
+	local lines, marks, options, blocks = renderer.build(self)
+	self.render_marks, self.option_lines, self.block_lines = marks, options, blocks
 	return lines
 end
 
@@ -345,6 +345,32 @@ function Chat:goto_permission(focus)
 	return true
 end
 
+--- Reveal an inbox event after the deferred transcript render has settled.
+function Chat:goto_block(block, permission)
+	self:advance(true)
+	self:render()
+	vim.defer_fn(function()
+		if not api.nvim_buf_is_valid(self.buf) then
+			return
+		end
+		if permission then
+			if self.permission and self.permission.block == block then
+				self:goto_permission(true)
+			end
+			return
+		end
+		local row = self.block_lines and self.block_lines[block]
+		for _, win in ipairs(vim.fn.win_findbuf(self.buf)) do
+			if api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage() then
+				api.nvim_win_set_cursor(win, { math.min(row or 1, api.nvim_buf_line_count(self.buf)), 0 })
+				api.nvim_win_call(win, function()
+					vim.cmd("normal! zz")
+				end)
+			end
+		end
+	end, 32)
+end
+
 function Chat:changed()
 	self:save_history()
 	self:render()
@@ -392,7 +418,11 @@ function Chat:append(kind, text)
 end
 
 function Chat:info(text, kind)
-	table.insert(self.blocks, { kind = "info", text = text, meta_kind = kind })
+	local block = { kind = "info", text = text, meta_kind = kind }
+	table.insert(self.blocks, block)
+	if kind == "error" then
+		require("aero.inbox").add(self, "error", block)
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -546,6 +576,7 @@ function Chat:on_request(method, params, respond)
 		}
 		table.insert(self.blocks, block)
 		self.permission = { params = params, respond = respond, block = block }
+		require("aero.inbox").add(self, "permission", block)
 		self:set_option_keys(true)
 		-- the agent is blocked on this: show the text still being revealed at once, so nothing moves
 		-- the request after its options are scrolled into view
@@ -811,7 +842,8 @@ function Chat:prompt(text)
 	if models.handle(self, text) or modes.handle(self, text) then
 		return
 	end
-	table.insert(self.blocks, { kind = "user", text = text })
+	local prompt_block = { kind = "user", text = text }
+	table.insert(self.blocks, prompt_block)
 	self.turn = (self.turn or 0) + 1
 	local turn = self.turn
 	self.busy = true
@@ -828,6 +860,8 @@ function Chat:prompt(text)
 			self:fail("prompt", err)
 		elseif res and res.stopReason and res.stopReason ~= "end_turn" then
 			self:info("stopped: " .. res.stopReason)
+		else
+			require("aero.inbox").add(self, "completed", prompt_block, "Turn completed")
 		end
 		self:changed()
 		self:flush_queue()
@@ -1021,6 +1055,9 @@ local function setup_transcript(chat)
 	map("p", function()
 		chat:answer_permission()
 	end, "go to the pending permission request")
+	map("gP", function()
+		require("aero.prompts").open(chat)
+	end, "view session prompt history")
 	api.nvim_create_autocmd("CursorMoved", {
 		buffer = buf,
 		callback = function()

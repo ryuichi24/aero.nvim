@@ -19,11 +19,23 @@ function M.close()
 		p.timer:close()
 	end
 	vim.cmd.stopinsert()
-	for _, win in ipairs({ p.search_win, p.list_win }) do
+	for _, win in ipairs({ p.search_win, p.list_win, p.preview_win }) do
 		if api.nvim_win_is_valid(win) then
 			api.nvim_win_close(win, true)
 		end
 	end
+end
+
+local function preview(p)
+	if not p.preview then
+		return
+	end
+	local item = p.items[p.index]
+	local text = item and p.opts.preview(item) or ""
+	vim.bo[p.preview].modifiable = true
+	api.nvim_buf_set_lines(p.preview, 0, -1, false, vim.split(text, "\n", { plain = true }))
+	vim.bo[p.preview].modifiable = false
+	api.nvim_win_set_cursor(p.preview_win, { 1, 0 })
 end
 
 local function render()
@@ -85,6 +97,7 @@ local function render()
 		})
 	end
 	api.nvim_win_set_cursor(p.list_win, { p.rows[p.index] or 1, 0 })
+	preview(p)
 end
 
 function M.open(opts)
@@ -99,7 +112,11 @@ function M.open(opts)
 	end
 	local width = math.max(1, math.min(100, vim.o.columns - 4))
 	local height = math.max(1, math.min(12, vim.o.lines - 8))
-	local row = math.max(0, math.floor((vim.o.lines - height - 6) / 2))
+	local preview_height = opts.preview and math.max(1, math.min(12, math.floor((vim.o.lines - 10) / 2))) or 0
+	if opts.preview then
+		height = math.max(1, math.min(8, vim.o.lines - preview_height - 10))
+	end
+	local row = math.max(0, math.floor((vim.o.lines - height - preview_height - 8) / 2))
 	local col = math.max(0, math.floor((vim.o.columns - width - 2) / 2))
 	local p = { items = {}, index = 1, opts = opts }
 	p.search = api.nvim_create_buf(false, true)
@@ -117,7 +134,7 @@ function M.open(opts)
 		style = "minimal",
 		border = "rounded",
 		focusable = false,
-		footer = " j/k: select · i: filter · Enter: open · q: close ",
+		footer = opts.footer or " j/k: select · i: filter · Enter: open · q: close ",
 	})
 	vim.wo[p.list_win].cursorline = true
 	vim.wo[p.list_win].wrap = false
@@ -132,10 +149,31 @@ function M.open(opts)
 		title = " Aero " .. opts.title .. " · search ",
 	})
 	popup = p
+	if opts.preview then
+		p.preview = api.nvim_create_buf(false, true)
+		vim.bo[p.preview].bufhidden = "wipe"
+		vim.bo[p.preview].filetype = "markdown"
+		p.preview_win = api.nvim_open_win(p.preview, false, {
+			relative = "editor", row = row + height + 5, col = col,
+			width = width, height = preview_height, style = "minimal", border = "rounded",
+			title = " Full prompt · Ctrl-d/u: scroll ", focusable = false,
+		})
+		vim.wo[p.preview_win].wrap = true
+		for _, mode in ipairs({ "n", "i" }) do
+			for _, key in ipairs({ "<C-d>", "<C-u>" }) do
+				vim.keymap.set(mode, key, function()
+					api.nvim_win_call(p.preview_win, function()
+						vim.cmd("normal! " .. api.nvim_replace_termcodes(key, true, false, true))
+					end)
+				end, { buffer = p.search })
+			end
+		end
+	end
 	local function move(delta)
 		if popup == p and #p.items > 0 then
 			p.index = (p.index - 1 + delta) % #p.items + 1
 			api.nvim_win_set_cursor(p.list_win, { p.rows[p.index], 0 })
+			preview(p)
 		end
 	end
 	local function select()
@@ -166,6 +204,17 @@ function M.open(opts)
 	vim.keymap.set("n", "k", function()
 		move(-1)
 	end, { buffer = p.search })
+	for key, action in pairs(opts.actions or {}) do
+		vim.keymap.set("n", key, function()
+			local item = p.items[p.index]
+			if item then
+				action(item)
+				if popup == p then
+					render()
+				end
+			end
+		end, { buffer = p.search })
+	end
 	-- Leave filtering mode without dismissing the popup.
 	vim.keymap.set("i", "<Esc>", "<Esc>", { buffer = p.search })
 	api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, { buffer = p.search, callback = render })

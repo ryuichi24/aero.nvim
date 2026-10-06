@@ -70,6 +70,12 @@ function M.sessions()
 	require("aero.sessions").open()
 end
 
+--- Review ACP events needing attention across worktrees.
+function M.inbox()
+	ensure()
+	require("aero.inbox").open()
+end
+
 --- Search registered workspaces and focus the selected workspace's code window.
 function M.workspaces()
 	ensure()
@@ -108,6 +114,12 @@ end
 function M.prompt()
 	ensure()
 	require("aero.panel").prompt()
+end
+
+--- Review the viewed ACP session's prompts and jump to one in its transcript.
+function M.prompts()
+	ensure()
+	require("aero.prompts").open()
 end
 
 --- Show usage for the selected agent and return its latest reported metrics, if any.
