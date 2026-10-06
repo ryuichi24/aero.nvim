@@ -29,7 +29,7 @@ Go commands run in workspace mode by default. To check module independence,
 use `GOWORK=off go -C apps/mcp test ./...` or, after building the UI,
 `GOWORK=off go -C apps/companion test ./...`.
 
-`make release TAG=v0.2.0` also validates the tag against the published manifest.
+`make release TAG=v0.3.0` also validates the tag against the published manifest.
 CI uses the same packaging script, `apps/scripts/build-release.py`. The workspace
 checksum file `apps/go.work.sum`, when generated, is tracked alongside module sums.
 
