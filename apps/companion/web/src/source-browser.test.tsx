@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -51,6 +51,24 @@ it('expands nested folders and keeps the tree while reading a file', async () =>
   expect(tree.getByRole('button', { name: 'main.ts' }).getAttribute('aria-current')).toBe('true');
   await user.click(src);
   expect(tree.queryByRole('button', { name: 'main.ts' })).toBeNull();
+  expect(screen.getByLabelText('src/nested/main.ts').textContent).toContain('const answer = 42;');
+  const dialog = document.querySelector('dialog')!;
+  // jsdom does not implement the native dialog lifecycle.
+  dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''));
+  dialog.close = vi.fn(() => dialog.removeAttribute('open'));
+  await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
+  expect(screen.getByRole('dialog', { name: 'Fullscreen source reader' })).toBe(dialog);
+  expect(within(dialog).getByLabelText('src/nested/main.ts').textContent).toContain(
+    'const answer = 42;',
+  );
+  expect(document.body.style.overflow).toBe('hidden');
+  await user.click(within(dialog).getByRole('button', { name: 'Exit fullscreen' }));
+  expect(dialog.open).toBe(false);
+  expect(document.body.style.overflow).toBe('');
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Fullscreen' }));
+  await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  expect(dialog.open).toBe(false);
   expect(screen.getByLabelText('src/nested/main.ts').textContent).toContain('const answer = 42;');
   client.clear();
 });

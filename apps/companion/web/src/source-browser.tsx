@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import hljs from 'highlight.js/lib/common';
 import { post } from './api';
@@ -85,6 +85,21 @@ export function SourceBrowser({
   const [chosen, setChosen] = useState<string>();
   const [path, setPath] = useState('');
   const [preview, setPreview] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenDialog = useRef<HTMLDialogElement>(null);
+  const fullscreenButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const dialog = fullscreenDialog.current!;
+    const overflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog.close();
+      document.body.style.overflow = overflow;
+      fullscreenButton.current?.focus();
+    };
+  }, [fullscreen]);
   const client = useQueryClient();
   const trees = snapshot?.worktrees || [];
   const worktree =
@@ -116,6 +131,47 @@ export function SourceBrowser({
     content !== undefined && !(markdown && preview) && hljs.getLanguage(language)
       ? hljs.highlight(content, { language }).value
       : undefined;
+
+  const reader = content !== undefined && (
+    <>
+      <div className="source-reader-toolbar">
+        {fullscreen && <strong className="source-reader-path">{path}</strong>}
+        {markdown && (
+          <button aria-pressed={preview} onClick={() => setPreview((value) => !value)}>
+            {preview ? 'Show source' : 'Show preview'}
+          </button>
+        )}
+        <button
+          ref={!fullscreen ? fullscreenButton : undefined}
+          onClick={() => setFullscreen((value) => !value)}
+        >
+          {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        </button>
+      </div>
+      {markdown && preview ? (
+        <div className="source-preview" aria-label={`${path} preview`}>
+          <Markdown text={content} />
+        </div>
+      ) : (
+        <div className="source-code" aria-label={path}>
+          <pre className="source-lines" aria-hidden="true">
+            {content
+              .split('\n')
+              .map((_, index) => index + 1)
+              .join('\n')}
+          </pre>
+          <pre>
+            <code
+              className="hljs"
+              {...(highlighted !== undefined
+                ? { dangerouslySetInnerHTML: { __html: highlighted } }
+                : { children: content })}
+            />
+          </pre>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <section aria-label="Source browser">
@@ -176,37 +232,16 @@ export function SourceBrowser({
               {content === undefined && !query.error && (
                 <p className="navigation-empty">Select a file from the tree to read its source.</p>
               )}
-              {content !== undefined && (
-                <>
-                  {markdown && (
-                    <button aria-pressed={preview} onClick={() => setPreview((value) => !value)}>
-                      {preview ? 'Show source' : 'Show preview'}
-                    </button>
-                  )}
-                  {markdown && preview ? (
-                    <div className="source-preview" aria-label={`${path} preview`}>
-                      <Markdown text={content} />
-                    </div>
-                  ) : (
-                    <div className="source-code" aria-label={path}>
-                      <pre className="source-lines" aria-hidden="true">
-                        {content
-                          .split('\n')
-                          .map((_, index) => index + 1)
-                          .join('\n')}
-                      </pre>
-                      <pre>
-                        <code
-                          className="hljs"
-                          {...(highlighted !== undefined
-                            ? { dangerouslySetInnerHTML: { __html: highlighted } }
-                            : { children: content })}
-                        />
-                      </pre>
-                    </div>
-                  )}
-                </>
-              )}
+              {!fullscreen && reader}
+              <dialog
+                ref={fullscreenDialog}
+                className="source-fullscreen"
+                aria-label="Fullscreen source reader"
+                onCancel={() => setFullscreen(false)}
+                onClose={() => setFullscreen(false)}
+              >
+                {fullscreen && reader}
+              </dialog>
             </div>
           </div>
         </>
