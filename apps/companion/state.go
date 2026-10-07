@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -194,6 +195,14 @@ func (s *state) refresh(ctx context.Context) map[string]json.RawMessage {
 		}
 	}
 	encoded, _ := json.Marshal(snapshot)
+	// Lua object key order can vary between reads. Canonicalize nested objects
+	// before hashing so equivalent snapshots retain their cursor.
+	var canonical any
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if decoder.Decode(&canonical) == nil {
+		encoded, _ = json.Marshal(canonical)
+	}
 	digest := sha256.Sum256(encoded)
 	if digest != s.digest {
 		s.digest = digest
