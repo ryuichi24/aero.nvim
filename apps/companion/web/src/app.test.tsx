@@ -66,6 +66,63 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('shows each populated media gallery once below the session actions and hides empty galleries', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(new Uint8Array([0]), { status: 206 })),
+    );
+    render(<App />);
+    connect(initial);
+    await open();
+    expect(screen.queryByText('Screenshots (0)')).toBeNull();
+    expect(screen.queryByText('Recordings (0)')).toBeNull();
+    connect({
+      ...initial,
+      sessions: [
+        {
+          ...initial.sessions[0],
+          blocks: [{ kind: 'agent', text: '[Screenshot](mobile.png)\n\n[Recording](demo.webm)' }],
+        },
+      ],
+    });
+    const screenshots = screen.getAllByText('Screenshots (1)');
+    const recordings = screen.getAllByText('Recordings (1)');
+    expect(screenshots).toHaveLength(1);
+    expect(recordings).toHaveLength(1);
+    const rename = screen.getByText('Rename session', { selector: 'summary' });
+    expect(
+      rename.compareDocumentPosition(screenshots[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      rename.compareDocumentPosition(recordings[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Saved for later')).toBeTruthy());
+    connect(initial);
+    expect(document.querySelectorAll('.session-screenshots')).toHaveLength(0);
+    expect(document.querySelectorAll('#transcript')).toHaveLength(1);
+  });
+  it('keeps a session screenshot list available above the transcript', async () => {
+    render(<App />);
+    connect({
+      ...initial,
+      sessions: [
+        {
+          ...initial.sessions[0],
+          blocks: [{ kind: 'tool', text: '[Mobile capture](mobile.png)' }],
+        },
+      ],
+    });
+    await open();
+    const summary = screen.getByText('Screenshots (1)');
+    await userEvent.click(summary);
+    const gallery = screen.getByRole('list', { name: 'Session screenshots' });
+    await userEvent.click(gallery.querySelector('a')!);
+    expect(screen.getByRole('dialog', { name: 'Screenshot preview' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: '← All sessions' }));
+    await open();
+    expect(screen.getByRole('list', { name: 'Session screenshots' })).toBeTruthy();
+  });
   it('answers permissions from the inbox without selecting a session', async () => {
     const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
     vi.stubGlobal('fetch', fetch);

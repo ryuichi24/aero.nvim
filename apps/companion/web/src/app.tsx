@@ -10,6 +10,8 @@ import { operationID, parseSnapshot, post, RequestError, savePending } from './a
 import { CompanionProvider, useCompanionDispatch, useCompanionState } from './companion-context';
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
+import { Screenshots } from './screenshots';
+import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
 import { SourceBrowser } from './source-browser';
 import { LifecycleForm } from './lifecycle-controls';
@@ -523,6 +525,18 @@ function Companion() {
                   onAction={act}
                 />
               </div>
+            )}
+            {session && (
+              <Screenshots
+                key={`screenshots:${session.id}:${session.conversation}`}
+                session={session}
+              />
+            )}
+            {session && (
+              <Recordings
+                key={`recordings:${session.id}:${session.conversation}`}
+                session={session}
+              />
             )}
             <Transcript
               key={`${selected.id}:${selected.conversation}`}

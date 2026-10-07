@@ -70,10 +70,11 @@ func (c config) validate() error {
 }
 
 type bridge struct {
-	state        *state
-	ui           fs.FS
-	pollInterval time.Duration
-	onChange     func(string)
+	state         *state
+	ui            fs.FS
+	pollInterval  time.Duration
+	onChange      func(string)
+	recordingsDir string
 }
 
 func newBridge(h host, origin string) *bridge {
@@ -142,7 +143,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.static(w, r)
 		return
 	}
-	if r.URL.RawQuery != "" {
+	if r.URL.RawQuery != "" && !(r.Method == http.MethodGet && (r.URL.Path == "/api/image" || r.URL.Path == "/api/video")) {
 		reject(w, http.StatusBadRequest, "query parameters are unsupported")
 		return
 	}
@@ -156,6 +157,10 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		switch r.URL.Path {
+		case "/api/image":
+			b.image(w, r)
+		case "/api/video":
+			b.video(w, r)
 		case "/api/snapshot":
 			reply(w, http.StatusOK, b.state.refresh(r.Context()))
 		case "/api/events":

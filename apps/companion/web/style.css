@@ -1,5 +1,48 @@
 @import 'tailwindcss';
 
+.image-preview-backdrop {
+  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3;
+}
+.image-preview {
+  @apply m-0 flex w-full max-w-5xl flex-col overflow-hidden;
+  max-height: calc(100dvh - 1.5rem);
+}
+.image-preview header {
+  @apply flex shrink-0 items-center justify-between gap-3;
+}
+.image-preview h2 {
+  @apply m-0;
+}
+.image-preview-content {
+  @apply mt-3 min-h-0 overflow-auto overscroll-contain;
+}
+.image-preview-content img,
+.image-preview-content video {
+  @apply mx-auto block h-auto max-w-full;
+}
+.image-preview-content video {
+  max-height: 75dvh;
+}
+.recording-status {
+  @apply my-1 px-3 text-xs text-slate-400;
+}
+.session-screenshots {
+  @apply my-4 rounded-xl border border-slate-700/60 bg-slate-950/50 p-3;
+}
+.session-screenshots summary {
+  @apply cursor-pointer text-sm font-semibold text-slate-200;
+}
+.screenshot-list {
+  @apply mt-3 grid max-h-64 list-none gap-2 overflow-auto p-0;
+}
+.screenshot-list a {
+  @apply block rounded-lg border border-slate-700/60 p-3 text-sky-300 hover:bg-slate-800;
+}
+.screenshot-list span {
+  @apply mt-1 block text-xs font-normal text-slate-400;
+  overflow-wrap: anywhere;
+}
+
 @layer base {
   :root {
     color-scheme: dark;

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { Markdown } from './markdown';
 import type { Session, TranscriptBlock } from './types';
+import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
 
 function readableStatus(status: string): string {
   return status.replaceAll('_', ' ');
@@ -18,6 +19,8 @@ function RawOutput({ label, value }: { label: string; value: unknown }) {
   );
 }
 function ToolContent({ block }: { block: TranscriptBlock }) {
+  const imageLink = useImageLink();
+  const videoLink = useVideoLink();
   return (
     <div className="tool-content">
       {block.text && <Markdown text={block.text} />}
@@ -35,7 +38,17 @@ function ToolContent({ block }: { block: TranscriptBlock }) {
         if (content.content?.uri)
           return (
             <p key={index} className="resource-label">
-              {content.content.name || content.content.uri}
+              {imageLink(content.content.uri) ? (
+                <ImageLink href={imageLink(content.content.uri)!}>
+                  {content.content.name || content.content.uri}
+                </ImageLink>
+              ) : videoLink(content.content.uri) ? (
+                <ImageLink href={videoLink(content.content.uri)!} media="video">
+                  {content.content.name || content.content.uri}
+                </ImageLink>
+              ) : (
+                content.content.name || content.content.uri
+              )}
             </p>
           );
         return <RawOutput key={index} label="Attachment" value={content} />;
@@ -118,30 +131,32 @@ export function Transcript({ session, active = true }: { session?: Session; acti
       element.current.scrollTop = element.current.scrollHeight;
   }, [active, session?.blocks, session?.queue]);
   return (
-    <div
-      id="transcript"
-      role="region"
-      aria-label="Conversation transcript"
-      tabIndex={0}
-      ref={element}
-      onScroll={() => {
-        const node = element.current;
-        if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
-      }}
-    >
-      {session?.blocks?.map((block, index) => (
-        <Block key={`${block.kind}:${block.id || index}`} block={block} />
-      ))}
-      {!!session?.queue?.length && (
-        <aside className="transcript-card queued-card" aria-label="Queued prompts">
-          <div className="message-label">Queued prompts</div>
-          {session.queue.map((text, index) => (
-            <div className="queued-prompt" key={index}>
-              <Markdown text={text} />
-            </div>
-          ))}
-        </aside>
-      )}
-    </div>
+    <ImageSession.Provider value={session?.id || ''}>
+      <div
+        id="transcript"
+        role="region"
+        aria-label="Conversation transcript"
+        tabIndex={0}
+        ref={element}
+        onScroll={() => {
+          const node = element.current;
+          if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
+        }}
+      >
+        {session?.blocks?.map((block, index) => (
+          <Block key={`${block.kind}:${block.id || index}`} block={block} />
+        ))}
+        {!!session?.queue?.length && (
+          <aside className="transcript-card queued-card" aria-label="Queued prompts">
+            <div className="message-label">Queued prompts</div>
+            {session.queue.map((text, index) => (
+              <div className="queued-prompt" key={index}>
+                <Markdown text={text} />
+              </div>
+            ))}
+          </aside>
+        )}
+      </div>
+    </ImageSession.Provider>
   );
 }

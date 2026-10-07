@@ -4,6 +4,62 @@ import { Transcript } from './transcript';
 import type { Session } from './types';
 
 afterEach(cleanup);
+it('previews screenshots inside the app and restores focus when closed', () => {
+  render(
+    <Transcript
+      session={{ ...session, blocks: [{ kind: 'agent', text: '[Screenshot](shot.png)' }] }}
+    />,
+  );
+  const link = screen.getByRole('link', { name: 'Screenshot' });
+  expect(link.getAttribute('target')).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  fireEvent.click(link);
+  const dialog = screen.getByRole('dialog', { name: 'Screenshot preview' });
+  expect(screen.getByRole('img', { name: 'Screenshot' }).getAttribute('src')).toBe(
+    link.getAttribute('href'),
+  );
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.keyDown(dialog, { key: 'Escape' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(link);
+  fireEvent.click(link);
+  fireEvent.error(screen.getByRole('img', { name: 'Screenshot' }));
+  expect(screen.getByRole('alert').textContent).toContain('Unable to load');
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+it('opens local screenshot links and image attachments through the paired companion', () => {
+  render(
+    <Transcript
+      session={{
+        ...session,
+        blocks: [
+          {
+            kind: 'agent',
+            text: '[Screenshot](.playwright-mcp/mobile.png)\n\n![Preview](file:///workspace/preview.png)',
+          },
+          {
+            kind: 'tool',
+            content: [
+              { content: { uri: 'file:///tmp/browser/result.png', name: 'Browser image' } },
+            ],
+          },
+        ],
+      }}
+    />,
+  );
+  for (const [label, path] of [
+    ['Screenshot', '.playwright-mcp/mobile.png'],
+    ['[Image: Preview]', '/api/image?session=one&path=file%3A%2F%2F%2Fworkspace%2Fpreview.png'],
+    ['Browser image', 'file:///tmp/browser/result.png'],
+  ]) {
+    const link = screen.getByRole('link', { name: label, hidden: true });
+    const href = link.getAttribute('href')!;
+    expect(href.startsWith('/api/image?')).toBe(true);
+    if (label === '[Image: Preview]') expect(href).toBe(path);
+    else expect(new URL(href, 'http://localhost').searchParams.get('path')).toBe(path);
+  }
+});
 const session: Session = {
   id: 'one',
   conversation: 'generation',

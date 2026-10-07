@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -49,6 +50,7 @@ func main() {
 
 func runBridge(c config) error {
 	b := newBridge(unixHost{path: c.Socket}, c.Origin)
+	b.recordingsDir = filepath.Join(filepath.Dir(c.DevicesFile), "recordings")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	server := httpServer(c, b, ctx)
