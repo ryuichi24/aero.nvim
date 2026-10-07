@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+.ui-zoom {
+  @apply flex items-center gap-1;
+}
+.ui-zoom button {
+  @apply m-0 px-2.5 tabular-nums;
+}
+
 .image-preview-backdrop {
   @apply fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3;
 }
@@ -384,7 +391,7 @@ form#pair {
 }
 .message-label,
 .tool-data-label {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   color: #a7bdd4;
@@ -451,7 +458,7 @@ details[open] > .markdown-body {
 }
 .permission-answer {
   color: #f5c86b;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin-bottom: 0;
 }
 .queued-card {
@@ -476,7 +483,7 @@ details[open] > .markdown-body {
 }
 
 .markdown-body {
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.7;
 }
 .markdown-body > :first-child {
@@ -560,7 +567,7 @@ details[open] > .markdown-body {
   background: #0d1117;
   padding: 12px;
   border-radius: 7px;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.6;
   margin: 0.8em 0;
 }
@@ -575,7 +582,7 @@ details[open] > .markdown-body {
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .markdown-body th,
 .markdown-body td {

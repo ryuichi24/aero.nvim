@@ -10,6 +10,7 @@ import { operationID, parseSnapshot, post, RequestError, savePending } from './a
 import { CompanionProvider, useCompanionDispatch, useCompanionState } from './companion-context';
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
+import { UIZoom } from './ui-zoom';
 import { Screenshots } from './screenshots';
 import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
@@ -268,7 +269,7 @@ function Companion() {
   return (
     <>
       <header className="sticky top-0 z-20 border-b border-slate-700/60 bg-slate-900/95 px-4 py-3 backdrop-blur sm:px-6">
-        <div className="mx-auto flex max-w-4xl items-center gap-3">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">
             Aero
             <span className="mt-0.5 block text-xs font-normal tracking-wide text-slate-400">
@@ -303,6 +304,7 @@ function Companion() {
           >
             Unpair
           </button>
+          <UIZoom />
         </div>
       </header>
       <nav className="primary-nav" aria-label="Companion navigation">
