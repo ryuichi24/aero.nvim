@@ -10,6 +10,7 @@ import { operationID, parseSnapshot, post, RequestError, savePending } from './a
 import { CompanionProvider, useCompanionDispatch, useCompanionState } from './companion-context';
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
+import { ReportCommand } from './report-command';
 import { UIZoom } from './ui-zoom';
 import { AttentionSurface, FullscreenAttentionContext } from './fullscreen-attention';
 import { Screenshots } from './screenshots';
@@ -789,6 +790,7 @@ function Companion() {
                   id="compose"
                   onSubmit={(event) => {
                     event.preventDefault();
+                    if (prompt.trim() === '/report') return;
                     act('prompt', { text: prompt });
                   }}
                 >
@@ -796,12 +798,20 @@ function Companion() {
                     Follow-up prompt
                     <textarea
                       rows={3}
-                      placeholder="What should the agent do next?"
+                      placeholder="What should the agent do next? Type /report to choose a report."
                       required
                       value={prompt}
                       onChange={(event) => dispatch({ type: 'draft', value: event.target.value })}
                     />
                   </label>
+                  {session && prompt.trim() === '/report' && (
+                    <ReportCommand
+                      key={`${session.id}:${session.conversation}`}
+                      worktree={session.worktree}
+                      online={online && !pending}
+                      onChoose={(value) => dispatch({ type: 'draft', value })}
+                    />
+                  )}
                   <button className="primary-action" id="send" disabled={disabled}>
                     Send prompt
                   </button>

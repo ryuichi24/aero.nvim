@@ -256,9 +256,36 @@ function M.dispatch(method, params)
 		if type(params.text) ~= "string" or vim.trim(params.text) == "" or #params.text > 65536 then
 			return finish(nil, "prompt must contain 1-65536 bytes")
 		end
-		-- Editor-local slash commands may open pickers or change task bindings.
-		if vim.trim(params.text):match("^/") then
-			return finish(nil, "remote slash commands are unsupported")
+		local text = params.text
+		if vim.trim(text):match("^/") then
+			local command, rest = vim.trim(text):match("^([^\n]+)\n?(.*)$")
+			if command ~= "/report" and not command:match("^/report%s") then
+				return finish(nil, "remote slash command is unsupported")
+			end
+			local action, name = command:match("^/report%s+(%S+)%s+(.+)$")
+			if action ~= "new" and action ~= "select" then
+				return finish(nil, "use /report new <name> or /report select <filename>")
+			end
+			local reports = require("aero.reports")
+			local ws
+			for _, tree in ipairs(worktrees()) do
+				if tree.path == selected.worktree then ws = { root = tree.workspace }; break end
+			end
+			local report, err
+			if action == "new" then
+				report, err = reports.create_file(selected.worktree, ws, name, "")
+			else
+				local choices
+				choices, err = reports.list(selected.worktree, ws)
+				for _, choice in ipairs(choices) do
+					if choice.name == name then report = choice; break end
+				end
+			end
+			if not report then return finish(nil, err or "report unavailable") end
+			text = require("aero.config").options.reports.prompt:gsub("{path}", function()
+				return vim.json.encode(report.path)
+			end)
+			if rest ~= "" then text = text .. "\n\n" .. rest end
 		end
 		local queued = chat.state ~= "ready"
 			or chat.busy
@@ -266,7 +293,6 @@ function M.dispatch(method, params)
 			or chat.mode_pending
 			or chat.task_pending
 		finish({ status = "unknown" })
-		local text = params.text
 		local binding = selected.task_binding
 		if binding and not binding.revoked then
 			text = table.concat({
@@ -279,7 +305,7 @@ function M.dispatch(method, params)
 					or "Board-only assignment: no ticket is assigned. Read the board and create tickets through Aero MCP tools when requested; do not implement them unless asked.",
 				"Use the current assignment rather than any superseded assignment in this conversation. Do not write task documents directly.",
 				"",
-				params.text,
+				text,
 			}, "\n")
 		end
 		chat:prompt(text)

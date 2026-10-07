@@ -77,6 +77,21 @@ wait(function()
 	return not s.chat.busy
 end)
 assert(not s.chat.permission)
+-- Report commands resolve against the selected worktree and retries never create twice.
+config.options.reports.directory = dir .. "/reports"
+local sent
+local original_prompt = s.chat.prompt
+s.chat.prompt = function(_, text) sent = text end
+local report_request = params("report-0000000001", { text = "/report new investigation\nFocus on startup." })
+assert(bridge.dispatch("prompt", report_request).status == "accepted")
+assert(sent:find("investigation.md", 1, true) and sent:find("Focus on startup.", 1, true))
+assert(bridge.dispatch("prompt", report_request).status == "accepted")
+assert(bridge.dispatch("prompt", params("report-0000000002", { text = "/report select investigation.md" })))
+result, err = bridge.dispatch("prompt", params("report-0000000003", { text = "/report select missing.md" }))
+assert(not result and err == "report unavailable")
+result, err = bridge.dispatch("prompt", params("report-0000000004", { text = "/report new ../escape" }))
+assert(not result and err:find("directory separators"))
+s.chat.prompt = original_prompt
 -- Replacement chats and in-place ACP conversation changes both invalidate action targets.
 local old = s.chat
 s.chat = setmetatable(vim.tbl_extend("force", {}, old), getmetatable(old))

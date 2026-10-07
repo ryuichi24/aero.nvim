@@ -461,8 +461,14 @@ The opt-in defaults to `false` and does not require disabling authentication.
 - **Cancel turn & queue** uses Aero's existing cancellation semantics, including
   clearing queued prompts and cancelling a pending permission. Accepted means
   the cancellation was requested, not that the backend has stopped yet.
-- Remote slash commands are rejected: they can invoke editor-local pickers or
-  change task bindings. Use the dedicated cancellation button.
+- Type **`/report`** in the follow-up prompt to choose an existing report from
+  the session's worktree or enter a new report name. Choosing updates the draft;
+  **Send prompt** creates the new Markdown file when requested and sends the
+  configured `reports.prompt` instructions with its absolute path to the agent.
+  You can also type `/report new <name>` or `/report select <filename.md>`
+  directly, with additional instructions on subsequent lines. Existing files
+  are never overwritten by creation, and retries reuse the original receipt.
+  Other remote slash commands are rejected. Use the dedicated cancellation button.
 
 The bridge polls Neovim every 500 ms for connected streams and sends changed
 authoritative snapshots over Server-Sent Events, with an epoch/revision cursor.
