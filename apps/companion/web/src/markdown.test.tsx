@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Markdown } from './markdown';
 
@@ -26,6 +26,37 @@ it('renders Mermaid fences as diagrams while preserving ordinary highlighted cod
     securityLevel: 'strict',
   });
   expect(container.querySelector('pre code.language-js .hljs-keyword')).toBeTruthy();
+});
+
+it('opens individual diagrams fullscreen, supports zoom, and restores focus on Escape', async () => {
+  renderDiagram.mockImplementation(async (_id, source) => ({
+    svg: `<svg><text>${source}</text></svg>`,
+  }));
+  render(
+    <Markdown text={'```mermaid\ngraph TD; A-->B\n```\n\n```mermaid\ngraph TD; C-->D\n```'} />,
+  );
+  await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(2));
+  const trigger = screen.getAllByRole('button', { name: 'Fullscreen diagram' })[1];
+  const dialog = screen.getAllByRole<HTMLDialogElement>('dialog', { hidden: true })[1];
+  dialog.showModal = () => dialog.setAttribute('open', '');
+  dialog.close = () => dialog.removeAttribute('open');
+  fireEvent.click(trigger);
+  expect(screen.getByRole('dialog', { name: 'Fullscreen Mermaid diagram' })).toBe(dialog);
+  expect(within(dialog).getByRole('img').textContent).toContain('C-->D');
+  expect(document.body.style.overflow).toBe('hidden');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Zoom in' }));
+  expect(within(dialog).getByLabelText('Diagram zoom').textContent).toBe('150%');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Reset zoom' }));
+  expect(within(dialog).getByLabelText('Diagram zoom').textContent).toBe('100%');
+  fireEvent(dialog, new Event('cancel', { bubbles: true }));
+  expect(dialog.hasAttribute('open')).toBe(false);
+  expect(document.activeElement).toBe(trigger);
+  expect(document.body.style.overflow).toBe('');
+  expect(screen.getAllByRole('img')).toHaveLength(2);
+  expect(renderDiagram).toHaveBeenCalledTimes(2);
+  fireEvent.click(trigger);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Exit fullscreen diagram' }));
+  expect(dialog.hasAttribute('open')).toBe(false);
 });
 
 it('keeps invalid diagram source readable and removes temporary rendering DOM', async () => {

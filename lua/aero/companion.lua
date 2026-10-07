@@ -78,6 +78,9 @@ local function describe(s)
 			b.cache, b.cache_src, b.shown = nil, nil, nil
 		end
 		result.queue = vim.deepcopy(chat.queue)
+		result.commands = vim.deepcopy(chat.commands or {})
+		result.models = require("aero.acp.models").options(chat)
+		result.modes = require("aero.acp.modes").options(chat)
 		if chat.permission then
 			result.permission = {
 				id = identity(chat.permission, permissions),
@@ -249,6 +252,17 @@ function M.dispatch(method, params)
 	if identity(chat, identities) ~= params.conversation then
 		return finish(nil, "stale conversation")
 	end
+	if method == "prompt" and type(params.text) == "string" and vim.trim(params.text):match("^/export") then
+		local command = vim.trim(params.text)
+		if command == "/export" or command == "/export readable" then
+			finish({ status = "unknown" })
+			local path = require("aero.exports").export(chat, { readable = command == "/export readable" })
+			if not path then
+				return finish(nil, "could not export log")
+			end
+			return finish({ status = "accepted", message = "Exported log: " .. path })
+		end
+	end
 	if chat.state == "exited" or not chat.client then
 		return finish(nil, "agent unavailable")
 	end
@@ -257,35 +271,84 @@ function M.dispatch(method, params)
 			return finish(nil, "prompt must contain 1-65536 bytes")
 		end
 		local text = params.text
+		local control = false
 		if vim.trim(text):match("^/") then
 			local command, rest = vim.trim(text):match("^([^\n]+)\n?(.*)$")
-			if command ~= "/report" and not command:match("^/report%s") then
-				return finish(nil, "remote slash command is unsupported")
+			local name, argument = vim.trim(text):match("^/(%S+)%s*(.*)$")
+			if name == "cancel" then
+				if argument ~= "" then
+					return finish(nil, "use /cancel without arguments")
+				end
+				finish({ status = "unknown" })
+				chat:cancel()
+				return finish({ status = "accepted" })
+			elseif name == "model" or name == "mode" then
+				local selector = require("aero.acp." .. name .. "s")
+				if argument == "" or text:find("[\r\n]") then
+					return finish(nil, "choose an available " .. name .. " in the companion")
+				end
+				local choice = selector.resolve(chat, argument)
+				if not choice then
+					return finish(nil, "unknown or ambiguous " .. name .. ": " .. argument)
+				end
+				text, control = "/" .. name .. " " .. choice.id, true
+			elseif name == "new-ticket" then
+				local expanded, err = require("aero.tasks.agent").expand_new_ticket(selected, text)
+				if not expanded then
+					return finish(nil, "Assign a board in the companion before using /new-ticket. " .. err)
+				end
+				text = expanded
+			elseif name == "export" then
+				return finish(nil, "use /export or /export readable")
+			elseif name ~= "report" then
+				local advertised = false
+				for _, available in ipairs(chat.commands or {}) do
+					if available.name == name then
+						advertised = true
+						break
+					end
+				end
+				if not advertised then
+					return finish(nil, "unknown slash command: /" .. name)
+				end
+				control = true
 			end
-			local action, name = command:match("^/report%s+(%S+)%s+(.+)$")
-			if action ~= "new" and action ~= "select" then
-				return finish(nil, "use /report new <name> or /report select <filename>")
-			end
-			local reports = require("aero.reports")
-			local ws
-			for _, tree in ipairs(worktrees()) do
-				if tree.path == selected.worktree then ws = { root = tree.workspace }; break end
-			end
-			local report, err
-			if action == "new" then
-				report, err = reports.create_file(selected.worktree, ws, name, "")
-			else
-				local choices
-				choices, err = reports.list(selected.worktree, ws)
-				for _, choice in ipairs(choices) do
-					if choice.name == name then report = choice; break end
+			if name == "report" then
+				local action, name = command:match("^/report%s+(%S+)%s+(.+)$")
+				if action ~= "new" and action ~= "select" then
+					return finish(nil, "use /report new <name> or /report select <filename>")
+				end
+				local reports = require("aero.reports")
+				local ws
+				for _, tree in ipairs(worktrees()) do
+					if tree.path == selected.worktree then
+						ws = { root = tree.workspace }
+						break
+					end
+				end
+				local report, err
+				if action == "new" then
+					report, err = reports.create_file(selected.worktree, ws, name, "")
+				else
+					local choices
+					choices, err = reports.list(selected.worktree, ws)
+					for _, choice in ipairs(choices) do
+						if choice.name == name then
+							report = choice
+							break
+						end
+					end
+				end
+				if not report then
+					return finish(nil, err or "report unavailable")
+				end
+				text = require("aero.config").options.reports.prompt:gsub("{path}", function()
+					return vim.json.encode(report.path)
+				end)
+				if rest ~= "" then
+					text = text .. "\n\n" .. rest
 				end
 			end
-			if not report then return finish(nil, err or "report unavailable") end
-			text = require("aero.config").options.reports.prompt:gsub("{path}", function()
-				return vim.json.encode(report.path)
-			end)
-			if rest ~= "" then text = text .. "\n\n" .. rest end
 		end
 		local queued = chat.state ~= "ready"
 			or chat.busy
@@ -294,7 +357,7 @@ function M.dispatch(method, params)
 			or chat.task_pending
 		finish({ status = "unknown" })
 		local binding = selected.task_binding
-		if binding and not binding.revoked then
+		if binding and not binding.revoked and not control then
 			text = table.concat({
 				"Current Aero assignment: workspace "
 					.. vim.json.encode(binding.workspace.root)

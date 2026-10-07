@@ -33,7 +33,8 @@ function M.open()
 	})
 end
 
-function M.worktrees()
+function M.worktrees(opts)
+	opts = opts or {}
 	store.load()
 	local items, errors = {}, {}
 	for _, ws in ipairs(store.data.workspaces) do
@@ -42,7 +43,9 @@ function M.worktrees()
 			table.insert(errors, ws.name .. ": " .. err)
 		end
 		for _, wt in ipairs(worktrees or {}) do
-			table.insert(items, { key = ws.root .. "::" .. wt.path, ws = ws, wt = wt })
+			if wt.path ~= opts.exclude then
+				table.insert(items, { key = ws.root .. "::" .. wt.path, ws = ws, wt = wt })
+			end
 		end
 	end
 	if #errors > 0 then
@@ -56,7 +59,7 @@ function M.worktrees()
 		return "  " .. (wt.branch or (wt.detached and "detached" or "checkout")) .. "  " .. path(wt.path)
 	end
 	picker.open({
-		title = "worktrees",
+		title = opts.title or "worktrees",
 		items = function()
 			return items
 		end,
@@ -74,7 +77,7 @@ function M.worktrees()
 			end
 			return a.wt.path < b.wt.path
 		end,
-		select = function(item)
+		select = opts.select or function(item)
 			require("aero").open_worktree(item.wt.path)
 		end,
 	})

@@ -119,6 +119,10 @@ return function(kind, legacy_id)
 		return match
 	end
 
+	function M.resolve(chat, argument)
+		return find(M.options(chat), argument)
+	end
+
 	function M.handle(chat, text)
 		text = vim.trim(text)
 		if text:find("[\r\n]") then

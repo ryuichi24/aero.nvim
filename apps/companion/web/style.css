@@ -721,6 +721,63 @@ details[open] > .markdown-body {
   display: block;
   margin: auto;
 }
+.mermaid-preview {
+  position: relative;
+}
+.mermaid-preview-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1;
+}
+.mermaid-preview-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px;
+  background: rgb(13 17 23 / 85%);
+  opacity: 0.7;
+  transition: opacity 150ms ease;
+}
+.mermaid-preview-controls button:hover,
+.mermaid-preview-controls button:focus-visible {
+  opacity: 1;
+}
+.mermaid-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: #0d1117;
+  color: inherit;
+}
+.mermaid-fullscreen[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mermaid-fullscreen .source-reader-toolbar {
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.mermaid-fullscreen-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.mermaid-fullscreen .markdown-mermaid svg {
+  width: 100%;
+  max-width: none !important;
+  height: auto;
+}
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;

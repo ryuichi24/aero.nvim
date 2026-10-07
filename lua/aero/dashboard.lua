@@ -1053,6 +1053,29 @@ function actions.add_workspace()
 	M.add_workspace()
 end
 
+function actions.move()
+	local item = current_item()
+	if not item or item.kind ~= "report" then
+		return
+	end
+	require("aero.workspaces").worktrees({
+		title = "move report to worktree",
+		exclude = item.wt.path,
+		select = function(destination)
+			local wt, ws = destination.wt, destination.ws
+			local report, move_err = reports.move(item.report, wt.path, ws)
+			if not report then
+				notify(move_err, vim.log.levels.WARN)
+				return
+			end
+			state.expanded[wt.path], state.reports_expanded[wt.path] = true, true
+			store.set_expanded(ws.root, true)
+			item.id = "report:" .. report.path
+			M.render()
+		end,
+	})
+end
+
 function actions.rename()
 	local item = current_item()
 	if not item then
@@ -1422,6 +1445,7 @@ local descriptions = {
 	add_workspace = "add workspace",
 	delete = "delete selected item: session (confirm) / report (confirm) / worktree / workspace",
 	rename = "rename selected session, report, or board",
+	move = "move selected report to another worktree",
 	yank_name = "copy selected item name",
 	yank_path = "copy selected item absolute path",
 	stop = "stop session",

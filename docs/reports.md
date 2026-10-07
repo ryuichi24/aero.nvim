@@ -25,6 +25,12 @@ add your task before sending. Terminal agents receive bracketed paste.
 Reports appear in an expandable section beneath each worktree. `<CR>` opens a report
 in code; `<C-v>` / `<C-x>` / `<C-t>` open a split/tab. **New +** or `a` in this section
 creates and opens a report. `N` renames it; `d` confirms deletion of its file.
+Press `m` on a report to move it to another worktree in any registered workspace.
+The searchable picker groups destinations under workspace headings, just like
+`aero.worktrees()`, and shows each worktree's branch and path.
+The filename is retained and the destination uses your configured report storage.
+Existing files or destination buffers are never overwritten; open report buffers
+follow the new path with unsaved edits preserved. Customize the key with `keymaps.move`.
 Session deletion is independent. `R` refreshes after external changes; Markdown writes
 and agent activity also refresh the list.
 

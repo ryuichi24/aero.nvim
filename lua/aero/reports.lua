@@ -174,6 +174,46 @@ function M.rename(report, callback)
 	end)
 end
 
+--- Move the saved file while retaining any open buffer and its unsaved edits.
+function M.move(report, worktree, ws)
+	local directory, err = M.directory(worktree, ws)
+	if not directory then
+		return nil, err
+	end
+	local path = vim.fs.joinpath(directory, report.name)
+	if canonical(path) == canonical(report.path) then
+		return nil, "report is already in that directory"
+	end
+	if vim.uv.fs_lstat(path) then
+		return nil, "a report with that name already exists"
+	end
+	if vim.fn.bufnr(path) ~= -1 then
+		return nil, "a buffer with that report name already exists"
+	end
+	local ok, mkdir_err = pcall(vim.fn.mkdir, directory, "p")
+	if not ok then
+		return nil, "could not create report directory: " .. tostring(mkdir_err)
+	end
+	-- Exclusive copy also supports destinations on another filesystem.
+	local copied, copy_err = vim.uv.fs_copyfile(report.path, path, 1)
+	if not copied then
+		return nil, "could not move report: " .. tostring(copy_err)
+	end
+	local removed, remove_err = vim.uv.fs_unlink(report.path)
+	if not removed then
+		local cleaned, cleanup_err = vim.uv.fs_unlink(path)
+		return nil,
+			"could not remove source report: "
+				.. tostring(remove_err)
+				.. (not cleaned and ("; destination copy retained at " .. path .. ": " .. tostring(cleanup_err)) or "")
+	end
+	local buf = vim.fn.bufnr(report.path)
+	if buf ~= -1 then
+		api.nvim_buf_set_name(buf, path)
+	end
+	return { name = report.name, path = path }
+end
+
 function M.attach(s, path)
 	if not vim.tbl_contains(sessions.all(), s) then
 		return

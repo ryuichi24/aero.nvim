@@ -171,6 +171,7 @@ M.defaults = {
 		stop = "s",
 		restart = "r",
 		rename = "N",
+		move = "m",
 		refresh = "R",
 		yank_name = "yy",
 		yank_path = "yY",

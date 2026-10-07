@@ -468,10 +468,38 @@ The opt-in defaults to `false` and does not require disabling authentication.
   You can also type `/report new <name>` or `/report select <filename.md>`
   directly, with additional instructions on subsequent lines. Existing files
   are never overwritten by creation, and retries reuse the original receipt.
-  Other remote slash commands are rejected. Use the dedicated cancellation button.
+- Type **`/`** to see built-in commands and commands advertised by the current
+  agent. Selecting a command updates the draft; send it when ready.
+- **`/model`** and **`/mode`** show the agent's available choices in the companion.
+  Select a choice, then send, or type `/model <id>` / `/mode <id>` directly.
+  Unambiguous display names also work. Changes queue while the agent is busy.
+- **`/cancel`** cancels the current turn and clears queued prompts, just like
+  **Cancel turn & queue**.
+- **`/export`** saves the original conversation as Markdown on the host and
+  displays its path, including for stopped or exited sessions. Choose the AI-formatted-copy option, or send
+  **`/export readable`**, to additionally create a readable copy using a separate
+  agent conversation and tokens. No Neovim picker opens for remote exports.
+- **`/new-ticket <requirements>`** asks the agent to create a ticket through Aero
+  MCP tools. Assign a board first using the companion's **Assign board** controls;
+  these controls also appear beneath an unassigned `/new-ticket` draft.
+- Agent-advertised commands, such as `/compact`, are sent verbatim to that agent,
+  including their arguments. Availability depends on the agent's ACP adapter.
+  Unknown commands are reported as errors.
 
 The bridge polls Neovim every 500 ms for connected streams and sends changed
 authoritative snapshots over Server-Sent Events, with an epoch/revision cursor.
+
+Transcript messages referencing a Markdown file in the session worktree's report
+directory include a collapsed inline report card. **Show report** opens the current
+file contents; **Hide report** collapses it. Expanded reports refresh every five
+seconds while connected and offer manual refresh and source/preview controls.
+Report previews are detected from file paths, rather than a persistent session
+attachment record.
+
+Each rendered Mermaid diagram has a fullscreen icon in its bottom-right corner.
+Fullscreen diagrams support zoom up to 500%, scrolling, and reset. Press Escape
+or **Exit fullscreen diagram** to return to the logs. These controls also work
+inside fullscreen Transcript and inline report previews.
 Registered workspaces' Git worktree metadata is refreshed at most every five
 seconds; session-only worktrees are also included.
 The browser replaces session/transcript/inbox state rather than appending replay

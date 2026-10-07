@@ -11,6 +11,7 @@ import { CompanionProvider, useCompanionDispatch, useCompanionState } from './co
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
 import { ReportCommand } from './report-command';
+import { SlashCommands, slashPickerOpen } from './slash-commands';
 import { UIZoom } from './ui-zoom';
 import { AttentionSurface, FullscreenAttentionContext } from './fullscreen-attention';
 import { Screenshots } from './screenshots';
@@ -260,6 +261,7 @@ function Companion() {
       savePending(null);
       pendingRef.current = null;
       dispatch({ type: 'action-accepted', action, status });
+      if (response.result.message) dispatch({ type: 'notice', message: response.result.message });
       if (response.result.session) {
         resumedRef.current = response.result.session;
         const current = client
@@ -334,6 +336,9 @@ function Companion() {
     session.status === 'stopped' ||
     !!session.assignment?.pending ||
     !!pending;
+  const composerDisabled = /^\/export(?: readable)?$/.test(prompt.trim())
+    ? !online || !session?.conversation || !!pending
+    : disabled;
   const location = useMemo(
     () => (snapshot ? sessionLocation(groupSessions(snapshot), selected) : undefined),
     [snapshot, selected],
@@ -784,13 +789,18 @@ function Companion() {
             <Transcript
               key={`${selected.id}:${selected.conversation}`}
               session={session}
+              reportsDirectory={
+                snapshot?.worktrees.find((tree) => tree.path === session?.worktree)
+                  ?.reports_directory
+              }
+              online={!!snapshot?.connected}
               active={view === 'conversation'}
               composer={
                 <form
                   id="compose"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (prompt.trim() === '/report') return;
+                    if (slashPickerOpen(prompt)) return;
                     act('prompt', { text: prompt });
                   }}
                 >
@@ -798,12 +808,22 @@ function Companion() {
                     Follow-up prompt
                     <textarea
                       rows={3}
-                      placeholder="What should the agent do next? Type /report to choose a report."
+                      placeholder="What should the agent do next? Type / for commands."
                       required
                       value={prompt}
                       onChange={(event) => dispatch({ type: 'draft', value: event.target.value })}
                     />
                   </label>
+                  {session && snapshot && (
+                    <SlashCommands
+                      prompt={prompt}
+                      session={session}
+                      snapshot={snapshot}
+                      disabled={composerDisabled}
+                      onChoose={(value) => dispatch({ type: 'draft', value })}
+                      onAction={act}
+                    />
+                  )}
                   {session && prompt.trim() === '/report' && (
                     <ReportCommand
                       key={`${session.id}:${session.conversation}`}
@@ -812,7 +832,11 @@ function Companion() {
                       onChoose={(value) => dispatch({ type: 'draft', value })}
                     />
                   )}
-                  <button className="primary-action" id="send" disabled={disabled}>
+                  <button
+                    className="primary-action"
+                    id="send"
+                    disabled={composerDisabled || slashPickerOpen(prompt)}
+                  >
                     Send prompt
                   </button>
                   <button

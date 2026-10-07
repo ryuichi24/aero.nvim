@@ -224,7 +224,7 @@ local function readable(chat, path, source)
 	vim.notify("Aero: creating readable log…")
 end
 
-function M.export(chat)
+function M.export(chat, opts)
 	local text = M.markdown(chat)
 	local name = os.date("%Y%m%d-%H%M%S") .. "-" .. chat.s.name:gsub("[^%w_-]", "-")
 	local dir = M.directory(chat.s.worktree)
@@ -238,6 +238,12 @@ function M.export(chat)
 		return
 	end
 	vim.notify("Aero: exported log: " .. path)
+	if opts then
+		if opts.readable then
+			readable(chat, path:gsub("%.md$", "-readable.md"), text)
+		end
+		return path
+	end
 	vim.ui.select({ "Keep original only", "Create AI-formatted copy" }, {
 		prompt = "Also create a readable copy? (uses a new agent conversation and tokens)",
 	}, function(choice)

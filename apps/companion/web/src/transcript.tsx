@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Markdown } from './markdown';
+import { attachedReports, ReportPreview } from './report-preview';
 import { FullscreenAttention } from './fullscreen-attention';
 import type { Session, TranscriptBlock } from './types';
 import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
@@ -130,11 +131,15 @@ export function Transcript({
   active = true,
   composer,
   feedback,
+  reportsDirectory,
+  online = false,
 }: {
   session?: Session;
   active?: boolean;
   composer?: ReactNode;
   feedback?: ReactNode;
+  reportsDirectory?: string;
+  online?: boolean;
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [inputVisible, setInputVisible] = useState(true);
@@ -280,6 +285,16 @@ export function Transcript({
                 }}
               >
                 <Block block={block} />
+                {session &&
+                  reportsDirectory &&
+                  attachedReports(block, reportsDirectory).map((name) => (
+                    <ReportPreview
+                      key={name}
+                      worktree={session.worktree}
+                      name={name}
+                      online={online}
+                    />
+                  ))}
               </div>
             ))}
             {!!session?.queue?.length && (

@@ -71,6 +71,51 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('selects slash-command options in the companion and submits the session-scoped command', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect({
+      ...initial,
+      sessions: [
+        {
+          ...initial.sessions[0],
+          models: { current: 'one', choices: [{ id: 'two', name: 'Second' }] },
+        },
+      ],
+    });
+    await open();
+    draft('/model');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send prompt' }).disabled).toBe(
+      true,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Second (two)' }));
+    expect(fetch).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Send prompt' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      text: '/model two',
+      session: 'stable-session',
+      conversation: 'generation-1',
+    });
+  });
+
+  it('exports an exited session and displays the saved host path', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        response({ result: { status: 'accepted', message: 'Exported log: /host/log.md' } }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect({ ...initial, sessions: [{ ...initial.sessions[0], status: 'exited' }] });
+    await open();
+    draft('/export');
+    await userEvent.click(screen.getByRole('button', { name: 'Send prompt' }));
+    expect(await screen.findByText('Exported log: /host/log.md')).toBeTruthy();
+    expect(JSON.parse(fetch.mock.calls[0][1].body).text).toBe('/export');
+  });
+
   it('opens attention inside fullscreen logs and persists the fullscreen control setting', async () => {
     const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
     vi.stubGlobal('fetch', fetch);

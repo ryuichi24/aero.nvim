@@ -2,8 +2,82 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Transcript } from './transcript';
 import type { Session } from './types';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { attachedReports } from './report-preview';
 
 afterEach(cleanup);
+it('recognizes quoted report paths and resource attachments only in the report directory', () => {
+  expect(
+    attachedReports(
+      {
+        kind: 'user',
+        text: 'Report file: "/data/reports/design notes.md"\nRead it.',
+        content: [
+          { content: { uri: 'file:///data/reports/design%20notes.md' } },
+          { content: { uri: 'file:///data/reports/other.md' } },
+          { content: { uri: 'file:///elsewhere/private.md' } },
+          { content: { uri: 'file:///data/reports/../private.md' } },
+        ],
+      },
+      '/data/reports',
+    ),
+  ).toEqual(['design notes.md', 'other.md']);
+});
+it('previews an attached report in Transcript and refreshes it while keeping the composer available', async () => {
+  const fetch = vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(
+      new Response(JSON.stringify({ content: '# Findings\n\nInitial report' }), { status: 200 }),
+    );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  try {
+    render(
+      <QueryClientProvider client={client}>
+        <Transcript
+          session={{
+            ...session,
+            blocks: [{ kind: 'user', text: 'Report file: "/data/reports/review.md"' }],
+          }}
+          reportsDirectory="/data/reports"
+          online
+          composer={<textarea aria-label="Feedback" />}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Show report' }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+    expect(screen.queryByRole('heading', { name: 'Findings' })).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Show report' }));
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeTruthy();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/reports',
+      expect.objectContaining({
+        body: JSON.stringify({ worktree: '/workspace', path: 'review.md' }),
+      }),
+    );
+    expect(screen.getByRole('textbox', { name: 'Feedback' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show source' }));
+    expect(screen.getByText('# Findings Initial report').textContent).toBe(
+      '# Findings\n\nInitial report',
+    );
+    fetch.mockResolvedValue(
+      new Response(JSON.stringify({ content: '# Updated findings' }), { status: 200 }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh report' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show preview' }));
+    expect(await screen.findByRole('heading', { name: 'Updated findings' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide report' }));
+    expect(screen.queryByRole('heading', { name: 'Updated findings' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show report' }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+  } finally {
+    client.clear();
+    fetch.mockRestore();
+  }
+});
 it.each([false, true])(
   'navigates prompt history with fullscreen=%s and pauses live following',
   (fullscreen) => {

@@ -34,6 +34,9 @@ export interface TranscriptBlock {
 }
 
 export interface Session {
+  commands?: { name: string; description?: string; input?: { hint?: string } }[];
+  models?: SessionChoices;
+  modes?: SessionChoices;
   assignment?: {
     workspace_root: string;
     board_id: string;
@@ -57,6 +60,11 @@ export interface Session {
   target?: string;
 }
 
+export interface SessionChoices {
+  current?: string;
+  choices: { id: string; name: string; description?: string; group?: string }[];
+}
+
 export interface InboxEvent {
   id: string;
   session: string;
@@ -75,7 +83,13 @@ export interface Snapshot {
   sessions: Session[];
   inbox: InboxEvent[];
   workspaces: { root: string; name: string; expanded?: boolean }[];
-  worktrees: { path: string; workspace?: string; branch?: string; target?: string }[];
+  worktrees: {
+    path: string;
+    workspace?: string;
+    branch?: string;
+    target?: string;
+    reports_directory?: string;
+  }[];
   epoch?: string;
   agents?: string[];
 }
@@ -120,5 +134,5 @@ export interface PendingAction {
   data: ActionData;
 }
 export interface ActionResponse {
-  result: { status: 'accepted' | 'queued' | 'unknown'; session?: string };
+  result: { status: 'accepted' | 'queued' | 'unknown'; session?: string; message?: string };
 }

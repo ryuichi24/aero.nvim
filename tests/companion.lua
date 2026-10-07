@@ -81,7 +81,9 @@ assert(not s.chat.permission)
 config.options.reports.directory = dir .. "/reports"
 local sent
 local original_prompt = s.chat.prompt
-s.chat.prompt = function(_, text) sent = text end
+s.chat.prompt = function(_, text)
+	sent = text
+end
 local report_request = params("report-0000000001", { text = "/report new investigation\nFocus on startup." })
 assert(bridge.dispatch("prompt", report_request).status == "accepted")
 assert(sent:find("investigation.md", 1, true) and sent:find("Focus on startup.", 1, true))
@@ -91,6 +93,62 @@ result, err = bridge.dispatch("prompt", params("report-0000000003", { text = "/r
 assert(not result and err == "report unavailable")
 result, err = bridge.dispatch("prompt", params("report-0000000004", { text = "/report new ../escape" }))
 assert(not result and err:find("directory separators"))
+-- Remote selectors and provider commands never open editor-local pickers.
+s.chat.config_options = {
+	{
+		id = "model",
+		type = "select",
+		category = "model",
+		currentValue = "one",
+		options = {
+			{ value = "one", name = "First" },
+			{ value = "two", name = "Second" },
+		},
+	},
+	{
+		id = "mode",
+		type = "select",
+		category = "mode",
+		currentValue = "plan",
+		options = {
+			{ value = "plan", name = "Plan" },
+			{ value = "build", name = "Build" },
+		},
+	},
+}
+s.chat.commands = { { name = "compact", description = "Compact context" } }
+local metadata = bridge.dispatch("snapshot").sessions[1]
+assert(metadata.models.choices[2].id == "two" and metadata.modes.current == "plan")
+assert(metadata.commands[1].name == "compact")
+local binding = s.task_binding
+s.task_binding = { workspace = { root = s.worktree }, board_id = "fixture" }
+assert(bridge.dispatch("prompt", params("command-00000001", { text = "/model Second" })))
+assert(sent == "/model two", "assignment prefix broke model command")
+assert(bridge.dispatch("prompt", params("command-00000002", { text = "/mode build" })))
+assert(sent == "/mode build")
+assert(bridge.dispatch("prompt", params("command-00000003", { text = "/compact keep notes" })))
+assert(sent == "/compact keep notes", "provider command was rewritten")
+result, err = bridge.dispatch("prompt", params("command-00000004", { text = "/model" }))
+assert(not result and err:find("choose an available"))
+result, err = bridge.dispatch("prompt", params("command-00000005", { text = "/mode missing" }))
+assert(not result and err:find("unknown or ambiguous"))
+result, err = bridge.dispatch("prompt", params("command-00000006", { text = "/unknown" }))
+assert(not result and err:find("unknown slash command"))
+local servers = s.mcp_servers
+s.mcp_servers = { { name = "fixture" } }
+assert(bridge.dispatch("prompt", params("command-00000007", { text = "/new-ticket Investigate startup" })))
+assert(sent:find("aero_create_ticket", 1, true) and sent:find("Investigate startup", 1, true))
+s.task_binding, s.mcp_servers = binding, servers
+result, err = bridge.dispatch("prompt", params("command-00000008", { text = "/new-ticket" }))
+assert(not result and err:find("Assign a board"))
+config.options.exports.location = "data"
+local exported = bridge.dispatch("prompt", params("command-00000009", { text = "/export" }))
+assert(exported.status == "accepted" and exported.message:find("Exported log:", 1, true))
+assert(bridge.dispatch("prompt", params("command-00000009", { text = "/export" })).message == exported.message)
+local export_path = exported.message:sub(#"Exported log: " + 1)
+assert(vim.uv.fs_stat(export_path))
+vim.fn.delete(export_path)
+assert(bridge.dispatch("prompt", params("command-00000010", { text = "/cancel" })).status == "accepted")
 s.chat.prompt = original_prompt
 -- Replacement chats and in-place ACP conversation changes both invalidate action targets.
 local old = s.chat
