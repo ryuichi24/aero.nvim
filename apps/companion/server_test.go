@@ -440,6 +440,10 @@ func TestHTTPSConfigurationAndUnavailableHost(t *testing.T) {
 func TestEmbeddedReactAssetsAndNarrowRoutes(t *testing.T) {
 	c := newClient(t, hostFunc(fakeSnapshot))
 	response := c.request("GET", "/", nil, "")
+	policy := response.Header.Get("Content-Security-Policy")
+	if !strings.Contains(policy, "style-src 'self' 'unsafe-inline';") || !strings.Contains(policy, "script-src 'self';") {
+		t.Fatal("embedded UI must allow Mermaid styles while restricting scripts to self")
+	}
 	data, _ := io.ReadAll(response.Body)
 	response.Body.Close()
 	if response.StatusCode != 200 || !bytes.Contains(data, []byte(`id="root"`)) || !bytes.Contains(data, []byte(`/assets/`)) {

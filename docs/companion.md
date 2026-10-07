@@ -443,6 +443,11 @@ The opt-in defaults to `false` and does not require disabling authentication.
   updates stay in the same message and follow the output only while you are
   reading at the bottom. Raw HTML is not executed and images are shown as
   descriptive labels rather than fetched while browsing.
+- Fenced `mermaid` blocks render as diagrams. If an agent wraps a single diagram
+  in a `markdown` or `md` code block, Aero automatically previews it with a
+  **View source** control. Mixed Markdown examples keep their source visible and
+  offer **Preview diagram** (or **Preview diagrams**). Invalid diagrams retain
+  their source with a rendering error. Previewing does not modify saved logs.
 - Browse sessions or the attention inbox; opening either only reads existing
   state. It does not start/resume an agent, answer permissions, mark an inbox
   item read, or change a ticket state.

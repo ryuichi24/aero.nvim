@@ -4,6 +4,17 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import 'highlight.js/styles/github-dark.css';
 import { ImageLink, useImageLink, useVideoLink } from './image-link';
+import { Mermaid } from './mermaid';
+import { MarkdownMermaidPreview } from './markdown-mermaid-preview';
+
+interface CodeNode {
+  value?: string;
+  children?: CodeNode[];
+}
+
+function codeText(node: CodeNode): string {
+  return node.value || node.children?.map(codeText).join('') || '';
+}
 
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   const imageLink = useImageLink();
@@ -22,6 +33,31 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
             : defaultUrlTransform(url)
         }
         components={{
+          pre: ({ node, children }) => {
+            const code = node?.children[0];
+            if (
+              code?.type === 'element' &&
+              code.tagName === 'code' &&
+              Array.isArray(code.properties.className)
+            ) {
+              const source = codeText(code);
+              if (code.properties.className.includes('language-mermaid')) {
+                return <Mermaid source={source} />;
+              }
+              if (
+                code.properties.className.some(
+                  (name) => name === 'language-markdown' || name === 'language-md',
+                )
+              ) {
+                return (
+                  <MarkdownMermaidPreview key={source} source={source}>
+                    {children}
+                  </MarkdownMermaidPreview>
+                );
+              }
+            }
+            return <pre>{children}</pre>;
+          },
           a: ({ href, children, title }) =>
             imageLink(href) ? (
               <ImageLink href={imageLink(href)!} title={title}>

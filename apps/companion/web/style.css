@@ -710,6 +710,17 @@ details[open] > .markdown-body {
   overflow-x: auto;
   margin: 0.8em 0;
 }
+.markdown-mermaid {
+  overflow-x: auto;
+  margin: 0.8em 0;
+  padding: 12px;
+  background: #0d1117;
+  border-radius: 7px;
+}
+.markdown-mermaid svg {
+  display: block;
+  margin: auto;
+}
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;
