@@ -73,6 +73,7 @@ require("aero").setup({
     show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
   },
   companion = {
+    auto_start = false, -- launch the companion and show pairing after setup
     executable = false, -- auto-detect a local build, installed release, or aero-companion on PATH
     devices_file = false, -- private origin-scoped remembered devices under stdpath("data")/Aero/companion
     bind = "127.0.0.1",

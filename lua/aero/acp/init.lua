@@ -984,6 +984,12 @@ function Chat:get_prompt_buf()
 	map("n", "<CR>", with_chat("send_prompt_buf"), "send prompt")
 	-- Enter handles local draft actions; other drafts keep normal newlines.
 	vim.keymap.set("i", "<CR>", function()
+		if require("aero.acp.path_menu").accept(buf) then return end
+		if vim.fn.pumvisible() == 1 then
+			local keys = vim.fn.complete_info({ "selected" }).selected == -1 and "<C-n><C-y>" or "<C-y>"
+			api.nvim_feedkeys(api.nvim_replace_termcodes(keys, true, false, true), "in", false)
+			return
+		end
 		local text = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
 		if vim.trim(text) == "/report" or vim.trim(text) == "/cancel" or vim.trim(text) == "/export" then
 			with_chat("send_prompt_buf")()
@@ -996,6 +1002,7 @@ function Chat:get_prompt_buf()
 	-- complete the agent's slash commands with <C-x><C-o>
 	vim.bo[buf].omnifunc = "v:lua.require'aero.acp'.omnifunc"
 	vim.b[buf].aero_chat_key = self.s.key
+	require("aero.acp.completion").setup(buf, self.s.worktree)
 	require("aero.fullscreen").bind(buf)
 	return buf
 end

@@ -34,6 +34,11 @@ jobs:
       - run: make check-all
       - run: go -C apps test -race ./mcp/...
       - run: nvim --headless -u NONE -l tests/tasks_install.lua
+      - name: Check prompt suggestions and inline paths
+        run: |
+          nvim --headless -u NONE -l tests/prompt_completion.lua
+          nvim --headless -u NONE -l tests/prompt_paths.lua
+          nvim --headless -u NONE -c 'luafile tests/prompt_paths_inline.lua'
       - run: pnpm --dir apps/companion/web run format:check
       - name: Package both host tools
         env:

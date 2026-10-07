@@ -67,8 +67,30 @@ The prompt is a regular Markdown buffer; closing it retains the draft.
 | `:w` / `<C-s>` | Send (Ctrl-s works in normal and insert mode) |
 | `<CR>` | Send in normal mode |
 | `<C-x><C-o>` | Complete slash commands |
+| `<Tab>` / `<S-Tab>` | Next / previous suggestion in the automatic slash-command menu |
+| `@` (insert mode) | Show inline fuzzy suggestions for worktree files and folders |
 | `q` | Close in normal mode |
 | `<C-c>` | Cancel the turn |
+
+Slash-command suggestions appear automatically as you type `/`, including agent-provided
+commands and descriptions. `/model ` and `/mode ` suggest available IDs. Use Tab/Shift-Tab,
+Ctrl-n/Ctrl-p, or the arrow keys to navigate; Enter accepts a suggestion (the first
+one if none is selected). Ctrl-e dismisses the menu. Accepting a suggestion does not
+send the prompt; press Enter again to run `/report`, `/export`, or `/cancel`.
+
+Type `@` anywhere after whitespace in your draft to suggest worktree paths inline.
+Keep typing to fuzzy-filter the list (for example, `@sne` can match
+`src/nested/example.lua`). Use the same navigation keys and Enter to insert the
+selected `@path`. Folder paths end in `/`, and paths containing spaces are quoted.
+The menu appears below the query, or above the draft line when space below is
+limited, keeping wrapped text visible. Navigation leaves your query unchanged
+until you press Enter. The menu stays within the panel's width; Ctrl-e dismisses it so you can
+continue typing a literal mention. Git worktrees exclude ignored paths.
+
+Ctrl-n moves down and Ctrl-p moves up in the path suggestions without changing
+your query. Aero disables native LSP completion and the default completion of
+nvim-cmp, blink.cmp, mini.completion, and coc.nvim in its prompt buffers to keep
+their suggestions from overlapping Aero's menu.
 
 `:Aero cancel` selects the focused/dashboard-selected ACP agent or the current tab's
 panel session, even if hidden. `/cancel` also works. Cancellation discards queued

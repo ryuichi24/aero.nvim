@@ -1,9 +1,57 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { Transcript } from './transcript';
 import type { Session } from './types';
 
 afterEach(cleanup);
+it.each([false, true])(
+  'navigates prompt history with fullscreen=%s and pauses live following',
+  (fullscreen) => {
+    const blocks = [
+      { kind: 'user', text: 'First question\nwith context' },
+      { kind: 'agent', text: 'Response' },
+      { kind: 'user', text: 'Second question' },
+    ];
+    const view = render(<Transcript session={{ ...session, blocks, queue: ['Unsent prompt'] }} />);
+    if (fullscreen) {
+      const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+      dialog.showModal = () => dialog.setAttribute('open', '');
+      dialog.close = () => dialog.removeAttribute('open');
+      fireEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    }
+    const region = screen.getByRole('region', { name: 'Conversation transcript' });
+    Object.defineProperties(region, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 200 },
+    });
+    region.scrollTop = 0;
+    const target = screen.getAllByRole('article', { name: 'You message' })[1].parentElement!;
+    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ top: 100 } as DOMRect);
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({ top: 400 } as DOMRect);
+    fireEvent.click(screen.getByRole('button', { name: 'Prompts (2)' }));
+    expect(screen.getByRole('button', { name: '1. First question with context' })).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search prompts' }), {
+      target: { value: 'SECOND' },
+    });
+    expect(screen.queryByRole('button', { name: '1. First question with context' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '2. Second question' }));
+    expect(region.scrollTop).toBe(300);
+    expect(document.activeElement).toBe(target);
+    expect(screen.queryByRole('navigation', { name: 'Prompt history' })).toBeNull();
+    view.rerender(
+      <Transcript
+        session={{ ...session, blocks: [...blocks, { kind: 'agent', text: 'Live output' }] }}
+      />,
+    );
+    expect(region.scrollTop).toBe(300);
+    view.rerender(<Transcript session={{ ...session, id: 'two' }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Prompts (0)' }));
+    expect(screen.getByText('No prompts yet.')).toBeTruthy();
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Search prompts' }).value).toBe(
+      '',
+    );
+  },
+);
 it('keeps log state and live updates in fullscreen and restores focus on exit', () => {
   const { rerender } = render(
     <Transcript session={{ ...session, blocks: [{ kind: 'tool', title: 'Read file' }] }} />,
@@ -12,6 +60,10 @@ it('keeps log state and live updates in fullscreen and restores focus on exit', 
   dialog.showModal = () => dialog.setAttribute('open', '');
   dialog.close = () => dialog.removeAttribute('open');
   const transcript = screen.getByRole('region', { name: 'Conversation transcript' });
+  Object.defineProperties(transcript, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 200 },
+  });
   const tool = screen.getByText('Read file').closest('details')!;
   tool.open = true;
   transcript.scrollTop = 120;
@@ -20,8 +72,9 @@ it('keeps log state and live updates in fullscreen and restores focus on exit', 
   fireEvent.click(button);
   expect(dialog.contains(transcript)).toBe(true);
   expect(tool.open).toBe(true);
-  expect(transcript.scrollTop).toBe(120);
+  expect(transcript.scrollTop).toBe(1000);
   expect(document.body.style.overflow).toBe('hidden');
+  Object.defineProperty(transcript, 'scrollHeight', { configurable: true, value: 1200 });
   rerender(
     <Transcript
       session={{
@@ -34,6 +87,7 @@ it('keeps log state and live updates in fullscreen and restores focus on exit', 
     />,
   );
   expect(dialog.textContent).toContain('Live update');
+  expect(transcript.scrollTop).toBe(1200);
   fireEvent(dialog, new Event('cancel', { bubbles: true }));
   expect(dialog.hasAttribute('open')).toBe(false);
   expect(dialog.contains(transcript)).toBe(false);

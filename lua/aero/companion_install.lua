@@ -107,6 +107,11 @@ function M.install()
 	local temp = release.path .. "." .. tostring(uv.hrtime()) .. ".download"
 	local checksums = temp .. ".checksums"
 	vim.notify("Aero: downloading companion v" .. release.version)
+	local progress = require("aero.exports_progress").start(release.name, {
+		title = " Companion installation ",
+		stage = "Downloading release checksums",
+		redraw = true,
+	})
 	local ok, installed, install_err = pcall(function()
 		vim.fn.mkdir(vim.fs.dirname(release.path), "p")
 		local success, reason = download(release.base .. "SHA256SUMS", checksums)
@@ -127,10 +132,12 @@ function M.install()
 		if not expected then
 			return nil, "companion binary missing from release SHA256SUMS: " .. release.name
 		end
+		progress.update("Downloading companion binary")
 		success, reason = download(release.base .. release.name, temp)
 		if not success then
 			return nil, reason
 		end
+		progress.update("Verifying SHA-256 checksum")
 		local cmd = hasher == "sha256sum" and { hasher, temp } or { hasher, "-a", "256", temp }
 		local result = vim.system(cmd, { text = true }):wait(10000)
 		local actual = (result.stdout or ""):match("^(%x+)")
@@ -139,13 +146,16 @@ function M.install()
 		end
 		success, reason = uv.fs_chmod(temp, 493)
 		if success then
+			progress.update("Checking companion version")
 			success, reason = version_matches(temp, release.version)
 		end
 		if success then
+			progress.update("Installing companion")
 			success, reason = uv.fs_rename(temp, release.path)
 		end
 		return success and release.path or nil, reason
 	end)
+	progress.close()
 	uv.fs_unlink(temp)
 	uv.fs_unlink(checksums)
 	if not ok or not installed then

@@ -235,6 +235,8 @@ URL and six-digit pairing code in a popup. The embedded React/TypeScript UI lets
 you monitor ACP agents from a phone, send queued follow-ups, cancel turns, and answer live
 permissions. Supports external SSH tunnels and explicitly configured HTTPS over
 local Wi-Fi/private VPNs. Paired devices are remembered across restarts.
+Set `companion = { auto_start = true }` in `require("aero").setup()` to launch
+the installed companion and show pairing automatically after setup.
 See [mobile companion setup](docs/companion.md) for
 pairing, revocation, startup, and reconnect limitations. The host and Neovim must
 remain running.

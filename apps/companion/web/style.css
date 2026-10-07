@@ -463,6 +463,26 @@ form#pair {
   @apply min-w-0 flex-1;
   overflow-wrap: anywhere;
 }
+.transcript-prompts {
+  @apply mb-3 shrink-0 rounded-xl border border-slate-700 p-3;
+  max-height: 35dvh;
+  overflow: auto;
+}
+.transcript-prompts input {
+  width: 100%;
+}
+.transcript-prompts ol {
+  @apply mt-2 flex list-none flex-col gap-2 p-0;
+}
+.transcript-prompts button {
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#transcript > div {
+  margin-bottom: 0.75rem;
+}
 .transcript-fullscreen .log-composer {
   flex-shrink: 0;
   max-height: 45dvh;

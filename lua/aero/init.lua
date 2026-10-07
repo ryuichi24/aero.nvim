@@ -17,6 +17,13 @@ function M.setup(opts)
 	end
 	did_setup = true
 	require("aero.events").emit("setup", {})
+	if require("aero.config").options.companion.auto_start then
+		vim.schedule(function()
+			if require("aero.config").options.companion.auto_start then
+				require("aero.companion").command("start")
+			end
+		end)
+	end
 end
 
 --- Register a lifecycle handler. Returns an unsubscribe function.

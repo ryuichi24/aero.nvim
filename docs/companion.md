@@ -6,6 +6,12 @@ explicit permission choices. Neovim owns the
 agents, transcripts, queues, worktrees, and permissions. **The computer and
 Neovim must stay running.** Terminal agents are not supported by this MVP.
 
+In the session logs, use **Prompts** to browse and search your sent prompts.
+Select an entry to jump to its message in the transcript. This works in both
+normal and fullscreen logs and pauses live scrolling while you review history.
+Scroll back to the bottom to resume following new output. Queued prompts appear
+in the list after they are sent.
+
 ## Installation and startup
 
 ### Install from Neovim (recommended)
@@ -24,6 +30,10 @@ verifies its SHA-256 checksum and reported version, and installs it under
 `companion.executable` configuration is required. Installation requires `curl`
 and either `sha256sum` or `shasum`, but no Go, Node.js, or pnpm.
 
+Installation shows a non-focusable status popup with a spinner, elapsed time,
+and the current download, verification, or installation stage. It closes on
+success or failure; the final result appears in a notification.
+
 Failed downloads, checksum/version mismatches, or installation errors leave an
 existing binary intact. The release must already contain the companion binary
 and `SHA256SUMS`; unpublished development revisions require a source build.
@@ -41,6 +51,21 @@ For a lazy.nvim build hook:
   opts = {},
 }
 ```
+
+### Automatic startup
+
+To launch the installed companion automatically when Aero is set up:
+
+```lua
+require("aero").setup({
+  companion = { auto_start = true },
+})
+```
+
+`auto_start` defaults to `false`. Startup is scheduled after setup completes and
+uses the same pairing popup and error reporting as `:Aero companion start`.
+With a lazy-loaded plugin, this happens when the plugin loads. Install the binary
+first with `:Aero companion install` or build it from source.
 
 ### Manual binary installation
 

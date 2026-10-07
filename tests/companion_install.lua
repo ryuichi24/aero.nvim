@@ -32,12 +32,24 @@ vim.fn.stdpath = function(kind)
 	return kind == "data" and root .. "/data" or stdpath(kind)
 end
 local downloads, mode = 0, "success"
+local windows = #vim.api.nvim_list_wins()
 vim.system = function(cmd, opts, callback)
 	if cmd[1] ~= "curl" then
 		return system(cmd, opts, callback)
 	end
 	downloads = downloads + 1
 	local url, path = cmd[#cmd], cmd[#cmd - 1]
+	local progress_win
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.api.nvim_win_get_config(win).title then
+			progress_win = win
+		end
+	end
+	assert(progress_win, "download has no visible progress window")
+	local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(progress_win), 0, -1, false)
+	local stage = url:match("SHA256SUMS$") and "Downloading release checksums" or "Downloading companion binary"
+	assert(lines[1]:find(stage, 1, true), "incorrect download progress stage")
+	assert(lines[2] == asset, "progress should identify the release asset")
 	local base = "https://github.com/ryuichi24/aero.nvim/releases/download/v" .. release.version .. "/"
 	assert(url == base .. "SHA256SUMS" or url == base .. asset, "wrong release selected")
 	assert(vim.tbl_contains(cmd, "=https"))
@@ -64,6 +76,7 @@ local path, err = installer.resolve()
 assert(not path and err:find(":Aero companion install", 1, true))
 -- Exercise the actual user command; installation does not launch the bridge.
 vim.cmd("Aero companion install")
+assert(#vim.api.nvim_list_wins() == windows, "successful install left progress open")
 path = assert(installer.resolve())
 assert(path == vim.fs.joinpath(root, "data", "Aero", "bin", release.version, asset))
 assert(read(path) == binary)
@@ -78,6 +91,7 @@ end
 local function failure(kind, expected)
 	mode = kind
 	local result, message = installer.install()
+	assert(#vim.api.nvim_list_wins() == windows, "failed install left progress open")
 	assert(not result and message:find(expected, 1, true), tostring(message))
 	assert(read(path) == previous, "failed install replaced existing binary")
 	clean_directory()

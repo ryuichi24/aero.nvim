@@ -138,12 +138,23 @@ export function Transcript({
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [inputVisible, setInputVisible] = useState(true);
+  const [promptsVisible, setPromptsVisible] = useState(false);
+  const [promptSearch, setPromptSearch] = useState('');
+  const promptTargets = useRef(new Map<number, HTMLDivElement>());
+  const prompts = (session?.blocks || []).flatMap((block, index) =>
+    block.kind === 'user' ? [{ text: block.text || '', index }] : [],
+  );
   const [container] = useState(() => document.createElement('div'));
   const inline = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const element = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  useLayoutEffect(() => {
+    setPromptsVisible(false);
+    setPromptSearch('');
+    follow.current = true;
+  }, [session?.id, session?.conversation]);
   useLayoutEffect(() => {
     const scrollTop = element.current?.scrollTop || 0;
     const host = fullscreen ? dialog.current! : inline.current!;
@@ -154,6 +165,8 @@ export function Transcript({
     const overflow = document.body.style.overflow;
     modal.showModal();
     document.body.style.overflow = 'hidden';
+    follow.current = true;
+    if (element.current) element.current.scrollTop = element.current.scrollHeight;
     return () => {
       modal.close();
       document.body.style.overflow = overflow;
@@ -199,6 +212,52 @@ export function Transcript({
       </dialog>
       {createPortal(
         <>
+          <div className="transcript-toolbar">
+            <button
+              aria-expanded={promptsVisible}
+              aria-controls="transcript-prompts"
+              onClick={() => setPromptsVisible((value) => !value)}
+            >
+              Prompts ({prompts.length})
+            </button>
+          </div>
+          {promptsVisible && (
+            <nav id="transcript-prompts" className="transcript-prompts" aria-label="Prompt history">
+              <input
+                aria-label="Search prompts"
+                placeholder="Search prompts…"
+                value={promptSearch}
+                onChange={(event) => setPromptSearch(event.target.value)}
+              />
+              <ol>
+                {prompts.map((prompt, number) =>
+                  prompt.text.toLowerCase().includes(promptSearch.toLowerCase()) ? (
+                    <li key={prompt.index}>
+                      <button
+                        onClick={() => {
+                          const target = promptTargets.current.get(prompt.index);
+                          if (!target || !element.current) return;
+                          follow.current = false;
+                          setPromptsVisible(false);
+                          target.focus({ preventScroll: true });
+                          element.current.scrollTop +=
+                            target.getBoundingClientRect().top -
+                            element.current.getBoundingClientRect().top;
+                        }}
+                      >
+                        {number + 1}. {prompt.text.replace(/\s+/g, ' ').trim() || '(Empty prompt)'}
+                      </button>
+                    </li>
+                  ) : null,
+                )}
+              </ol>
+              {!prompts.length && <p>No prompts yet.</p>}
+              {!!prompts.length &&
+                !prompts.some((prompt) =>
+                  prompt.text.toLowerCase().includes(promptSearch.toLowerCase()),
+                ) && <p>No matching prompts.</p>}
+            </nav>
+          )}
           <div
             id="transcript"
             role="region"
@@ -212,7 +271,16 @@ export function Transcript({
             }}
           >
             {session?.blocks?.map((block, index) => (
-              <Block key={`${block.kind}:${block.id || index}`} block={block} />
+              <div
+                key={`${block.kind}:${block.id || index}`}
+                tabIndex={block.kind === 'user' ? -1 : undefined}
+                ref={(node) => {
+                  if (node && block.kind === 'user') promptTargets.current.set(index, node);
+                  else promptTargets.current.delete(index);
+                }}
+              >
+                <Block block={block} />
+              </div>
             ))}
             {!!session?.queue?.length && (
               <aside className="transcript-card queued-card" aria-label="Queued prompts">

@@ -3,11 +3,12 @@ local api = vim.api
 local spinner = require("aero.spinner")
 local M = {}
 
-function M.start(name)
+function M.start(name, opts)
+	opts = opts or {}
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].bufhidden = "wipe"
 	local started = vim.uv.now()
-	local stage, bytes = "Starting agent", 0
+	local stage, bytes = opts.stage or "Starting agent", 0
 	local width = math.max(1, math.min(64, vim.o.columns - 4))
 	local win = api.nvim_open_win(buf, false, {
 		relative = "editor",
@@ -18,7 +19,7 @@ function M.start(name)
 		style = "minimal",
 		border = "rounded",
 		focusable = false,
-		title = " Readable log export ",
+		title = opts.title or " Readable log export ",
 		zindex = 60,
 	})
 	local timer = vim.uv.new_timer()
@@ -32,6 +33,9 @@ function M.start(name)
 			text = text .. (" · %.1f KiB received"):format(bytes / 1024)
 		end
 		api.nvim_buf_set_lines(buf, 0, -1, false, { text, (tostring(name):gsub("[%c]", " ")) })
+		if opts.redraw then
+			vim.cmd.redraw()
+		end
 	end
 	render()
 	timer:start(150, 150, vim.schedule_wrap(render))
