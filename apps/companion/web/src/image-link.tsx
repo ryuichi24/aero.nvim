@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { FullscreenAttention } from './fullscreen-attention';
 
 export const ImageSession = createContext('');
 
@@ -76,6 +77,7 @@ export function ImageLink({
             >
               <header>
                 <h2>{label} preview</h2>
+                <FullscreenAttention />
                 <button ref={close} type="button" onClick={() => setOpen(false)}>
                   Close
                 </button>

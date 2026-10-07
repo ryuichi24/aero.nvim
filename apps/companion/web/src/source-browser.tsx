@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import hljs from 'highlight.js/lib/common';
 import { post } from './api';
 import { Markdown } from './markdown';
+import { FullscreenAttention } from './fullscreen-attention';
 import type { Snapshot } from './types';
 
 interface SourceResponse {
@@ -156,6 +157,7 @@ export function SourceBrowser({
         >
           {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         </button>
+        {fullscreen && <FullscreenAttention />}
       </div>
       {markdown && preview ? (
         <div className="source-preview" aria-label={`${path} preview`}>

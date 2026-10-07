@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Markdown } from './markdown';
+import { FullscreenAttention } from './fullscreen-attention';
 import type { Session, TranscriptBlock } from './types';
 import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
 
@@ -179,9 +180,11 @@ export function Transcript({
         className="transcript-fullscreen"
         aria-label="Fullscreen agent logs"
         onCancel={() => setFullscreen(false)}
+        onClose={() => setFullscreen(false)}
       >
         <header className="transcript-toolbar">
           <strong>{session?.name || 'Agent'} · Logs</strong>
+          {fullscreen && <FullscreenAttention />}
           {composer && (
             <button
               aria-expanded={inputVisible}

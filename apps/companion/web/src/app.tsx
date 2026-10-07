@@ -11,6 +11,7 @@ import { CompanionProvider, useCompanionDispatch, useCompanionState } from './co
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
 import { UIZoom } from './ui-zoom';
+import { AttentionSurface, FullscreenAttentionContext } from './fullscreen-attention';
 import { Screenshots } from './screenshots';
 import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
@@ -84,6 +85,74 @@ function Companion() {
   const resumedRef = useRef<string | null>(null);
   const [sourceVisited, setSourceVisited] = useState(false);
   const [reportsVisited, setReportsVisited] = useState(false);
+  const [attentionOpen, setAttentionOpen] = useState(false);
+  const [attentionHost, setAttentionHost] = useState<HTMLElement | null>(null);
+  const attentionOrigin = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!attentionHost) return;
+    const observer = new MutationObserver(() => {
+      if (
+        !attentionHost.isConnected ||
+        (attentionHost instanceof HTMLDialogElement && !attentionHost.open)
+      ) {
+        setAttentionOpen(false);
+        setAttentionHost(null);
+      }
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['open'],
+    });
+    return () => observer.disconnect();
+  }, [attentionHost]);
+  const [fullscreenAttention, setFullscreenAttention] = useState(() => {
+    try {
+      return localStorage.getItem('aero-companion-fullscreen-attention') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('aero-companion-fullscreen-attention', String(fullscreenAttention));
+    } catch {
+      // The setting remains usable without browser storage.
+    }
+  }, [fullscreenAttention]);
+  const [confirmUnpair, setConfirmUnpair] = useState(false);
+  const deviceMenu = useRef<HTMLDetailsElement>(null);
+  const unpairDialog = useRef<HTMLDialogElement>(null);
+
+  function dismissUnpair() {
+    setConfirmUnpair(false);
+    deviceMenu.current?.querySelector('summary')?.focus();
+  }
+
+  useEffect(() => {
+    if (!confirmUnpair || !unpairDialog.current) return;
+    const dialog = unpairDialog.current;
+    if (dialog.showModal) dialog.showModal();
+    else dialog.setAttribute('open', '');
+  }, [confirmUnpair]);
+  const attentionButton = useRef<HTMLButtonElement>(null);
+  const attentionClose = useRef<HTMLButtonElement>(null);
+
+  function closeAttention() {
+    setAttentionOpen(false);
+    setAttentionHost(null);
+    (attentionOrigin.current || attentionButton.current)?.focus();
+  }
+
+  useEffect(() => {
+    if (attentionOpen) attentionClose.current?.focus();
+  }, [attentionOpen]);
+
+  useEffect(() => {
+    setAttentionOpen(false);
+    setAttentionHost(null);
+  }, [view, pairing]);
 
   useEffect(() => {
     if (view === 'source') setSourceVisited(true);
@@ -165,6 +234,9 @@ function Companion() {
   }, [view, selected?.id, selected?.conversation]);
 
   function openSession(selection: Selection) {
+    if (attentionHost instanceof HTMLDialogElement) attentionHost.close();
+    setAttentionOpen(false);
+    setAttentionHost(null);
     dispatch({ type: 'select-session', selection });
   }
 
@@ -267,9 +339,25 @@ function Companion() {
   );
 
   return (
-    <>
+    <FullscreenAttentionContext.Provider
+      value={
+        fullscreenAttention ? (
+          <button
+            aria-expanded={attentionOpen}
+            aria-controls="attention-inbox"
+            onClick={(event) => {
+              attentionOrigin.current = event.currentTarget;
+              setAttentionHost(event.currentTarget.closest<HTMLElement>('dialog, .image-preview'));
+              attentionOpen ? closeAttention() : setAttentionOpen(true);
+            }}
+          >
+            Attention{snapshot?.inbox.length ? ` (${snapshot.inbox.length})` : ''}
+          </button>
+        ) : null
+      }
+    >
       <header className="sticky top-0 z-20 border-b border-slate-700/60 bg-slate-900/95 px-4 py-3 backdrop-blur sm:px-6">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3">
+        <div className="companion-header">
           <h1 className="text-2xl font-bold tracking-tight">
             Aero
             <span className="mt-0.5 block text-xs font-normal tracking-wide text-slate-400">
@@ -279,34 +367,113 @@ function Companion() {
           <span id="connection" role="status">
             {connection}
           </span>
-          <button
-            className="ml-auto shrink-0"
-            disabled={pairing || submitting || revokeMutation.isPending}
-            onClick={async () => {
-              try {
-                await revokeMutation.mutateAsync();
-                streamRef.current?.close();
-                streamRef.current = null;
-                dispatch({
-                  type: 'connection',
-                  online: false,
-                  pairing: true,
-                  message: 'Unpaired',
-                });
-                client.setQueryData(['snapshot'], null);
-              } catch (error) {
-                dispatch({
-                  type: 'notice',
-                  message: error instanceof Error ? error.message : 'Unpairing failed',
-                });
-              }
-            }}
-          >
-            Unpair
-          </button>
-          <UIZoom />
+          <div className="header-actions">
+            <button
+              ref={attentionButton}
+              className="attention-trigger"
+              aria-expanded={attentionOpen}
+              aria-controls="attention-inbox"
+              onClick={() => {
+                attentionOrigin.current = attentionButton.current;
+                setAttentionHost(null);
+                if (deviceMenu.current) deviceMenu.current.open = false;
+                attentionOpen ? closeAttention() : setAttentionOpen(true);
+              }}
+            >
+              Attention{snapshot?.inbox.length ? ` (${snapshot.inbox.length})` : ''}
+            </button>
+            <details
+              ref={deviceMenu}
+              className="device-menu"
+              onToggle={(event) => {
+                if (event.currentTarget.open) setAttentionOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector('summary')?.focus();
+                }
+              }}
+            >
+              <summary>
+                Device <span aria-hidden="true">⌄</span>
+              </summary>
+              <div className="device-menu-panel">
+                <p className="device-menu-label">Display zoom</p>
+                <UIZoom />
+                <label className="fullscreen-attention-setting">
+                  <input
+                    type="checkbox"
+                    checked={fullscreenAttention}
+                    onChange={(event) => setFullscreenAttention(event.target.checked)}
+                  />
+                  Show Attention in fullscreen
+                </label>
+                <div className="device-unpair">
+                  <button
+                    disabled={pairing || submitting || revokeMutation.isPending}
+                    onClick={() => {
+                      if (deviceMenu.current) deviceMenu.current.open = false;
+                      setConfirmUnpair(true);
+                    }}
+                  >
+                    Unpair
+                  </button>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
       </header>
+      {confirmUnpair && (
+        <dialog
+          ref={unpairDialog}
+          className="unpair-dialog"
+          aria-labelledby="unpair-title"
+          aria-describedby="unpair-description"
+          onCancel={(event) => {
+            event.preventDefault();
+            if (!revokeMutation.isPending) dismissUnpair();
+          }}
+        >
+          <h2 id="unpair-title">Unpair this device?</h2>
+          <p id="unpair-description" className="text-sm text-slate-400">
+            You’ll need a new pairing code to reconnect.
+          </p>
+          {revokeMutation.isError && <p role="alert">{revokeMutation.error.message}</p>}
+          <div className="mt-5 flex justify-end gap-3">
+            <button autoFocus onClick={dismissUnpair} disabled={revokeMutation.isPending}>
+              Cancel
+            </button>
+            <button
+              className="unpair-confirm"
+              disabled={pairing || submitting || revokeMutation.isPending}
+              onClick={async () => {
+                try {
+                  await revokeMutation.mutateAsync();
+                  streamRef.current?.close();
+                  streamRef.current = null;
+                  dispatch({
+                    type: 'connection',
+                    online: false,
+                    pairing: true,
+                    message: 'Unpaired',
+                  });
+                  client.setQueryData(['snapshot'], null);
+                  dismissUnpair();
+                } catch (error) {
+                  dispatch({
+                    type: 'notice',
+                    message: error instanceof Error ? error.message : 'Unpairing failed',
+                  });
+                }
+              }}
+            >
+              {revokeMutation.isPending ? 'Unpairing…' : 'Unpair'}
+            </button>
+          </div>
+        </dialog>
+      )}
       <nav className="primary-nav" aria-label="Companion navigation">
         <button
           aria-current={view === 'sessions' ? 'page' : undefined}
@@ -420,60 +587,101 @@ function Companion() {
             Retry identical action
           </button>
         )}
-        <section hidden={view !== 'inbox'}>
-          <h2>Attention inbox</h2>
-          <div id="inbox">
-            {snapshot?.inbox.map((entry) => {
-              const owner = snapshot.sessions.find(
-                (item) => item.id === entry.session && item.conversation === entry.conversation,
-              );
-              const permission = entry.kind === 'permission' ? owner?.permission : undefined;
-              return (
-                <div key={entry.id} className="inbox-entry">
+        <AttentionSurface host={attentionOpen ? attentionHost : null}>
+          <section
+            id="attention-inbox"
+            aria-labelledby="attention-title"
+            hidden={view !== 'inbox' && !attentionOpen}
+            className={
+              attentionOpen
+                ? `attention-panel${attentionHost ? ' attention-panel-fullscreen' : ''}`
+                : undefined
+            }
+            onKeyDown={(event) => {
+              if (attentionOpen && event.key === 'Escape') {
+                event.preventDefault();
+                closeAttention();
+              }
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="attention-title">Attention inbox</h2>
+              {attentionOpen && (
+                <button ref={attentionClose} onClick={closeAttention}>
+                  Hide attention
+                </button>
+              )}
+            </div>
+            {attentionOpen && (
+              <>
+                <p role="status">{notice || connection}</p>
+                {retry && pending && (
                   <button
-                    onClick={() =>
-                      openSession({
-                        id: entry.session,
-                        conversation: entry.conversation,
-                      })
-                    }
+                    disabled={submitting || pairing || !online}
+                    onClick={() => void submitPending(pending)}
                   >
-                    {entry.kind}: {entry.text}
+                    Retry identical action
                   </button>
-                  {permission && (
-                    <div className="inbox-permission" role="group" aria-label={permission.title}>
-                      <p>{permission.title}</p>
-                      {permission.options.map((option) => (
-                        <button
-                          key={option.optionId}
-                          disabled={
-                            !online ||
-                            !!pending ||
-                            owner?.status === 'exited' ||
-                            owner?.status === 'stopped'
-                          }
-                          onClick={() =>
-                            act('permission', {
-                              session: entry.session,
-                              conversation: entry.conversation,
-                              permission: permission.id,
-                              option: option.optionId,
-                            })
-                          }
-                        >
-                          {option.name || option.optionId}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {snapshot?.connected && snapshot.inbox.length === 0 && (
-            <p className="navigation-empty">No attention events right now.</p>
-          )}
-        </section>
+                )}
+              </>
+            )}
+            <div id="inbox">
+              {snapshot?.inbox.map((entry) => {
+                const owner = snapshot.sessions.find(
+                  (item) => item.id === entry.session && item.conversation === entry.conversation,
+                );
+                const permission = entry.kind === 'permission' ? owner?.permission : undefined;
+                return (
+                  <div key={entry.id} className="inbox-entry">
+                    <p className="text-sm text-slate-400">
+                      {owner?.name || entry.session}
+                      {owner?.worktree ? ` · ${owner.worktree}` : ''}
+                    </p>
+                    <button
+                      onClick={() =>
+                        openSession({
+                          id: entry.session,
+                          conversation: entry.conversation,
+                        })
+                      }
+                    >
+                      {entry.kind}: {entry.text}
+                    </button>
+                    {permission && (
+                      <div className="inbox-permission" role="group" aria-label={permission.title}>
+                        <p>{permission.title}</p>
+                        {permission.options.map((option) => (
+                          <button
+                            key={option.optionId}
+                            disabled={
+                              !online ||
+                              !!pending ||
+                              owner?.status === 'exited' ||
+                              owner?.status === 'stopped'
+                            }
+                            onClick={() =>
+                              act('permission', {
+                                session: entry.session,
+                                conversation: entry.conversation,
+                                permission: permission.id,
+                                option: option.optionId,
+                              })
+                            }
+                          >
+                            {option.name || option.optionId}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {snapshot?.connected && snapshot.inbox.length === 0 && (
+              <p className="navigation-empty">No attention events right now.</p>
+            )}
+          </section>
+        </AttentionSurface>
         <SessionBrowser
           snapshot={snapshot}
           selected={selected}
@@ -644,6 +852,6 @@ function Companion() {
           </section>
         )}
       </main>
-    </>
+    </FullscreenAttentionContext.Provider>
   );
 }

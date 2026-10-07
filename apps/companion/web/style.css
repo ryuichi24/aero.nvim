@@ -1,5 +1,74 @@
 @import 'tailwindcss';
 
+.companion-header {
+  @apply mx-auto grid max-w-4xl grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3;
+}
+.companion-header #connection {
+  @apply min-w-0 text-right text-xs text-sky-300;
+}
+.header-actions {
+  @apply col-span-2 flex items-center justify-between gap-3;
+}
+.header-actions button {
+  @apply m-0;
+}
+.attention-trigger {
+  @apply flex-1;
+}
+.device-menu {
+  @apply relative shrink-0;
+}
+.device-menu summary {
+  @apply flex min-h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-3.5 py-2.5 text-sm font-medium;
+}
+.device-menu summary::-webkit-details-marker {
+  display: none;
+}
+.device-menu-panel {
+  @apply absolute right-0 z-40 mt-3 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-600 bg-slate-900 p-4 shadow-2xl;
+}
+.device-menu-label {
+  @apply mb-2 text-xs font-semibold tracking-wide text-slate-400;
+}
+.fullscreen-attention-setting {
+  @apply mt-4 flex items-center gap-2 text-sm;
+}
+.fullscreen-attention-setting input {
+  @apply m-0 h-4 w-4 shrink-0;
+}
+.device-unpair {
+  @apply mt-4 border-t border-slate-700 pt-4;
+}
+.device-unpair p {
+  @apply mb-3;
+}
+.device-unpair button {
+  @apply mt-2 mr-2;
+}
+.unpair-dialog {
+  @apply fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-slate-600 bg-slate-900 p-5 text-slate-100 shadow-2xl;
+}
+.unpair-dialog::backdrop {
+  @apply bg-black/70;
+}
+.unpair-dialog button {
+  @apply m-0;
+}
+.unpair-confirm {
+  @apply border-red-400/60 text-red-300;
+}
+@media (min-width: 640px) {
+  .companion-header {
+    @apply grid-cols-[auto_1fr_auto];
+  }
+  .companion-header #connection {
+    @apply text-left text-sm;
+  }
+  .header-actions {
+    @apply col-span-1;
+  }
+}
+
 .ui-zoom {
   @apply flex items-center gap-1;
 }
@@ -90,6 +159,13 @@
   }
 }
 
+/* Keep fields above iOS Safari's focus-zoom threshold, even at reduced UI zoom. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+}
+
 section,
 form#pair {
   @apply mb-4 min-w-0 rounded-2xl border border-slate-700/60 bg-slate-900 p-4 sm:p-5;
@@ -100,6 +176,37 @@ form#pair {
 .primary-action:hover:not(:disabled) {
   @apply border-sky-300 bg-sky-300;
 }
+.attention-panel {
+  position: fixed;
+  z-index: 30;
+  top: 9rem;
+  right: max(0.75rem, env(safe-area-inset-right));
+  width: min(32rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 12rem - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--color-slate-600);
+  border-radius: 0.75rem;
+  background: var(--color-slate-900);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+}
+@media (min-width: 640px) {
+  .attention-panel {
+    top: 6rem;
+  }
+}
+
+.attention-panel-fullscreen {
+  top: 8rem;
+  z-index: 60;
+}
+@media (min-width: 640px) {
+  .attention-panel-fullscreen {
+    top: 5rem;
+  }
+}
+
 #inbox {
   @apply grid gap-2;
 }
@@ -108,7 +215,10 @@ form#pair {
   overflow-wrap: anywhere;
 }
 .inbox-permission {
-  @apply mt-2 grid gap-2 rounded-xl border border-slate-700/60 p-3;
+  @apply mt-3 grid gap-3 rounded-xl border border-slate-700/60 p-3;
+}
+#inbox .inbox-permission button {
+  @apply min-h-14 px-4 py-3 text-base;
 }
 .inbox-permission p {
   @apply m-0 text-sm text-slate-300;
@@ -342,7 +452,7 @@ form#pair {
   max-height: 55dvh;
   overflow: auto;
   overflow-wrap: anywhere;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   padding: 2px;
   border-radius: 8px;
 }
@@ -368,6 +478,7 @@ form#pair {
   flex: 1;
   min-height: 0;
   max-height: none;
+  overscroll-behavior: contain;
 }
 .transcript-card {
   @apply mb-3 min-w-0 rounded-xl border border-slate-700 bg-slate-950 p-3.5;

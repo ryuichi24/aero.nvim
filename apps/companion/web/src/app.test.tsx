@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
@@ -56,6 +56,11 @@ function draft(text: string) {
 }
 beforeEach(() => {
   sessionStorage.clear();
+  const storage = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
   FakeEvents.instances = [];
   vi.stubGlobal('EventSource', FakeEvents);
 });
@@ -66,6 +71,168 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('opens attention inside fullscreen logs and persists the fullscreen control setting', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    const first = render(<App />);
+    connect({
+      ...initial,
+      sessions: [
+        {
+          ...initial.sessions[0],
+          status: 'waiting',
+          permission: {
+            id: 'fullscreen-permission',
+            title: 'Allow fullscreen command?',
+            options: [{ optionId: 'allow', name: 'Approve fullscreen command' }],
+          },
+        },
+      ],
+      inbox: [
+        {
+          id: 'fullscreen-event',
+          session: 'stable-session',
+          conversation: 'generation-1',
+          kind: 'permission',
+          text: 'Approval needed',
+        },
+      ],
+    });
+    await open();
+    const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+    dialog.showModal = () => dialog.setAttribute('open', '');
+    dialog.close = () => dialog.removeAttribute('open');
+    await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    const trigger = within(dialog).getByRole('button', { name: 'Attention (1)' });
+    await userEvent.click(trigger);
+    expect(dialog.contains(screen.getByRole('region', { name: 'Attention inbox' }))).toBe(true);
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Approve fullscreen command' }),
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      permission: 'fullscreen-permission',
+      option: 'allow',
+      session: 'stable-session',
+      conversation: 'generation-1',
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Hide attention' }));
+    expect(document.activeElement).toBe(trigger);
+    expect(dialog.open).toBe(true);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Exit fullscreen' }));
+    await userEvent.click(screen.getByText('Device', { selector: 'summary' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show Attention in fullscreen' }));
+    expect(localStorage.getItem('aero-companion-fullscreen-attention')).toBe('false');
+    first.unmount();
+    render(<App />);
+    connect();
+    await open();
+    const nextDialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+    nextDialog.showModal = () => nextDialog.setAttribute('open', '');
+    nextDialog.close = () => nextDialog.removeAttribute('open');
+    await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    expect(within(nextDialog).queryByRole('button', { name: /^Attention/ })).toBeNull();
+  });
+
+  it('requires explicit confirmation to unpair and allows cancelling', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect();
+    expect(
+      (screen.getByText('Device', { selector: 'summary' }).parentElement as HTMLDetailsElement)
+        .open,
+    ).toBe(false);
+    await userEvent.click(screen.getByText('Device', { selector: 'summary' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Unpair' }));
+    expect(screen.getByRole('dialog', { name: 'Unpair this device?' })).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Unpair this device?' })).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByText('Device', { selector: 'summary' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Unpair' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Unpair this device?' })).getByRole('button', {
+        name: 'Unpair',
+      }),
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(fetch.mock.calls[0][0]).toBe('/api/revoke');
+    await screen.findByRole('textbox', { name: 'Pairing code' });
+  });
+
+  it('answers global attention requests without leaving a transcript or losing its draft', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    const snapshot: Snapshot = {
+      ...initial,
+      sessions: [
+        initial.sessions[0],
+        {
+          ...initial.sessions[0],
+          id: 'other-session',
+          name: 'Other agent',
+          conversation: 'other-generation',
+          status: 'waiting',
+          permission: {
+            id: 'other-permission',
+            title: 'Allow other command?',
+            options: [{ optionId: 'allow', name: 'Approve other command' }],
+          },
+        },
+      ],
+      inbox: [
+        {
+          id: 'attention-event',
+          session: 'other-session',
+          conversation: 'other-generation',
+          kind: 'permission',
+          text: 'Approval needed',
+        },
+      ],
+    };
+    connect(snapshot);
+    await open();
+    draft('Keep my draft');
+    const trigger = screen.getByRole('button', { name: 'Attention (1)' });
+    await userEvent.click(trigger);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Hide attention' }));
+    expect(screen.getByRole('heading', { name: 'Test agent · idle' })).toBeTruthy();
+    connect({ ...snapshot, connected: false });
+    expect(
+      (screen.getByRole('button', { name: 'Approve other command' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    connect(snapshot);
+    await userEvent.click(screen.getByRole('button', { name: 'Hide attention' }));
+    expect(screen.queryByRole('heading', { name: 'Attention inbox' })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    connect({ ...snapshot, cursor: 'epoch:2' });
+    expect(screen.queryByRole('heading', { name: 'Attention inbox' })).toBeNull();
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole('button', { name: 'Approve other command' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      session: 'other-session',
+      conversation: 'other-generation',
+      permission: 'other-permission',
+      option: 'allow',
+    });
+    connect({ ...snapshot, inbox: [] });
+    expect(screen.getByText('No attention events right now.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Hide attention' }));
+    expect(document.activeElement).toBe(trigger);
+    expect(
+      (screen.getByRole('textbox', { name: 'Follow-up prompt' }) as HTMLTextAreaElement).value,
+    ).toBe('Keep my draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Attention' }));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('heading', { name: 'Attention inbox' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Agent sessions' })).toBeTruthy();
+  });
+
   it('sends prompts from fullscreen and preserves drafts when the input is hidden', async () => {
     const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
     vi.stubGlobal('fetch', fetch);
