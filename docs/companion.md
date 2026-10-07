@@ -275,7 +275,7 @@ see [explicit HTTP over Tailscale](#explicit-http-over-tailscale) below.
    ```lua
    require("aero").setup({
      companion = {
-       bind = "100.79.91.57", port = 8765,
+        bind = "100.100.100.100", port = 8765,
        origin = "https://ryuichis-macbook-air.talic21a44.ts.net:8765",
        cert = "~/.config/aero-companion/tls/cert.pem",
        key = "~/.config/aero-companion/tls/key.pem",
@@ -343,6 +343,42 @@ pair using the popup's code. You may use a MagicDNS hostname instead of the IP
 in `origin`, but the browser URL must match it exactly. Binding to the Tailscale
 IP limits the listener to that address. Authentication, revocation, and browser
 origin checks remain enabled.
+
+##### Public dotfiles repositories
+
+A Tailscale `100.x.x.x` address is private, not your public internet IP.
+Publishing it does not grant access to your MacBook: connecting still requires
+access to your tailnet and permission under its access rules. It does reveal a
+detail about your setup, so you can keep it out of a public Neovim configuration
+by reading an environment variable:
+
+```lua
+local tailscale_ip = vim.env.AERO_TAILSCALE_IP
+if tailscale_ip == "" then tailscale_ip = nil end
+
+require("aero").setup({
+  companion = {
+    bind = tailscale_ip or "127.0.0.1",
+    port = 8765,
+    origin = "http://" .. (tailscale_ip or "localhost") .. ":8765",
+    allow_http = tailscale_ip ~= nil,
+  },
+})
+```
+
+Set the variable locally with your MacBook's actual Tailscale address, then
+launch Neovim from that shell:
+
+```sh
+export AERO_TAILSCALE_IP="100.101.102.103"
+nvim
+```
+
+Add the `companion` table to your existing `setup()` call if you already have
+one. Without the variable, this configuration defaults to localhost. Keep the
+export in a local, untracked shell configuration if you want it to persist.
+Do not publish pairing codes, Tailscale auth keys, TLS private keys, or the
+companion's remembered-device file; the Tailscale IP itself is not a credential.
 
 HTTP has no application-level TLS: use this opt-in only over Tailscale or another
 trusted private network. Tailscale encrypts the network connection; the browser
