@@ -74,11 +74,36 @@ local function branch_exists(root, branch)
 	return ok and out ~= ""
 end
 
---- Create a worktree for `branch` at `path`, creating the branch from HEAD when it doesn't exist.
-function M.add(root, branch, path, cb)
+--- List remote branches, excluding symbolic refs such as origin/HEAD.
+function M.remote_branches(root, cb)
+	run_async({ "git", "-C", root, "for-each-ref", "--format=%(refname)\t%(symref)", "refs/remotes/" }, function(ok, err, out)
+		if not ok then
+			return cb(nil, err)
+		end
+		local branches = {}
+		for line in out:gmatch("[^\n]+") do
+			local ref, symbolic = line:match("^([^\t]+)\t(.*)$")
+			ref = ref or line
+			if not symbolic or symbolic == "" then
+				table.insert(branches, (ref:gsub("^refs/remotes/", "")))
+			end
+		end
+		cb(branches)
+	end)
+end
+
+--- Create a worktree, optionally creating a tracking branch from an explicit remote ref.
+function M.add(root, branch, path, cb, remote)
 	local event_path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
 	local args = { "git", "-C", root, "worktree", "add" }
-	if branch_exists(root, branch) then
+	if remote then
+		local exists = run({ "git", "-C", root, "show-ref", "--verify", "--quiet", "refs/heads/" .. branch })
+		if exists then
+			vim.list_extend(args, { path, branch })
+		else
+			vim.list_extend(args, { "--track", "-b", branch, path, "refs/remotes/" .. remote })
+		end
+	elseif branch_exists(root, branch) then
 		vim.list_extend(args, { path, branch })
 	else
 		vim.list_extend(args, { "-b", branch, path })

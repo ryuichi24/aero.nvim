@@ -846,7 +846,7 @@ function M.add_workspace(path)
 end
 
 local function add_worktree(ws)
-	vim.ui.input({ prompt = "New worktree branch (" .. ws.name .. "): " }, function(branch)
+	local function create(branch, remote)
 		if not branch or vim.trim(branch) == "" then
 			return
 		end
@@ -868,7 +868,28 @@ local function add_worktree(ws)
 			end
 			notify("created " .. vim.fn.fnamemodify(path, ":~"))
 			M.render()
-		end)
+		end, remote)
+	end
+	vim.ui.select({ "Create a new branch", "Check out a remote branch" }, {
+		prompt = "Add worktree (" .. ws.name .. "):",
+	}, function(choice)
+		if choice == "Create a new branch" then
+			vim.ui.input({ prompt = "New worktree branch (" .. ws.name .. "): " }, create)
+		elseif choice == "Check out a remote branch" then
+			git.remote_branches(ws.root, function(branches, err)
+				if not branches then
+					return notify(err, vim.log.levels.ERROR)
+				end
+				if #branches == 0 then
+					return notify("No remote branches found; fetch the repository first", vim.log.levels.WARN)
+				end
+				vim.ui.select(branches, { prompt = "Remote branch:" }, function(remote)
+					if remote then
+						create(remote:match("^[^/]+/(.+)$"), remote)
+					end
+				end)
+			end)
+		end
 	end)
 end
 
