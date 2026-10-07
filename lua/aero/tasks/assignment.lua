@@ -183,10 +183,13 @@ local function resume_stopped(session, session_id, binding, executable, prompt)
 	end
 end
 
-local function reload(session, binding, executable, prompt)
+local function reload(session, binding, executable, prompt, callback)
 	local chat = session.chat
 	local staged, previous, err = stage(session, binding, executable)
 	if not staged then
+		if callback then
+			return callback(nil, err)
+		end
 		return notify(err)
 	end
 	copy_fields(session, staged)
@@ -212,6 +215,10 @@ local function reload(session, binding, executable, prompt)
 		end
 	end
 	local function rollback(reason)
+		if callback then
+			callback(nil, reason)
+			callback = nil
+		end
 		require("aero.tasks.bridge").unbind(staged.task_transport.credential)
 		if not present(session) or session.chat ~= chat then
 			if previous.task_transport then
@@ -256,7 +263,10 @@ local function reload(session, binding, executable, prompt)
 		local buf = chat:get_prompt_buf()
 		local draft = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		local modified = vim.bo[buf].modified
-		local composed, result, compose_err = pcall(append, session, prompt)
+		local composed, result, compose_err = true, true, nil
+		if prompt then
+			composed, result, compose_err = pcall(append, session, prompt)
+		end
 		if not composed or not result then
 			if vim.api.nvim_buf_is_valid(buf) then
 				vim.api.nvim_buf_set_lines(buf, 0, -1, false, draft)
@@ -269,7 +279,42 @@ local function reload(session, binding, executable, prompt)
 			require("aero.tasks.bridge").unbind(previous.task_transport.credential)
 		end
 		finish()
+		if callback then
+			callback(true)
+		end
 	end)
+end
+
+-- Explicit, picker-free assignment for a remotely selected idle conversation.
+function M.assign_board(session, workspace, board_id, replace, callback)
+	local binding = { workspace = workspace, board_id = board_id }
+	local worktrees, err = require("aero.git").list(workspace.root)
+	if not worktrees then
+		return callback(nil, err)
+	end
+	local state, reason = eligible(session, worktrees)
+	if state ~= "ready" then
+		return callback(nil, state == "stopped" and "resume the session before assigning a board" or reason)
+	end
+	local previous = current_binding(session)
+	if previous and not same_binding(previous, binding) and not replace then
+		return callback(nil, "confirm replacement of the current board or ticket assignment")
+	end
+	local data, read_err = require("aero.tasks.operations").get_board(binding)
+	if not data then
+		return callback(nil, read_err)
+	end
+	if data.dirty.board_projection.dirty or data.dirty.board_source then
+		return callback(nil, "save board drafts with :w before assigning")
+	end
+	if same_binding(session.task_binding, binding) and session.task_transport then
+		return callback(true)
+	end
+	local executable, executable_err = require("aero.tasks.install").resolve()
+	if not executable then
+		return callback(nil, executable_err)
+	end
+	reload(session, binding, executable, nil, callback)
 end
 
 function M.pick(binding, executable, validate, prompt)

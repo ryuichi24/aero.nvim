@@ -224,6 +224,13 @@ local function build()
 							{ session.icon(s), status_hl[st] },
 							{ " " .. s.name, "AeroSession" },
 						}, { kind = "session", id = "s:" .. s.key, ws = ws, wt = wt, session = s }, virt_s)
+						add({ { "       " .. require("aero.tasks.status").label(s), "AeroDim" } }, {
+							kind = "session",
+							id = "assignment:" .. s.key,
+							ws = ws,
+							wt = wt,
+							session = s,
+						})
 					end
 					local exports = require("aero.exports").list(wt.path)
 					local eopen = state.exports_expanded[wt.path] ~= false
@@ -1197,7 +1204,9 @@ function actions.yank_name()
 	elseif item.kind == "report" or item.kind == "export" then
 		name = item.report.name
 	elseif item.kind == "board" then
-		name = tostring(item.board.metadata and item.board.metadata.title or vim.fs.basename(vim.fs.dirname(item.board.path)))
+		name = tostring(
+			item.board.metadata and item.board.metadata.title or vim.fs.basename(vim.fs.dirname(item.board.path))
+		)
 	end
 	yank(name)
 end

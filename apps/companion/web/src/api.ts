@@ -51,6 +51,7 @@ export function readPending(): PendingAction | null {
         'cancel',
         'permission',
         'session_create',
+        'session_assign_board',
         'session_resume',
         'session_rename',
         'session_delete',

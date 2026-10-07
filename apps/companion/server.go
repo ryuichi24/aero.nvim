@@ -191,7 +191,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	method := map[string]string{"/api/prompt": "prompt", "/api/cancel": "cancel", "/api/permission": "permission"}[r.URL.Path]
-	for _, lifecycle := range []string{"session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
+	for _, lifecycle := range []string{"session_assign_board", "session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		if r.URL.Path == "/api/"+lifecycle {
 			method = lifecycle
 		}
@@ -215,6 +215,8 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Name         *string `json:"name,omitempty"`
 		Branch       string  `json:"branch,omitempty"`
 		Force        bool    `json:"force,omitempty"`
+		BoardID      string  `json:"board_id,omitempty"`
+		Replace      bool    `json:"replace"`
 	}
 	if !decodeBody(w, r, &action) {
 		return
@@ -230,6 +232,27 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response, err := b.state.host.Call(r.Context(), method, action)
+	// ACP assignment finishes asynchronously; observe the same idempotent receipt.
+	if method == "session_assign_board" && err == nil {
+		deadline := time.Now().Add(5 * time.Second)
+		for response.Error == "" && time.Now().Before(deadline) {
+			var receipt struct {
+				Status string `json:"status"`
+			}
+			if json.Unmarshal(response.Result, &receipt) != nil || receipt.Status != "unknown" {
+				break
+			}
+			select {
+			case <-r.Context().Done():
+				err = r.Context().Err()
+			case <-time.After(50 * time.Millisecond):
+				response, err = b.state.host.Call(r.Context(), method, action)
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
 	if err != nil {
 		reject(w, http.StatusServiceUnavailable, "Neovim disconnected; outcome unknown. Retry the identical operation.")
 		return

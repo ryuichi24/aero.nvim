@@ -57,6 +57,7 @@ local function winbar(win)
 	if mode then
 		where = where .. " · " .. mode
 	end
+	where = where .. " · " .. require("aero.tasks.status").label(s)
 	local bar = (" %%#AeroSession#%s%%* %%#AeroDim#· %s%%*  %%#%s#%s %s%%*"):format(
 		(s.name:gsub("%%", "%%%%")),
 		(where:gsub("%%", "%%%%")),

@@ -64,6 +64,7 @@ local function describe(s)
 		worktree = s.worktree,
 		status = chat and chat.state == "starting" and "starting" or require("aero.session").status(s),
 		target = identity(s, identities),
+		assignment = require("aero.tasks.status").describe(s),
 	}
 	if chat then
 		if conversation_ids[chat] ~= (chat.session_id or chat.saved_session_id or false) then
@@ -99,6 +100,7 @@ function M.dispatch(method, params)
 			worktrees = worktrees(),
 			sessions = {},
 			inbox = {},
+			boards = {},
 		}
 		for _, wt in ipairs(result.worktrees) do
 			wt.target = require("aero.companion_lifecycle").target(epoch, wt)
@@ -109,6 +111,16 @@ function M.dispatch(method, params)
 			end
 		end
 		table.sort(result.agents)
+		for _, workspace in ipairs(result.workspaces) do
+			for _, board in ipairs(require("aero.tasks").list(workspace)) do
+				if board.valid then
+					table.insert(
+						result.boards,
+						{ workspace = workspace.root, id = board.metadata.id, title = board.metadata.title }
+					)
+				end
+			end
+		end
 		for _, s in ipairs(sessions) do
 			local agent = require("aero.config").options.agents[s.agent]
 			if s.chat or agent and agent.type == "acp" then
@@ -128,7 +140,13 @@ function M.dispatch(method, params)
 		end
 		return result
 	end
-	if not lifecycle[method] and method ~= "prompt" and method ~= "cancel" and method ~= "permission" then
+	if
+		not lifecycle[method]
+		and method ~= "session_assign_board"
+		and method ~= "prompt"
+		and method ~= "cancel"
+		and method ~= "permission"
+	then
 		return nil, "unknown method"
 	end
 	if type(params.operation_id) ~= "string" or #params.operation_id < 16 or #params.operation_id > 128 then
@@ -149,6 +167,8 @@ function M.dispatch(method, params)
 		params.name or false,
 		params.branch or false,
 		params.force or false,
+		params.board_id or false,
+		params.replace or false,
 	})
 	local previous = operations[params.operation_id]
 	if previous then
@@ -178,6 +198,35 @@ function M.dispatch(method, params)
 		end
 	end
 	local chat = selected and selected.chat
+	if method == "session_assign_board" then
+		if params.epoch ~= epoch or not selected or params.target ~= identity(selected, identities) then
+			return finish(nil, "stale session or host epoch")
+		end
+		if type(params.board_id) ~= "string" or params.board_id == "" or type(params.replace) ~= "boolean" then
+			return finish(nil, "board_id and replacement choice required")
+		end
+		local workspace = require("aero.store").find_workspace(params.workspace)
+		if not workspace then
+			return finish(nil, "workspace unavailable")
+		end
+		if not chat or params.conversation ~= describe(selected).conversation then
+			return finish(nil, "stale conversation")
+		end
+		finish({ status = "unknown" })
+		require("aero.tasks.assignment").assign_board(
+			selected,
+			workspace,
+			params.board_id,
+			params.replace,
+			function(ok, err)
+				finish(
+					ok and { status = "accepted" } or nil,
+					err and (type(err) == "table" and err.message or tostring(err)) or nil
+				)
+			end
+		)
+		return operations[params.operation_id].result, operations[params.operation_id].error
+	end
 	if lifecycle[method] then
 		if params.epoch ~= epoch then
 			return finish(nil, "stale host epoch")
@@ -216,7 +265,23 @@ function M.dispatch(method, params)
 			or chat.mode_pending
 			or chat.task_pending
 		finish({ status = "unknown" })
-		chat:prompt(params.text)
+		local text = params.text
+		local binding = selected.task_binding
+		if binding and not binding.revoked then
+			text = table.concat({
+				"Current Aero assignment: workspace "
+					.. vim.json.encode(binding.workspace.root)
+					.. ", board "
+					.. vim.json.encode(binding.board_id)
+					.. ".",
+				binding.ticket_id and ("Assigned ticket: " .. vim.json.encode(binding.ticket_id) .. ".")
+					or "Board-only assignment: no ticket is assigned. Read the board and create tickets through Aero MCP tools when requested; do not implement them unless asked.",
+				"Use the current assignment rather than any superseded assignment in this conversation. Do not write task documents directly.",
+				"",
+				params.text,
+			}, "\n")
+		end
+		chat:prompt(text)
 		operations[params.operation_id].result = { status = queued and "queued" or "accepted" }
 	elseif method == "cancel" then
 		finish({ status = "unknown" })

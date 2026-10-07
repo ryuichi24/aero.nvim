@@ -34,6 +34,16 @@ export interface TranscriptBlock {
 }
 
 export interface Session {
+  assignment?: {
+    workspace_root: string;
+    board_id: string;
+    board_title?: string;
+    ticket_id?: string;
+    ticket_title?: string;
+    ticket_state?: string;
+    pending?: boolean;
+    error?: string;
+  };
   id: string;
   name: string;
   agent: string;
@@ -58,6 +68,7 @@ export interface InboxEvent {
 }
 
 export interface Snapshot {
+  boards?: { workspace: string; id: string; title: string }[];
   connected: boolean;
   cursor: string;
   error?: string;
@@ -75,6 +86,7 @@ export interface Selection {
 }
 
 export type ActionPath =
+  | 'session_assign_board'
   | 'prompt'
   | 'cancel'
   | 'permission'
@@ -86,6 +98,8 @@ export type ActionPath =
   | 'worktree_rename'
   | 'worktree_delete';
 export interface ActionData {
+  board_id?: string;
+  replace?: boolean;
   operation_id: string;
   session?: string;
   conversation?: string;

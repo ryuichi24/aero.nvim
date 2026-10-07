@@ -15,6 +15,7 @@ import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
 import { SourceBrowser } from './source-browser';
 import { LifecycleForm } from './lifecycle-controls';
+import { AssignmentStatus, BoardAssignment } from './task-assignment';
 import { groupSessions, sessionLocation } from './sessionGroups';
 import type {
   ActionData,
@@ -255,6 +256,7 @@ function Companion() {
     !session?.conversation ||
     session.status === 'exited' ||
     session.status === 'stopped' ||
+    !!session.assignment?.pending ||
     !!pending;
   const location = useMemo(
     () => (snapshot ? sessionLocation(groupSessions(snapshot), selected) : undefined),
@@ -496,6 +498,16 @@ function Companion() {
             </h2>
             {session && (
               <div aria-label="Session actions">
+                <AssignmentStatus session={session} />
+                {snapshot && (
+                  <BoardAssignment
+                    key={session.id}
+                    session={session}
+                    snapshot={snapshot}
+                    disabled={!online || !!pending || !session.target}
+                    onAction={act}
+                  />
+                )}
                 {(session.status === 'stopped' || session.status === 'exited') && (
                   <button
                     disabled={!online || !!pending || !session.target}

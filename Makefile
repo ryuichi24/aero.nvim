@@ -21,10 +21,11 @@ build-companion-ui:
 build-companion: build-companion-ui
 	CGO_ENABLED=0 $(GO) -C apps/companion build -ldflags "-X main.version=$(VERSION)" -o aero-companion .
 
-test-companion: build-companion
+test-companion: build-companion build-mcp
 	nvim --headless -u NONE -l tests/companion_install.lua
 	nvim --headless -u NONE -l tests/companion.lua
 	nvim --headless -u NONE -l tests/companion_lifecycle.lua
+	AERO_MCP_EXECUTABLE="$(CURDIR)/apps/mcp/aero-mcp" nvim --headless -u NONE -l tests/companion_tasks.lua
 	nvim --headless -u NONE -l tests/companion_managed.lua
 	$(GO) -C apps/companion test -race ./...
 	$(GO) -C apps/companion vet ./...

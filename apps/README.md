@@ -15,6 +15,11 @@ switching tabs. Use **Refresh** to reload changes from disk.
 Source browsing requires a connected Neovim host and supports UTF-8 text files up
 to 2 MiB.
 
+The companion's session transcript includes **Assign board** for attaching an
+idle ACP conversation to a saved workspace board. Session lists and transcripts
+show board/ticket assignments and the assigned ticket's committed state, shared
+with the Neovim dashboard and panel. See [task-agent setup](../docs/agent-tasks.md#assign-a-board-from-mobile).
+
 `scripts/` packages both tools into the ignored `dist/` directory. The shared
 version comes from `../release.json`; root Makefile commands build and test the
 workspace.

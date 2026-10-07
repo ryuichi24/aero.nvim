@@ -71,6 +71,36 @@ Then use `/new-ticket` in its prompt. Board-only sessions can read the board and
 create tickets; ticket-specific reads, updates, and moves require a ticket-assigned
 session. If there is no board yet, create and save one with `:Aero board new` first.
 
+### Assign a board from mobile
+
+In the companion app, open an ACP session's transcript and expand **Assign board**.
+Choose a saved board from that session's workspace, then tap **Assign board**.
+Task-agent integration must be enabled and the session's adapter must be allowed
+by `tasks.agent.adapters` and support ACP `session/load`. Resume stopped sessions
+first and wait for the agent to be idle. Save conflicting board drafts in Neovim.
+Replacing an existing board or ticket assignment requires selecting
+**Replace current board or ticket assignment**.
+
+Assignment keeps the existing conversation, transcript, and prompt drafts. It
+registers board-scoped MCP tools without submitting a prompt. You can then send:
+
+> Turn our brainstorm into separate todo tickets, each with a description and
+> acceptance criteria. Check for duplicates and create them without implementing them.
+
+Use ordinary messages on mobile; editor-local slash commands remain unsupported.
+Mobile prompts include the current assignment context so replacement supersedes
+older assignment instructions in the conversation.
+
+The companion session list and transcript show the assigned board and ticket.
+Neovim shows assignment details beneath each dashboard session and in the agent
+panel's winbar. Details include board/ticket titles and IDs and the ticket's
+current committed board state. Saved assignments remain visible for stopped
+sessions; missing documents are marked unavailable.
+
+A session is bound to either a board or one ticket. A board-only session displays
+**no assigned ticket** even after it creates several tickets; creation does not
+automatically assign those tickets to the conversation.
+
 ### Implement an existing ticket
 
 Save board and ticket edits, then press `gw` on a persisted board row, or run:

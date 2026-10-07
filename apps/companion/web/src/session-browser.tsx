@@ -260,6 +260,18 @@ export function SessionBrowser({
                                   {session.status}
                                 </span>
                               </span>
+                              <span className="navigation-path">
+                                Board:{' '}
+                                {session.assignment?.board_title ||
+                                  session.assignment?.board_id ||
+                                  'None'}{' '}
+                                · Ticket:{' '}
+                                {session.assignment?.ticket_title ||
+                                  session.assignment?.ticket_id ||
+                                  'None'}
+                                {session.assignment?.ticket_state &&
+                                  ` · ${session.assignment.ticket_state}`}
+                              </span>
                               <span className="session-agent">
                                 {session.agent}
                                 {current ? ' · Selected' : ''}
