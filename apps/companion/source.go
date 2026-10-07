@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -32,13 +33,19 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var trees []struct {
-		Path string `json:"path"`
+		Path             string `json:"path"`
+		ReportsDirectory string `json:"reports_directory"`
 	}
 	_ = json.Unmarshal(snapshot["worktrees"], &trees)
 	allowed := false
+	reports := r.URL.Path == "/api/reports"
+	directory := input.Worktree
 	for _, tree := range trees {
 		if tree.Path == input.Worktree {
 			allowed = true
+			if reports {
+				directory = tree.ReportsDirectory
+			}
 			break
 		}
 	}
@@ -54,8 +61,16 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 		reject(w, http.StatusBadRequest, "invalid source path")
 		return
 	}
-	root, err := os.OpenRoot(input.Worktree)
+	if reports && (directory == "" || (name != "." && (filepath.Base(name) != name || !strings.HasSuffix(name, ".md")))) {
+		reject(w, http.StatusBadRequest, "invalid report path")
+		return
+	}
+	root, err := os.OpenRoot(directory)
 	if err != nil {
+		if reports && name == "." && os.IsNotExist(err) {
+			reply(w, http.StatusOK, map[string]any{"entries": []sourceEntry{}})
+			return
+		}
 		reject(w, http.StatusNotFound, "worktree unavailable")
 		return
 	}
@@ -88,6 +103,9 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 		}
 		entries := make([]sourceEntry, 0, len(items))
 		for _, item := range items {
+			if reports && (!item.Type().IsRegular() || !strings.HasSuffix(item.Name(), ".md")) {
+				continue
+			}
 			if item.Name() == ".git" {
 				continue
 			}

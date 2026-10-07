@@ -186,7 +186,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if r.URL.Path == "/api/source" {
+	if r.URL.Path == "/api/source" || r.URL.Path == "/api/reports" {
 		b.source(w, r)
 		return
 	}

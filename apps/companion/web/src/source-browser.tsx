@@ -16,17 +16,19 @@ function SourceFolder({
   selected,
   online,
   onSelect,
+  mode,
 }: {
   worktree: string;
   path: string;
   selected: string;
   online: boolean;
   onSelect: (path: string) => void;
+  mode: 'source' | 'reports';
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const query = useQuery({
-    queryKey: ['source', worktree, path],
-    queryFn: () => post<SourceResponse>('source', { worktree, path }),
+    queryKey: [mode, worktree, path],
+    queryFn: () => post<SourceResponse>(mode, { worktree, path }),
     enabled: online,
   });
   return (
@@ -65,12 +67,17 @@ function SourceFolder({
                 selected={selected}
                 online={online}
                 onSelect={onSelect}
+                mode={mode}
               />
             )}
           </li>
         );
       })}
-      {query.data?.entries?.length === 0 && <li className="navigation-empty">Empty directory.</li>}
+      {query.data?.entries?.length === 0 && (
+        <li className="navigation-empty">
+          {mode === 'reports' ? 'No reports created yet.' : 'Empty directory.'}
+        </li>
+      )}
     </ul>
   );
 }
@@ -78,9 +85,11 @@ function SourceFolder({
 export function SourceBrowser({
   snapshot,
   selectedWorktree,
+  mode = 'source',
 }: {
   snapshot: Snapshot | null;
   selectedWorktree?: string;
+  mode?: 'source' | 'reports';
 }) {
   const [chosen, setChosen] = useState<string>();
   const [path, setPath] = useState('');
@@ -107,8 +116,8 @@ export function SourceBrowser({
     trees.find((tree) => tree.path === selectedWorktree)?.path ||
     trees[0]?.path;
   const query = useQuery({
-    queryKey: ['source', worktree, path],
-    queryFn: () => post<SourceResponse>('source', { worktree, path }),
+    queryKey: [mode, worktree, path],
+    queryFn: () => post<SourceResponse>(mode, { worktree, path }),
     enabled: !!worktree && !!snapshot?.connected,
     gcTime: 0,
   });
@@ -174,8 +183,8 @@ export function SourceBrowser({
   );
 
   return (
-    <section aria-label="Source browser">
-      <h2>Source code</h2>
+    <section aria-label={mode === 'reports' ? 'Report browser' : 'Source browser'}>
+      <h2>{mode === 'reports' ? 'Reports' : 'Source code'}</h2>
       <label>
         Worktree
         <select
@@ -209,14 +218,14 @@ export function SourceBrowser({
             </button>
             <button
               disabled={query.isFetching || !snapshot?.connected}
-              onClick={() => void client.invalidateQueries({ queryKey: ['source', worktree] })}
+              onClick={() => void client.invalidateQueries({ queryKey: [mode, worktree] })}
             >
               Refresh
             </button>
           </div>
-          {query.isFetching && <p role="status">Loading source…</p>}
+          {query.isFetching && <p role="status">Loading {mode}…</p>}
           {query.error && <p role="alert">{query.error.message}</p>}
-          {!snapshot?.connected && <p role="status">Connect to Neovim to browse source.</p>}
+          {!snapshot?.connected && <p role="status">Connect to Neovim to browse {mode}.</p>}
           <div className="source-layout">
             <nav className="source-tree" aria-label="File tree">
               <SourceFolder
@@ -226,11 +235,16 @@ export function SourceBrowser({
                 selected={path}
                 online={!!snapshot?.connected}
                 onSelect={setPath}
+                mode={mode}
               />
             </nav>
             <div className="source-reader">
               {content === undefined && !query.error && (
-                <p className="navigation-empty">Select a file from the tree to read its source.</p>
+                <p className="navigation-empty">
+                  {mode === 'reports'
+                    ? 'Select a report to preview its Markdown.'
+                    : 'Select a file from the tree to read its source.'}
+                </p>
               )}
               {!fullscreen && reader}
               <dialog

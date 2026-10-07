@@ -7,6 +7,12 @@ connects two independently buildable modules:
 - `companion/`: `aero-companion`, the mobile web bridge with its frontend under
   `companion/web/`.
 
+The companion's **Reports** tab lists created reports for the selected worktree,
+using Aero's configured report storage (including reports outside the worktree).
+Select a report to preview rendered Markdown, use **Show source** to read the raw
+text, or **Fullscreen** for a larger preview. **Refresh** reloads the report list
+and content after an agent updates a report.
+
 The companion's **Source** tab lets paired devices select a worktree, expand
 nested folders in a persistent file tree, and read files with syntax highlighting
 and line numbers. Markdown files open in preview mode with a source toggle.

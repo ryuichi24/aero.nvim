@@ -9,6 +9,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('lists reports and opens rendered Markdown with a source toggle', async () => {
+  const fetch = vi.fn(async (_url: unknown, options: RequestInit) => {
+    const { path } = JSON.parse(options.body as string);
+    return {
+      ok: true,
+      json: async () =>
+        path === ''
+          ? { entries: [{ name: 'findings.md', directory: false }] }
+          : { content: '# Findings\n\n**Verified** result.' },
+    };
+  });
+  vi.stubGlobal('fetch', fetch);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <SourceBrowser
+        mode="reports"
+        snapshot={{
+          connected: true,
+          cursor: '1',
+          sessions: [],
+          inbox: [],
+          workspaces: [],
+          worktrees: [{ path: '/repo' }],
+        }}
+      />
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'findings.md' }));
+  expect(await screen.findByRole('heading', { name: 'Findings' })).toBeTruthy();
+  expect(screen.getByLabelText('findings.md preview').textContent).toContain('Verified result.');
+  expect(fetch.mock.calls.every(([url]) => url === '/api/reports')).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Show source' }));
+  expect(screen.getByLabelText('findings.md').textContent).toContain('# Findings');
+  await user.click(screen.getByRole('button', { name: 'Show preview' }));
+  expect(screen.getByRole('heading', { name: 'Findings' })).toBeTruthy();
+  client.clear();
+});
+
 it('expands nested folders and keeps the tree while reading a file', async () => {
   const fetch = vi.fn(async (_url: unknown, options: RequestInit) => {
     const { path } = JSON.parse(options.body as string);

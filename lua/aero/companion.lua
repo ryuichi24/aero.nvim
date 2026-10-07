@@ -104,6 +104,7 @@ function M.dispatch(method, params)
 		}
 		for _, wt in ipairs(result.worktrees) do
 			wt.target = require("aero.companion_lifecycle").target(epoch, wt)
+			wt.reports_directory = require("aero.reports").directory(wt.path, wt.workspace and { root = wt.workspace })
 		end
 		for id, agent in pairs(require("aero.config").options.agents) do
 			if agent.type == "acp" then

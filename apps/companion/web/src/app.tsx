@@ -82,9 +82,11 @@ function Companion() {
   const streamRef = useRef<EventSource | null>(null);
   const resumedRef = useRef<string | null>(null);
   const [sourceVisited, setSourceVisited] = useState(false);
+  const [reportsVisited, setReportsVisited] = useState(false);
 
   useEffect(() => {
     if (view === 'source') setSourceVisited(true);
+    if (view === 'reports') setReportsVisited(true);
   }, [view]);
 
   const connect = useCallback(() => {
@@ -341,6 +343,15 @@ function Companion() {
           </span>
           Source
         </button>
+        <button
+          aria-current={view === 'reports' ? 'page' : undefined}
+          onClick={() => dispatch({ type: 'navigate', view: 'reports' })}
+        >
+          <span className="nav-icon" aria-hidden="true">
+            ▤
+          </span>
+          Reports
+        </button>
       </nav>
       <main className="mx-auto w-full max-w-4xl px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6">
         {pairing && (
@@ -474,6 +485,15 @@ function Companion() {
             <SourceBrowser snapshot={snapshot} selectedWorktree={session?.worktree} />
           </div>
         )}
+        {!pairing && reportsVisited && (
+          <div hidden={view !== 'reports'}>
+            <SourceBrowser
+              mode="reports"
+              snapshot={snapshot}
+              selectedWorktree={session?.worktree}
+            />
+          </div>
+        )}
         {selected && (
           <section id="conversation" hidden={view !== 'conversation'}>
             <button
@@ -554,6 +574,51 @@ function Companion() {
               key={`${selected.id}:${selected.conversation}`}
               session={session}
               active={view === 'conversation'}
+              composer={
+                <form
+                  id="compose"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    act('prompt', { text: prompt });
+                  }}
+                >
+                  <label>
+                    Follow-up prompt
+                    <textarea
+                      rows={3}
+                      placeholder="What should the agent do next?"
+                      required
+                      value={prompt}
+                      onChange={(event) => dispatch({ type: 'draft', value: event.target.value })}
+                    />
+                  </label>
+                  <button className="primary-action" id="send" disabled={disabled}>
+                    Send prompt
+                  </button>
+                  <button
+                    id="cancel"
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => act('cancel')}
+                  >
+                    Cancel turn &amp; queue
+                  </button>
+                </form>
+              }
+              feedback={
+                <>
+                  {notice && notice !== 'Action accepted' && <p role="status">{notice}</p>}
+                  {retry && pending && (
+                    <button
+                      type="button"
+                      disabled={submitting || pairing || !online}
+                      onClick={() => void submitPending(pending)}
+                    >
+                      Retry identical action
+                    </button>
+                  )}
+                </>
+              }
             />
             {session?.permission && (
               <div id="permission">
@@ -574,30 +639,6 @@ function Companion() {
                 ))}
               </div>
             )}
-            <form
-              id="compose"
-              onSubmit={(event) => {
-                event.preventDefault();
-                act('prompt', { text: prompt });
-              }}
-            >
-              <label>
-                Follow-up prompt
-                <textarea
-                  rows={3}
-                  placeholder="What should the agent do next?"
-                  required
-                  value={prompt}
-                  onChange={(event) => dispatch({ type: 'draft', value: event.target.value })}
-                />
-              </label>
-              <button className="primary-action" id="send" disabled={disabled}>
-                Send prompt
-              </button>
-              <button id="cancel" type="button" disabled={disabled} onClick={() => act('cancel')}>
-                Cancel turn &amp; queue
-              </button>
-            </form>
           </section>
         )}
       </main>

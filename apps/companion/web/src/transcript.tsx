@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Markdown } from './markdown';
 import type { Session, TranscriptBlock } from './types';
 import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
@@ -123,40 +124,113 @@ function Block({ block }: { block: TranscriptBlock }) {
     </article>
   );
 }
-export function Transcript({ session, active = true }: { session?: Session; active?: boolean }) {
+export function Transcript({
+  session,
+  active = true,
+  composer,
+  feedback,
+}: {
+  session?: Session;
+  active?: boolean;
+  composer?: ReactNode;
+  feedback?: ReactNode;
+}) {
+  const [fullscreen, setFullscreen] = useState(false);
+  const [inputVisible, setInputVisible] = useState(true);
+  const [container] = useState(() => document.createElement('div'));
+  const inline = useRef<HTMLDivElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const element = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  useLayoutEffect(() => {
+    const scrollTop = element.current?.scrollTop || 0;
+    const host = fullscreen ? dialog.current! : inline.current!;
+    host.appendChild(container);
+    if (element.current) element.current.scrollTop = scrollTop;
+    if (!fullscreen) return;
+    const modal = dialog.current!;
+    const overflow = document.body.style.overflow;
+    modal.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      modal.close();
+      document.body.style.overflow = overflow;
+      button.current?.focus();
+    };
+  }, [container, fullscreen]);
+  useLayoutEffect(() => {
+    if (!active) setFullscreen(false);
+  }, [active]);
   useLayoutEffect(() => {
     if (active && element.current && follow.current)
       element.current.scrollTop = element.current.scrollHeight;
   }, [active, session?.blocks, session?.queue]);
   return (
     <ImageSession.Provider value={session?.id || ''}>
-      <div
-        id="transcript"
-        role="region"
-        aria-label="Conversation transcript"
-        tabIndex={0}
-        ref={element}
-        onScroll={() => {
-          const node = element.current;
-          if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
-        }}
-      >
-        {session?.blocks?.map((block, index) => (
-          <Block key={`${block.kind}:${block.id || index}`} block={block} />
-        ))}
-        {!!session?.queue?.length && (
-          <aside className="transcript-card queued-card" aria-label="Queued prompts">
-            <div className="message-label">Queued prompts</div>
-            {session.queue.map((text, index) => (
-              <div className="queued-prompt" key={index}>
-                <Markdown text={text} />
-              </div>
-            ))}
-          </aside>
-        )}
+      <div className="transcript-toolbar">
+        <button ref={button} onClick={() => setFullscreen(true)}>
+          Fullscreen logs
+        </button>
       </div>
+      <div ref={inline} />
+      <dialog
+        ref={dialog}
+        className="transcript-fullscreen"
+        aria-label="Fullscreen agent logs"
+        onCancel={() => setFullscreen(false)}
+      >
+        <header className="transcript-toolbar">
+          <strong>{session?.name || 'Agent'} · Logs</strong>
+          {composer && (
+            <button
+              aria-expanded={inputVisible}
+              aria-controls="log-composer"
+              onClick={() => setInputVisible((value) => !value)}
+            >
+              {inputVisible ? 'Hide input' : 'Show input'}
+            </button>
+          )}
+          <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
+        </header>
+      </dialog>
+      {createPortal(
+        <>
+          <div
+            id="transcript"
+            role="region"
+            aria-label="Conversation transcript"
+            tabIndex={0}
+            ref={element}
+            onScroll={() => {
+              const node = element.current;
+              if (node)
+                follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
+            }}
+          >
+            {session?.blocks?.map((block, index) => (
+              <Block key={`${block.kind}:${block.id || index}`} block={block} />
+            ))}
+            {!!session?.queue?.length && (
+              <aside className="transcript-card queued-card" aria-label="Queued prompts">
+                <div className="message-label">Queued prompts</div>
+                {session.queue.map((text, index) => (
+                  <div className="queued-prompt" key={index}>
+                    <Markdown text={text} />
+                  </div>
+                ))}
+              </aside>
+            )}
+          </div>
+          {composer && (
+            <div id="log-composer" className="log-composer" hidden={fullscreen && !inputVisible}>
+              {composer}
+              {fullscreen && feedback}
+            </div>
+          )}
+        </>,
+        container,
+      )}
     </ImageSession.Provider>
   );
 }

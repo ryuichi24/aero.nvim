@@ -66,6 +66,39 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('sends prompts from fullscreen and preserves drafts when the input is hidden', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect();
+    await open();
+    draft('Fullscreen request');
+    const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+    dialog.showModal = () => dialog.setAttribute('open', '');
+    dialog.close = () => dialog.removeAttribute('open');
+    await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' });
+    expect(dialog.contains(input)).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Hide input' }));
+    expect(screen.queryByRole('textbox', { name: 'Follow-up prompt' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Show input' }));
+    expect(input.value).toBe('Fullscreen request');
+    await userEvent.click(screen.getByRole('button', { name: 'Send prompt' }));
+    await waitFor(() => expect(input.value).toBe(''));
+    expect(dialog.textContent).not.toContain('Action accepted');
+    expect(fetch.mock.calls[0][0]).toBe('/api/prompt');
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      session: 'stable-session',
+      conversation: 'generation-1',
+      text: 'Fullscreen request',
+    });
+    draft('Next request');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide input' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Exit fullscreen' }));
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('Next request');
+  });
   it('shows each populated media gallery once below the session actions and hides empty galleries', async () => {
     vi.stubGlobal(
       'fetch',

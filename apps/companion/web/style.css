@@ -110,7 +110,7 @@ form#pair {
   display: none !important;
 }
 .primary-nav {
-  @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 gap-1 border-t border-slate-700 bg-slate-900/95 px-3 pt-2 backdrop-blur;
+  @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 border-t border-slate-700 bg-slate-900/95 px-3 pt-2 backdrop-blur;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 .primary-nav button {
@@ -152,14 +152,16 @@ form#pair {
   @apply min-w-0 flex-1 text-sm;
   overflow-wrap: anywhere;
 }
-.source-fullscreen {
+.source-fullscreen,
+.transcript-fullscreen {
   @apply fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-slate-950 p-4 text-slate-100 sm:p-5;
   padding-top: max(1rem, env(safe-area-inset-top));
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
 }
-.source-fullscreen[open] {
+.source-fullscreen[open],
+.transcript-fullscreen[open] {
   @apply flex flex-col;
 }
 .source-fullscreen .source-reader-toolbar {
@@ -336,6 +338,29 @@ form#pair {
   overscroll-behavior: contain;
   padding: 2px;
   border-radius: 8px;
+}
+.transcript-toolbar {
+  @apply mb-2 flex shrink-0 flex-wrap items-center justify-between gap-3;
+}
+.transcript-toolbar strong {
+  @apply min-w-0 flex-1;
+  overflow-wrap: anywhere;
+}
+.transcript-fullscreen .log-composer {
+  flex-shrink: 0;
+  max-height: 45dvh;
+  overflow: auto;
+}
+.transcript-fullscreen #compose {
+  margin-top: 0.5rem;
+}
+.transcript-fullscreen > div {
+  @apply flex min-h-0 flex-1 flex-col;
+}
+.transcript-fullscreen #transcript {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 .transcript-card {
   @apply mb-3 min-w-0 rounded-xl border border-slate-700 bg-slate-950 p-3.5;

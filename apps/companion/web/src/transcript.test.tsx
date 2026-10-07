@@ -4,6 +4,46 @@ import { Transcript } from './transcript';
 import type { Session } from './types';
 
 afterEach(cleanup);
+it('keeps log state and live updates in fullscreen and restores focus on exit', () => {
+  const { rerender } = render(
+    <Transcript session={{ ...session, blocks: [{ kind: 'tool', title: 'Read file' }] }} />,
+  );
+  const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+  dialog.showModal = () => dialog.setAttribute('open', '');
+  dialog.close = () => dialog.removeAttribute('open');
+  const transcript = screen.getByRole('region', { name: 'Conversation transcript' });
+  const tool = screen.getByText('Read file').closest('details')!;
+  tool.open = true;
+  transcript.scrollTop = 120;
+  fireEvent.scroll(transcript);
+  const button = screen.getByRole('button', { name: 'Fullscreen logs' });
+  fireEvent.click(button);
+  expect(dialog.contains(transcript)).toBe(true);
+  expect(tool.open).toBe(true);
+  expect(transcript.scrollTop).toBe(120);
+  expect(document.body.style.overflow).toBe('hidden');
+  rerender(
+    <Transcript
+      session={{
+        ...session,
+        blocks: [
+          { kind: 'tool', title: 'Read file' },
+          { kind: 'agent', text: 'Live update' },
+        ],
+      }}
+    />,
+  );
+  expect(dialog.textContent).toContain('Live update');
+  fireEvent(dialog, new Event('cancel', { bubbles: true }));
+  expect(dialog.hasAttribute('open')).toBe(false);
+  expect(dialog.contains(transcript)).toBe(false);
+  expect(tool.open).toBe(true);
+  expect(document.body.style.overflow).toBe('');
+  expect(document.activeElement).toBe(button);
+  fireEvent.click(button);
+  fireEvent.click(screen.getByRole('button', { name: 'Exit fullscreen' }));
+  expect(dialog.hasAttribute('open')).toBe(false);
+});
 it('previews screenshots inside the app and restores focus when closed', () => {
   render(
     <Transcript
