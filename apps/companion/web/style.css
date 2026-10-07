@@ -57,6 +57,12 @@ form#pair {
   @apply m-0 block w-full text-left;
   overflow-wrap: anywhere;
 }
+.inbox-permission {
+  @apply mt-2 grid gap-2 rounded-xl border border-slate-700/60 p-3;
+}
+.inbox-permission p {
+  @apply m-0 text-sm text-slate-300;
+}
 [hidden] {
   display: none !important;
 }

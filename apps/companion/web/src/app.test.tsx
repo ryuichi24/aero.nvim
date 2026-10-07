@@ -66,6 +66,58 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('answers permissions from the inbox without selecting a session', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    const snapshot: Snapshot = {
+      ...initial,
+      sessions: [
+        {
+          ...initial.sessions[0],
+          status: 'waiting',
+          permission: {
+            id: 'inbox-permission',
+            title: 'Allow command?',
+            options: [
+              { optionId: 'allow', name: 'Allow once' },
+              { optionId: 'reject', name: 'Reject' },
+            ],
+          },
+        },
+      ],
+      inbox: [
+        {
+          id: 'event-1',
+          session: 'stable-session',
+          conversation: 'generation-1',
+          kind: 'permission',
+          text: 'Command needs approval',
+        },
+      ],
+    };
+    connect(snapshot);
+    await userEvent.click(screen.getByRole('button', { name: /Inbox/ }));
+    connect({ ...snapshot, connected: false });
+    expect((screen.getByRole('button', { name: 'Allow once' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    connect(snapshot);
+    await userEvent.click(screen.getByRole('button', { name: 'Allow once' }));
+    await screen.findByText('Action accepted');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe('/api/permission');
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      session: 'stable-session',
+      conversation: 'generation-1',
+      permission: 'inbox-permission',
+      option: 'allow',
+    });
+    expect(screen.getByRole('heading', { name: 'Attention inbox' })).toBeTruthy();
+    connect({ ...snapshot, sessions: [{ ...snapshot.sessions[0], conversation: 'generation-2' }] });
+    expect(screen.queryByRole('button', { name: 'Allow once' })).toBeNull();
+  });
+
   it.each(['before', 'after'])(
     'waits for initialization when the starting snapshot arrives %s the creation receipt',
     async (timing) => {

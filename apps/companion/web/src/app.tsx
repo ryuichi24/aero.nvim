@@ -218,12 +218,15 @@ function Companion() {
 
   async function act(path: ActionPath, extra: Partial<ActionData> = {}) {
     const lifecycle = path.startsWith('session_') || path.startsWith('worktree_');
-    if (pendingRef.current || !online || (!lifecycle && !selected?.conversation)) return false;
+    const target = extra.session
+      ? { id: extra.session, conversation: extra.conversation }
+      : selected;
+    if (pendingRef.current || !online || (!lifecycle && !target?.conversation)) return false;
     const action: PendingAction = {
       path,
       data: {
-        ...(!lifecycle && selected
-          ? { session: selected.id, conversation: selected.conversation }
+        ...(!lifecycle && target
+          ? { session: target.id, conversation: target.conversation }
           : { epoch: snapshot?.epoch }),
         operation_id: operationID(),
         ...extra,
@@ -403,19 +406,52 @@ function Companion() {
         <section hidden={view !== 'inbox'}>
           <h2>Attention inbox</h2>
           <div id="inbox">
-            {snapshot?.inbox.map((entry) => (
-              <button
-                key={entry.id}
-                onClick={() =>
-                  openSession({
-                    id: entry.session,
-                    conversation: entry.conversation,
-                  })
-                }
-              >
-                {entry.kind}: {entry.text}
-              </button>
-            ))}
+            {snapshot?.inbox.map((entry) => {
+              const owner = snapshot.sessions.find(
+                (item) => item.id === entry.session && item.conversation === entry.conversation,
+              );
+              const permission = entry.kind === 'permission' ? owner?.permission : undefined;
+              return (
+                <div key={entry.id} className="inbox-entry">
+                  <button
+                    onClick={() =>
+                      openSession({
+                        id: entry.session,
+                        conversation: entry.conversation,
+                      })
+                    }
+                  >
+                    {entry.kind}: {entry.text}
+                  </button>
+                  {permission && (
+                    <div className="inbox-permission" role="group" aria-label={permission.title}>
+                      <p>{permission.title}</p>
+                      {permission.options.map((option) => (
+                        <button
+                          key={option.optionId}
+                          disabled={
+                            !online ||
+                            !!pending ||
+                            owner?.status === 'exited' ||
+                            owner?.status === 'stopped'
+                          }
+                          onClick={() =>
+                            act('permission', {
+                              session: entry.session,
+                              conversation: entry.conversation,
+                              permission: permission.id,
+                              option: option.optionId,
+                            })
+                          }
+                        >
+                          {option.name || option.optionId}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {snapshot?.connected && snapshot.inbox.length === 0 && (
             <p className="navigation-empty">No attention events right now.</p>
