@@ -131,6 +131,7 @@ export function SourceBrowser({
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const foldKey = JSON.stringify([worktree, path, content]);
   const ranges = folds?.key === foldKey ? folds.ranges : [];
+  const collapsedByDefault = snapshot?.companion?.ui?.source_collapsed_by_default === true;
   useEffect(() => {
     setCollapsed(new Set());
     if (content === undefined || typeof Worker === 'undefined') return;
@@ -139,11 +140,14 @@ export function SourceBrowser({
     });
     worker.onmessage = (event: MessageEvent<{ ranges: FoldRange[]; error?: boolean }>) => {
       setFolds({ key: foldKey, ...event.data });
+      if (collapsedByDefault) {
+        setCollapsed(new Set(event.data.ranges.map((range) => range.start)));
+      }
     };
     worker.onerror = () => setFolds({ key: foldKey, ranges: [], error: true });
     worker.postMessage({ id: 1, content, extension });
     return () => worker.terminate();
-  }, [foldKey, content, extension]);
+  }, [foldKey, content, extension, collapsedByDefault]);
   const markdown = ['md', 'markdown', 'mdown', 'mkd'].includes(extension);
   const languages: Record<string, string> = {
     ts: 'typescript',

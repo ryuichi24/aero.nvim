@@ -90,6 +90,7 @@ export interface InboxEvent {
 }
 
 export interface Snapshot {
+  companion?: { ui?: { source_collapsed_by_default?: boolean } };
   boards?: { workspace: string; id: string; title: string }[];
   connected: boolean;
   cursor: string;

@@ -6,12 +6,18 @@ require("aero").setup({
 	state_file = dir .. "/state.json",
 	animation = false,
 	start_insert = false,
-	companion = { bind = "100.101.102.103", origin = "http://100.101.102.103:8765", allow_http = true },
+	companion = {
+		bind = "100.101.102.103",
+		origin = "http://100.101.102.103:8765",
+		allow_http = true,
+		ui = { source_collapsed_by_default = true },
+	},
 	agents = { fixture = { type = "acp", cmd = { "python3", "tests/fixtures/companion_acp.py" } } },
 })
 local sessions, bridge = require("aero.session"), require("aero.companion")
 local config = require("aero.config")
 assert(config.defaults.companion.allow_http == false)
+assert(config.defaults.companion.ui.source_collapsed_by_default == false)
 assert(config.options.companion.allow_http == true, "setup did not apply the explicit HTTP opt-in")
 local socket, settings_file = bridge.start()
 local settings = vim.json.decode(table.concat(vim.fn.readfile(settings_file), "\n"))
@@ -33,6 +39,7 @@ wait(function()
 	return s.chat.state == "ready"
 end)
 local snapshot = bridge.dispatch("snapshot")
+assert(snapshot.companion.ui.source_collapsed_by_default == true, "snapshot lost the default folding preference")
 assert(snapshot.workspaces[1].root == vim.fn.getcwd())
 assert(vim.tbl_contains(
 	vim.tbl_map(function(wt)

@@ -34,6 +34,9 @@ M.defaults = {
 	},
 	companion = {
 		auto_start = false, -- launch the companion and show pairing after setup
+		ui = {
+			source_collapsed_by_default = false, -- open companion source files with all code folds collapsed
+		},
 		executable = false, -- auto-detect a local build, installed release, or aero-companion on PATH
 		devices_file = false, -- default: a private, origin-scoped file under stdpath("data")/Aero/companion
 		bind = "127.0.0.1",

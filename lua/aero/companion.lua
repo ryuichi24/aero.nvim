@@ -99,6 +99,11 @@ function M.dispatch(method, params)
 	if method == "snapshot" then
 		local result = {
 			epoch = epoch,
+			companion = {
+				ui = {
+					source_collapsed_by_default = require("aero.config").options.companion.ui.source_collapsed_by_default,
+				},
+			},
 			agents = {},
 			workspaces = require("aero.store").data.workspaces,
 			worktrees = worktrees(),

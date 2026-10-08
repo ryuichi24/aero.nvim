@@ -12,6 +12,25 @@ normal and fullscreen logs and pauses live scrolling while you review history.
 Scroll back to the bottom to resume following new output. Queued prompts appear
 in the list after they are sent.
 
+## Source folding
+
+Source files open with code folds expanded by default. To open them collapsed:
+
+```lua
+require("aero").setup({
+  companion = {
+    ui = {
+      source_collapsed_by_default = true,
+    },
+  },
+})
+```
+
+This collapses all detected folds when a file is opened, including nested folds.
+Use the gutter arrows or **Expand all** to reveal code. Manual folding choices
+remain in place while reading the file, including in fullscreen. The preference
+also applies when viewing report source; rendered Markdown previews are unaffected.
+
 ## Installation and startup
 
 ### Install from Neovim (recommended)

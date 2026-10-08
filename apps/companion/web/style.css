@@ -343,6 +343,7 @@ form#pair {
 }
 .source-fullscreen :is(.source-code, .source-preview) {
   flex: 1;
+  height: auto;
   min-height: 0;
   max-height: none;
   overscroll-behavior: contain;
@@ -359,6 +360,8 @@ form#pair {
 }
 .source-code {
   @apply flex overflow-auto rounded-xl border border-slate-700 bg-slate-950 text-sm;
+  /* Keep the reading pane stable when folds remove rows. */
+  height: 70vh;
   max-height: 70vh;
 }
 .source-code pre {
@@ -377,6 +380,8 @@ form#pair {
   background: transparent;
 }
 .source-code-rows {
+  flex-shrink: 0;
+  align-self: flex-start;
   min-width: 100%;
   width: max-content;
   padding: 1rem 0;
@@ -403,15 +408,43 @@ form#pair {
 .source-fold-spacer {
   display: inline-block;
   width: 2rem;
+  margin: 0;
   padding: 0;
   line-height: inherit;
   border: 0;
   background: transparent;
 }
+.source-gutter button {
+  @apply rounded text-sky-300;
+  touch-action: manipulation;
+}
+.source-gutter button:hover {
+  @apply bg-sky-400/10;
+}
 .source-fold-placeholder {
   @apply ml-3 rounded text-slate-400;
   padding: 0 0.5rem;
   line-height: inherit;
+}
+@media (max-width: 639px), (pointer: coarse) {
+  .source-code-row,
+  .source-gutter {
+    align-items: center;
+  }
+  .source-gutter button,
+  .source-fold-spacer {
+    width: 44px;
+    flex-shrink: 0;
+  }
+  .source-gutter button {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .source-fold-placeholder {
+    margin-top: 0;
+    margin-bottom: 0;
+    touch-action: manipulation;
+  }
 }
 @media (min-width: 640px) {
   .primary-nav {

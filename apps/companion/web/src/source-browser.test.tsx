@@ -9,65 +9,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('folds source lines, retains nested folds in fullscreen, and expands all', async () => {
-  class FoldWorker {
-    onmessage?: (event: { data: unknown }) => void;
-    postMessage() {
-      queueMicrotask(() =>
-        this.onmessage?.({
-          data: {
-            ranges: [
-              { start: 0, end: 4 },
-              { start: 1, end: 3 },
-            ],
-          },
-        }),
-      );
+it.each([false, true])(
+  'folds source lines with collapsed-by-default=%s, retains nested folds in fullscreen, and expands all',
+  async (collapsedByDefault) => {
+    class FoldWorker {
+      onmessage?: (event: { data: unknown }) => void;
+      postMessage() {
+        queueMicrotask(() =>
+          this.onmessage?.({
+            data: {
+              ranges: [
+                { start: 0, end: 4 },
+                { start: 1, end: 3 },
+              ],
+            },
+          }),
+        );
+      }
+      terminate() {}
     }
-    terminate() {}
-  }
-  vi.stubGlobal('Worker', FoldWorker);
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: unknown, options: RequestInit) => ({
-      ok: true,
-      json: async () =>
-        JSON.parse(options.body as string).path
-          ? { content: 'function example() {\n  if (true) {\n    return 42;\n  }\n}\nexample();' }
-          : { entries: [{ name: 'main.ts', directory: false }] },
-    })),
-  );
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={client}>
-      <SourceBrowser
-        snapshot={{
-          connected: true,
-          cursor: '1',
-          sessions: [],
-          inbox: [],
-          workspaces: [],
-          worktrees: [{ path: '/repo' }],
-        }}
-      />
-    </QueryClientProvider>,
-  );
-  const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'main.ts' }));
-  await user.click(await screen.findByRole('button', { name: 'Collapse lines 2–4' }));
-  expect(screen.getByLabelText('main.ts').textContent).not.toContain('return 42');
-  await user.click(screen.getByRole('button', { name: 'Collapse all' }));
-  const dialog = document.querySelector('dialog')!;
-  dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''));
-  dialog.close = vi.fn(() => dialog.removeAttribute('open'));
-  await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
-  await user.click(within(dialog).getByRole('button', { name: 'Expand lines 1–5' }));
-  expect(within(dialog).getByRole('button', { name: 'Expand lines 2–4' })).toBeTruthy();
-  await user.click(within(dialog).getByRole('button', { name: 'Expand all' }));
-  expect(within(dialog).getByLabelText('main.ts').textContent).toContain('return 42');
-  await user.click(within(dialog).getByRole('button', { name: 'Exit fullscreen' }));
-  client.clear();
-});
+    vi.stubGlobal('Worker', FoldWorker);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, options: RequestInit) => ({
+        ok: true,
+        json: async () =>
+          JSON.parse(options.body as string).path
+            ? { content: 'function example() {\n  if (true) {\n    return 42;\n  }\n}\nexample();' }
+            : { entries: [{ name: 'main.ts', directory: false }] },
+      })),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SourceBrowser
+          snapshot={{
+            companion: { ui: { source_collapsed_by_default: collapsedByDefault } },
+            connected: true,
+            cursor: '1',
+            sessions: [],
+            inbox: [],
+            workspaces: [],
+            worktrees: [{ path: '/repo' }],
+          }}
+        />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'main.ts' }));
+    if (collapsedByDefault) {
+      expect(await screen.findByRole('button', { name: 'Expand lines 1–5' })).toBeTruthy();
+      expect(screen.getByLabelText('main.ts').textContent).not.toContain('return 42');
+      await user.click(screen.getByRole('button', { name: 'Expand all' }));
+    }
+    await user.click(await screen.findByRole('button', { name: 'Collapse lines 2–4' }));
+    expect(screen.getByLabelText('main.ts').textContent).not.toContain('return 42');
+    await user.click(screen.getByRole('button', { name: 'Collapse all' }));
+    const dialog = document.querySelector('dialog')!;
+    dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''));
+    dialog.close = vi.fn(() => dialog.removeAttribute('open'));
+    await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Expand lines 1–5' }));
+    expect(within(dialog).getByRole('button', { name: 'Expand lines 2–4' })).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Expand all' }));
+    expect(within(dialog).getByLabelText('main.ts').textContent).toContain('return 42');
+    await user.click(within(dialog).getByRole('button', { name: 'Exit fullscreen' }));
+    client.clear();
+  },
+);
 
 it('lists reports and opens rendered Markdown with a source toggle', async () => {
   const fetch = vi.fn(async (_url: unknown, options: RequestInit) => {
