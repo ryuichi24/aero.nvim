@@ -3,6 +3,7 @@ local api = vim.api
 local config = require("aero.config")
 local spinner = require("aero.spinner")
 local usage = require("aero.acp.usage")
+local todos = require("aero.acp.todos")
 local M = {}
 local ns = api.nvim_create_namespace("Aero.acp.render")
 local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
@@ -119,8 +120,13 @@ function M.build(chat, opts)
 			marks[#marks].border_group = border
 		end
 	end
+	local timestamp
 	local function header(text, group, level)
-		push((level or "### ") .. text, group, "header")
+		local suffix = timestamp and (" · " .. os.date("%Y-%m-%d %H:%M:%S", timestamp)) or ""
+		push((level or "### ") .. text .. suffix, group, "header")
+		if timestamp then
+			marks[#marks].timestamp_col = #lines[#lines] - #suffix
+		end
 	end
 	local function finish(group)
 		push("", group, "footer")
@@ -158,6 +164,13 @@ function M.build(chat, opts)
 		end
 	end
 	local function tool(block)
+		local entries = todos.block(block)
+		if entries then
+			header("Agent todos", "AeroChatTool")
+			for _, row in ipairs(todos.rows(entries)) do push(row.text, row.group, "body") end
+			finish("AeroChatTool")
+			return
+		end
 		local command = command_input(block)
 		if
 			not command
@@ -235,6 +248,7 @@ function M.build(chat, opts)
 	local block_lines = {}
 	while index <= #chat.blocks do
 		local block = chat.blocks[index]
+		timestamp = block.timestamp
 		block_lines[block] = #lines + 1
 		if block.kind == "info" then
 			local category = info_kind(block)
@@ -245,7 +259,7 @@ function M.build(chat, opts)
 				body(split(vim.trim(block.text)), group)
 				index = index + 1
 				block = chat.blocks[index]
-			until not block or block.kind ~= "info" or (info_kind(block) == "error") ~= (category == "error")
+			until not block or block.kind ~= "info" or (info_kind(block) == "error") ~= (category == "error") or block.timestamp ~= timestamp
 			finish(group)
 		else
 			if block.kind == "user" then
@@ -255,6 +269,9 @@ function M.build(chat, opts)
 				finish("AeroChatUser")
 				speaker = "user"
 			else
+				if block.kind == "agent" and speaker == "agent" and timestamp then
+					header("Message", "AeroChatAgent")
+				end
 				if speaker ~= "agent" then
 					header(chat:agent_title(), "AeroChatAgent", "## ")
 					push("")
@@ -271,9 +288,8 @@ function M.build(chat, opts)
 					tool(block)
 				elseif block.kind == "plan" then
 					header("Plan", "AeroChatTool")
-					for _, entry in ipairs(block.entries or {}) do
-						local mark = entry.status == "completed" and "x" or entry.status == "in_progress" and "~" or " "
-						push(("- [%s] %s"):format(mark, one_line(entry.content)), nil, "body")
+					for _, row in ipairs(todos.rows(todos.block(block) or {})) do
+						push(row.text, row.group, "body")
 					end
 					finish("AeroChatTool")
 				elseif block.kind == "permission" then
@@ -296,6 +312,7 @@ function M.build(chat, opts)
 			index = index + 1
 		end
 	end
+	timestamp = nil
 	for _, text in ipairs(chat.queue) do
 		header("You (queued)", "AeroChatPending", "## ")
 		push("")
@@ -348,11 +365,16 @@ function M.decorate(buf, lines, marks, first)
 				local status = text:find(" · ", 1, true)
 				if status then
 					api.nvim_buf_set_extmark(buf, ns, mark.line - 1, status + #" · " - 1, {
-						end_col = #text,
+						end_col = mark.timestamp_col or #text,
 						hl_group = mark.status_group,
 						priority = 160,
 					})
 				end
+			end
+			if mark.timestamp_col then
+				api.nvim_buf_set_extmark(buf, ns, mark.line - 1, mark.timestamp_col, {
+					end_col = #text, hl_group = "AeroChatMeta", priority = 170,
+				})
 			end
 		end
 	end

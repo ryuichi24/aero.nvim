@@ -53,11 +53,20 @@ Streaming preserves the earlier transcript view. Borders and shell `$` decoratio
 are excluded from yanks/quotes. No Markdown renderer is needed; disable decorations
 with `acp = { decorations = false }`.
 
+The transcript's top bar shows the latest **todo progress** and what the agent is
+working on, alongside the panel's session details. It stays visible while you
+scroll the logs and in fullscreen. Press `gT` to open a live, scrollable todo list
+with status icons, highlighting, and priorities when reported. Close it with
+`q` or Escape. Todos follow ACP plan updates and `todowrite`/`todoread` tool calls,
+including saved conversation history; plan and todo tool cards in the logs use
+the same readable checklist formatting.
+
 | Transcript key | Action |
 | --- | --- |
 | `i`, `a`, `o`, `I`, `A`, `<CR>` | Open prompt below transcript |
 | `<CR>` on an option / `1`–`9` | Answer pending permission |
 | `p` | Jump to pending permission |
+| `gT` | Open live agent todos |
 | `<C-c>` | Cancel the turn and pending request |
 
 The prompt is a regular Markdown buffer; closing it retains the draft.

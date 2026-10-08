@@ -215,6 +215,7 @@ function Chat:render()
 		-- only replace the lines that changed (usually the tail of the streaming block), so the
 		-- rest of the buffer, its highlighting and the windows' views stay untouched
 		local old, new = self.lines, self:build_lines()
+		require("aero.acp.todos").update(self)
 		if not old or #old ~= api.nvim_buf_line_count(buf) then
 			-- no record of the buffer, or it's out of sync: diff against what's really there
 			old = api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -407,7 +408,7 @@ function Chat:append(kind, text)
 	if b and b.kind == kind then
 		b.text = b.text .. text
 	else
-		b = { kind = kind, text = text }
+		b = { kind = kind, text = text, timestamp = not self.replaying and os.time() or nil }
 		table.insert(self.blocks, b)
 	end
 	-- live agent output is revealed gradually; replayed history appears at once
@@ -418,7 +419,7 @@ function Chat:append(kind, text)
 end
 
 function Chat:info(text, kind)
-	local block = { kind = "info", text = text, meta_kind = kind }
+	local block = { kind = "info", text = text, meta_kind = kind, timestamp = not self.replaying and os.time() or nil }
 	table.insert(self.blocks, block)
 	if kind == "error" then
 		require("aero.inbox").add(self, "error", block)
@@ -467,7 +468,7 @@ function Chat:on_update(u)
 		end
 		local b = self.tools[u.toolCallId]
 		if not b then
-			b = { kind = "tool", id = u.toolCallId }
+			b = { kind = "tool", id = u.toolCallId, timestamp = not self.replaying and os.time() or nil }
 			self.tools[u.toolCallId] = b
 			table.insert(self.blocks, b)
 		end
@@ -482,7 +483,7 @@ function Chat:on_update(u)
 		if self.plan and self.plan.turn == self.turn then
 			self.plan.entries = u.entries
 		else
-			self.plan = { kind = "plan", entries = u.entries, turn = self.turn }
+			self.plan = { kind = "plan", entries = u.entries, turn = self.turn, timestamp = not self.replaying and os.time() or nil }
 			table.insert(self.blocks, self.plan)
 		end
 	elseif kind == "available_commands_update" then
@@ -571,6 +572,7 @@ function Chat:on_request(method, params, respond)
 		local known = self.tools[tool.toolCallId]
 		local block = {
 			kind = "permission",
+			timestamp = os.time(),
 			title = tool.title or (known and known.title) or "tool call",
 			options = params.options or {},
 		}
@@ -842,7 +844,7 @@ function Chat:prompt(text)
 	if models.handle(self, text) or modes.handle(self, text) then
 		return
 	end
-	local prompt_block = { kind = "user", text = text }
+	local prompt_block = { kind = "user", text = text, timestamp = os.time() }
 	table.insert(self.blocks, prompt_block)
 	self.turn = (self.turn or 0) + 1
 	local turn = self.turn
@@ -1065,6 +1067,9 @@ local function setup_transcript(chat)
 	map("gP", function()
 		require("aero.prompts").open(chat)
 	end, "view session prompt history")
+	map("gT", function()
+		require("aero.acp.todos").open(chat)
+	end, "view live agent todos")
 	api.nvim_create_autocmd("CursorMoved", {
 		buffer = buf,
 		callback = function()
@@ -1086,6 +1091,7 @@ local function setup_transcript(chat)
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
 		chat_win_opts(win, transcript_win_opts)
 	end
+	require("aero.acp.todos").attach(chat)
 end
 
 ---@param s Aero.Session

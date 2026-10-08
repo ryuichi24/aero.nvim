@@ -12,6 +12,7 @@ export interface Permission {
 
 export interface TranscriptBlock {
   kind: string;
+  timestamp?: number;
   id?: string;
   status?: string;
   meta_kind?: string;
@@ -34,6 +35,19 @@ export interface TranscriptBlock {
 }
 
 export interface Session {
+  usage?: {
+    tokens?: {
+      responses?: number;
+      totalTokens?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      thoughtTokens?: number;
+      cachedReadTokens?: number;
+      cachedWriteTokens?: number;
+    };
+    context?: { used: number; size: number };
+    cost?: { amount: number; currency: string };
+  };
   commands?: { name: string; description?: string; input?: { hint?: string } }[];
   models?: SessionChoices;
   modes?: SessionChoices;

@@ -26,6 +26,13 @@ idle ACP conversation to a saved workspace board. Session lists and transcripts
 show board/ticket assignments and the assigned ticket's committed state, shared
 with the Neovim dashboard and panel. See [task-agent setup](../docs/agent-tasks.md#assign-a-board-from-mobile).
 
+The transcript's **Agent todos** panel follows the latest ACP plan or
+`todowrite`/`todoread` tool update live. It shows completion progress, the items
+currently being worked on, statuses, and priorities when supplied by the agent.
+The panel stays above the scrolling logs, including in **Fullscreen logs**, and
+can be collapsed using its heading. Plan and todo tool entries in the history
+also render as readable lists.
+
 `scripts/` packages both tools into the ignored `dist/` directory. The shared
 version comes from `../release.json`; root Makefile commands build and test the
 workspace.

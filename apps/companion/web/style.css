@@ -376,6 +376,43 @@ form#pair {
   padding: 0;
   background: transparent;
 }
+.source-code-rows {
+  min-width: 100%;
+  width: max-content;
+  padding: 1rem 0;
+  font-family: monospace;
+  line-height: 1.6;
+  tab-size: 4;
+}
+.source-code-row {
+  display: flex;
+  align-items: baseline;
+  white-space: pre;
+  padding-right: 1rem;
+}
+.source-gutter {
+  @apply sticky left-0 border-r border-slate-700 bg-slate-950 text-slate-500;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 6rem;
+  margin-right: 1rem;
+  user-select: none;
+}
+.source-gutter button,
+.source-fold-spacer {
+  display: inline-block;
+  width: 2rem;
+  padding: 0;
+  line-height: inherit;
+  border: 0;
+  background: transparent;
+}
+.source-fold-placeholder {
+  @apply ml-3 rounded text-slate-400;
+  padding: 0 0.5rem;
+  line-height: inherit;
+}
 @media (min-width: 640px) {
   .primary-nav {
     @apply inset-x-auto bottom-4 left-1/2 w-full max-w-md -translate-x-1/2 rounded-2xl border p-2 shadow-xl;
@@ -632,17 +669,65 @@ details[open] > .markdown-body {
 .status-pending {
   color: #f5c86b;
 }
-.plan-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.agent-todos {
+  @apply mb-3 shrink-0 rounded-xl border border-slate-700 bg-slate-950 p-3;
 }
-.plan-list li {
-  border-top: 1px solid #33475e;
-  padding: 10px 0;
+.agent-todos summary {
+  @apply cursor-pointer text-sm text-slate-200;
 }
-.plan-list .status-badge {
-  margin: 0 0 6px;
+.agent-todos summary span {
+  @apply ml-3 text-xs text-slate-400;
+}
+.agent-todos progress {
+  width: 100%;
+  height: 5px;
+  accent-color: #80d4ad;
+}
+.agent-todo-current {
+  @apply my-2 text-sm text-amber-200;
+  overflow-wrap: anywhere;
+}
+.agent-todo-list {
+  @apply m-0 list-none p-0;
+  max-height: 25dvh;
+  overflow: auto;
+}
+.agent-todo {
+  @apply grid items-start gap-x-2 gap-y-1 border-t border-slate-800 py-2 text-sm;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+}
+.agent-todo-content {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.agent-todo-icon,
+.agent-todo-status {
+  @apply text-slate-400;
+}
+.agent-todo-status,
+.agent-todo-priority {
+  @apply text-xs;
+}
+.agent-todo-priority {
+  @apply col-start-2 text-slate-400;
+}
+.agent-todo-in_progress {
+  @apply rounded-md bg-amber-300/5;
+}
+.agent-todo-in_progress .agent-todo-icon,
+.agent-todo-in_progress .agent-todo-status,
+.priority-high {
+  color: #f5c86b;
+}
+.agent-todo-completed .agent-todo-icon {
+  color: #80d4ad;
+}
+.agent-todo-completed .agent-todo-content,
+.agent-todo-cancelled .agent-todo-content {
+  @apply text-slate-400;
+}
+.agent-todo-cancelled .agent-todo-content {
+  text-decoration: line-through;
 }
 .permission-answer {
   color: #f5c86b;
@@ -861,4 +946,11 @@ details[open] > .markdown-body {
 .markdown-image {
   color: #bcc8d8;
   font-style: italic;
+}
+.transcript-timestamp {
+  @apply text-slate-400;
+  font-size: 0.75rem;
+  font-weight: normal;
+  white-space: nowrap;
+  margin-left: 0.5rem;
 }

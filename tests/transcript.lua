@@ -35,6 +35,10 @@ chat:on_update({
 	rawInput = { command = "printf 'hello'\nprintf 'world'", cwd = "/tmp/project" },
 })
 chat:on_update({ sessionUpdate = "tool_call_update", toolCallId = "command", status = "completed", rawOutput = "hello\nworld\nextra output" })
+local command_timestamp = chat.tools.command.timestamp
+assert(type(command_timestamp) == "number", "tool call has no event timestamp")
+chat:on_update({ sessionUpdate = "tool_call_update", toolCallId = "command", status = "completed" })
+assert(chat.tools.command.timestamp == command_timestamp, "tool update changed the original timestamp")
 chat:on_update({
 	sessionUpdate = "tool_call", toolCallId = "edit", kind = "edit", title = "Update a file", status = "failed",
 	content = { { type = "diff", path = "src/main.lua", oldText = "old\n", newText = "new\n" } },
@@ -48,6 +52,15 @@ chat:advance(true)
 chat:changed()
 wait(function() return text():find("command stderr", 1, true) end)
 local transcript = text()
+assert(transcript:find("### ✓ Command · completed · " .. os.date("%Y-%m-%d %H:%M:%S", command_timestamp), 1, true), "tool timestamp missing from transcript")
+wait(function() return vim.wo[require("aero.panel").win()].winbar:find("Todos 1/2 completed", 1, true) end)
+local bar = vim.wo[require("aero.panel").win()].winbar
+assert(bar:find("Run the tests", 1, true) and bar:find(s.name, 1, true), "todo summary replaced session details")
+local todo_mapping = vim.fn.maparg("gT", "n", false, true)
+assert(type(todo_mapping.callback) == "function", "live todo list has no transcript binding")
+todo_mapping.callback()
+assert(chat.todo_popup and api.nvim_win_is_valid(chat.todo_popup.win))
+require("aero.acp.todos").close(chat)
 local _, metadata_cards = transcript:gsub("### Session", "")
 assert(metadata_cards == 1, "consecutive metadata did not form one compact card")
 assert(transcript:find("Model: OpenAI/GPT-6 Luna (openai/gpt-6-luna)\nModel: OpenAI/GPT-6.1 Sol", 1, true))
@@ -112,6 +125,7 @@ for _, block in ipairs(saved.blocks) do
 	if block.id == "command" then saved_command = block end
 end
 assert(saved_command.rawInput.command == "printf 'hello'\nprintf 'world'" and saved_command.rawOutput == "hello\nworld\nextra output")
+assert(saved_command.timestamp == command_timestamp, "event timestamp was not persisted")
 assert(saved.blocks[#saved.blocks - 1].meta_kind == "error", "typed metadata was not saved")
 
 -- Structured execution results have readable stdout/stderr and exit metadata.

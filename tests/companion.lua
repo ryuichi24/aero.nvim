@@ -119,6 +119,11 @@ s.chat.config_options = {
 s.chat.commands = { { name = "compact", description = "Compact context" } }
 local metadata = bridge.dispatch("snapshot").sessions[1]
 assert(metadata.models.choices[2].id == "two" and metadata.modes.current == "plan")
+s.chat.usage = { tokens = { totalTokens = 4200, responses = 2 }, context = { used = 1200, size = 10000 } }
+local reported_usage = bridge.dispatch("snapshot").sessions[1].usage
+assert(reported_usage.tokens.totalTokens == 4200 and reported_usage.context.used == 1200)
+reported_usage.context.used = 0
+assert(s.chat.usage.context.used == 1200, "companion usage must be an independent snapshot")
 assert(metadata.commands[1].name == "compact")
 local binding = s.task_binding
 s.task_binding = { workspace = { root = s.worktree }, board_id = "fixture" }

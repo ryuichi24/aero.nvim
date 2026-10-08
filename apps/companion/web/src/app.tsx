@@ -17,6 +17,7 @@ import { AttentionSurface, FullscreenAttentionContext } from './fullscreen-atten
 import { Screenshots } from './screenshots';
 import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
+import { SessionMetadata } from './session-metadata';
 import { SourceBrowser } from './source-browser';
 import { LifecycleForm } from './lifecycle-controls';
 import { AssignmentStatus, BoardAssignment } from './task-assignment';
@@ -165,8 +166,10 @@ function Companion() {
     streamRef.current?.close();
     const stream = new EventSource('/api/events');
     streamRef.current = stream;
+    let connectionRevision = 0;
     stream.onmessage = (event) => {
       if (streamRef.current !== stream) return;
+      connectionRevision++;
       try {
         const value = parseSnapshot(event.data);
         client.setQueryData(['snapshot'], value);
@@ -199,6 +202,7 @@ function Companion() {
     };
     stream.onerror = async () => {
       if (streamRef.current !== stream) return;
+      const revision = ++connectionRevision;
       dispatch({
         type: 'connection',
         online: false,
@@ -206,7 +210,11 @@ function Companion() {
       });
       try {
         const response = await fetch('/api/snapshot');
-        if (streamRef.current === stream && response.status === 401) {
+        if (
+          streamRef.current === stream &&
+          connectionRevision === revision &&
+          response.status === 401
+        ) {
           stream.close();
           dispatch({
             type: 'connection',
@@ -336,9 +344,30 @@ function Companion() {
     session.status === 'stopped' ||
     !!session.assignment?.pending ||
     !!pending;
-  const composerDisabled = /^\/export(?: readable)?$/.test(prompt.trim())
-    ? !online || !session?.conversation || !!pending
-    : disabled;
+  const exporting = /^\/export(?: readable)?$/.test(prompt.trim());
+  const actionBlockReason = !online
+    ? `${connection}. Sending and cancellation are unavailable until the connection returns.`
+    : !session?.conversation
+      ? 'This conversation is unavailable. Select or resume a session to send a prompt.'
+      : pending
+        ? retry
+          ? 'The previous action has an unknown outcome. Retry the identical action before sending another prompt.'
+          : 'Sending is paused while the previous action is being processed.'
+        : session.status === 'exited' || session.status === 'stopped'
+          ? 'This session is stopped. Resume it to send a prompt.'
+          : session.assignment?.pending
+            ? 'Sending is paused while the session’s board assignment is being updated.'
+            : null;
+  const composerBlockReason =
+    exporting && online && session?.conversation && !pending ? null : actionBlockReason;
+  const composerDisabled = !!composerBlockReason;
+  const sendBlockReason =
+    composerBlockReason ||
+    (slashPickerOpen(prompt)
+      ? prompt.trim() === '/report'
+        ? 'Select or create a report below to complete this command.'
+        : `Choose a ${prompt.trim().slice(1)} below to complete this command.`
+      : null);
   const location = useMemo(
     () => (snapshot ? sessionLocation(groupSessions(snapshot), selected) : undefined),
     [snapshot, selected],
@@ -732,6 +761,7 @@ function Companion() {
                 ? `${session.name} · ${session.status}`
                 : 'Session or conversation unavailable'}
             </h2>
+            {session && <SessionMetadata session={session} />}
             {session && (
               <div aria-label="Session actions">
                 <AssignmentStatus session={session} />
@@ -800,7 +830,7 @@ function Companion() {
                   id="compose"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (slashPickerOpen(prompt)) return;
+                    if (sendBlockReason) return;
                     act('prompt', { text: prompt });
                   }}
                 >
@@ -835,18 +865,40 @@ function Companion() {
                   <button
                     className="primary-action"
                     id="send"
-                    disabled={composerDisabled || slashPickerOpen(prompt)}
+                    disabled={!!sendBlockReason}
+                    aria-describedby={sendBlockReason ? 'send-block-reason' : undefined}
                   >
                     Send prompt
                   </button>
+                  {sendBlockReason && (
+                    <p id="send-block-reason" role="status" className="mt-2 text-sm text-amber-300">
+                      {sendBlockReason} Your draft is kept here.
+                    </p>
+                  )}
                   <button
                     id="cancel"
                     type="button"
                     disabled={disabled}
+                    aria-describedby={
+                      disabled
+                        ? composerBlockReason
+                          ? 'send-block-reason'
+                          : 'cancel-block-reason'
+                        : undefined
+                    }
                     onClick={() => act('cancel')}
                   >
                     Cancel turn &amp; queue
                   </button>
+                  {disabled && !composerBlockReason && (
+                    <p
+                      id="cancel-block-reason"
+                      role="status"
+                      className="mt-2 text-sm text-amber-300"
+                    >
+                      Cancellation is unavailable. {actionBlockReason}
+                    </p>
+                  )}
                 </form>
               }
               feedback={

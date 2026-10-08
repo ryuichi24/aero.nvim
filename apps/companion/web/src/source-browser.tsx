@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import hljs from 'highlight.js/lib/common';
+import { SourceCode } from './source-code';
+import type { FoldRange } from './source-folds';
 import { post } from './api';
 import { Markdown } from './markdown';
 import { FullscreenAttention } from './fullscreen-attention';
@@ -126,6 +127,23 @@ export function SourceBrowser({
   const parts = path.split('/').filter(Boolean);
   const content = query.data?.content;
   const extension = parts.at(-1)?.split('.').at(-1)?.toLowerCase() || '';
+  const [folds, setFolds] = useState<{ key: string; ranges: FoldRange[]; error?: boolean }>();
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const foldKey = JSON.stringify([worktree, path, content]);
+  const ranges = folds?.key === foldKey ? folds.ranges : [];
+  useEffect(() => {
+    setCollapsed(new Set());
+    if (content === undefined || typeof Worker === 'undefined') return;
+    const worker = new Worker(new URL('./source-folds.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    worker.onmessage = (event: MessageEvent<{ ranges: FoldRange[]; error?: boolean }>) => {
+      setFolds({ key: foldKey, ...event.data });
+    };
+    worker.onerror = () => setFolds({ key: foldKey, ranges: [], error: true });
+    worker.postMessage({ id: 1, content, extension });
+    return () => worker.terminate();
+  }, [foldKey, content, extension]);
   const markdown = ['md', 'markdown', 'mdown', 'mkd'].includes(extension);
   const languages: Record<string, string> = {
     ts: 'typescript',
@@ -138,14 +156,20 @@ export function SourceBrowser({
     md: 'markdown',
   };
   const language = languages[extension] || extension;
-  const highlighted =
-    content !== undefined && !(markdown && preview) && hljs.getLanguage(language)
-      ? hljs.highlight(content, { language }).value
-      : undefined;
 
   const reader = content !== undefined && (
     <>
       <div className="source-reader-toolbar">
+        {!(markdown && preview) && ranges.length > 0 && (
+          <>
+            <button onClick={() => setCollapsed(new Set(ranges.map((range) => range.start)))}>
+              Collapse all
+            </button>
+            <button disabled={!collapsed.size} onClick={() => setCollapsed(new Set())}>
+              Expand all
+            </button>
+          </>
+        )}
         {fullscreen && <strong className="source-reader-path">{path}</strong>}
         {markdown && (
           <button aria-pressed={preview} onClick={() => setPreview((value) => !value)}>
@@ -165,22 +189,26 @@ export function SourceBrowser({
           <Markdown text={content} />
         </div>
       ) : (
-        <div className="source-code" aria-label={path}>
-          <pre className="source-lines" aria-hidden="true">
-            {content
-              .split('\n')
-              .map((_, index) => index + 1)
-              .join('\n')}
-          </pre>
-          <pre>
-            <code
-              className="hljs"
-              {...(highlighted !== undefined
-                ? { dangerouslySetInnerHTML: { __html: highlighted } }
-                : { children: content })}
-            />
-          </pre>
-        </div>
+        <>
+          {folds?.key === foldKey && folds.error && (
+            <p role="status">Folding unavailable for this file.</p>
+          )}
+          <SourceCode
+            content={content}
+            path={path}
+            language={language}
+            ranges={ranges}
+            collapsed={collapsed}
+            onToggle={(line) =>
+              setCollapsed((current) => {
+                const next = new Set(current);
+                if (next.has(line)) next.delete(line);
+                else next.add(line);
+                return next;
+              })
+            }
+          />
+        </>
       )}
     </>
   );

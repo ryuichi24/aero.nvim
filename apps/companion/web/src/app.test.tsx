@@ -71,6 +71,78 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('explains connection-related send blocking and preserves typing until reconnection', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({})));
+    render(<App />);
+    connect();
+    await open();
+    draft('Keep this draft');
+    await act(async () => {
+      await FakeEvents.instances.at(-1)?.onerror?.();
+    });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send prompt' }).disabled).toBe(
+      true,
+    );
+    expect(
+      screen.getByText(/Sending and cancellation are unavailable until the connection returns/),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel turn & queue' }).disabled,
+    ).toBe(true);
+    draft('Keep this draft while offline');
+    connect();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('Keep this draft while offline');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send prompt' }).disabled).toBe(
+      false,
+    );
+    expect(
+      screen.queryByText(/Sending and cancellation are unavailable until the connection returns/),
+    ).toBeNull();
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel turn & queue' }).disabled,
+    ).toBe(false);
+    connect({ ...initial, sessions: [{ ...initial.sessions[0], status: 'busy' }] });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send prompt' }).disabled).toBe(
+      false,
+    );
+  });
+
+  it('ignores a delayed unauthorized connection check after the live stream recovers', async () => {
+    let resolve!: (value: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(
+        () =>
+          new Promise<Response>((done) => {
+            resolve = done;
+          }),
+      ),
+    );
+    render(<App />);
+    connect();
+    await open();
+    draft('Still typing');
+    let check: unknown;
+    act(() => {
+      check = FakeEvents.instances.at(-1)?.onerror?.();
+    });
+    connect();
+    await act(async () => {
+      resolve(response({}, 401));
+      await check;
+    });
+    expect(FakeEvents.instances.at(-1)?.close).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Pair device' })).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send prompt' }).disabled).toBe(
+      false,
+    );
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('Still typing');
+  });
+
   it('selects slash-command options in the companion and submits the session-scoped command', async () => {
     const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
     vi.stubGlobal('fetch', fetch);
@@ -111,6 +183,10 @@ describe('mobile companion', () => {
     connect({ ...initial, sessions: [{ ...initial.sessions[0], status: 'exited' }] });
     await open();
     draft('/export');
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Cancel turn & queue' }).disabled,
+    ).toBe(true);
+    expect(screen.getByText(/Cancellation is unavailable/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Send prompt' }));
     expect(await screen.findByText('Exported log: /host/log.md')).toBeTruthy();
     expect(JSON.parse(fetch.mock.calls[0][1].body).text).toBe('/export');

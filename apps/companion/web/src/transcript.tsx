@@ -5,9 +5,23 @@ import { attachedReports, ReportPreview } from './report-preview';
 import { FullscreenAttention } from './fullscreen-attention';
 import type { Session, TranscriptBlock } from './types';
 import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
+import { AgentTodos, blockTodos, latestTodos, TodoList } from './agent-todos';
 
 function readableStatus(status: string): string {
   return status.replaceAll('_', ' ');
+}
+
+function Timestamp({ block }: { block: TranscriptBlock }) {
+  if (typeof block.timestamp !== 'number' || !Number.isFinite(block.timestamp)) return null;
+  const date = new Date(block.timestamp * 1000);
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const text = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return (
+    <time className="transcript-timestamp" dateTime={date.toISOString()} title={date.toString()}>
+      {text}
+    </time>
+  );
 }
 
 function RawOutput({ label, value }: { label: string; value: unknown }) {
@@ -24,6 +38,8 @@ function RawOutput({ label, value }: { label: string; value: unknown }) {
 function ToolContent({ block }: { block: TranscriptBlock }) {
   const imageLink = useImageLink();
   const videoLink = useVideoLink();
+  const todos = blockTodos(block);
+  if (todos !== undefined) return <TodoList todos={todos} />;
   return (
     <div className="tool-content">
       {block.text && <Markdown text={block.text} />}
@@ -73,6 +89,7 @@ function Block({ block }: { block: TranscriptBlock }) {
               {readableStatus(block.status)}
             </span>
           )}
+          <Timestamp block={block} />
         </summary>
         <ToolContent block={block} />
       </details>
@@ -80,24 +97,19 @@ function Block({ block }: { block: TranscriptBlock }) {
   if (block.kind === 'thought')
     return (
       <details className="transcript-card thought-card">
-        <summary>Thinking</summary>
+        <summary>
+          Thinking <Timestamp block={block} />
+        </summary>
         <Markdown text={block.text || ''} />
       </details>
     );
   if (block.kind === 'plan')
     return (
       <article className="transcript-card plan-card" aria-label="Agent plan">
-        <div className="message-label">Plan</div>
-        <ul className="plan-list">
-          {block.entries?.map((entry, index) => (
-            <li key={index}>
-              <span className={`status-badge status-${entry.status}`}>
-                {readableStatus(entry.status)}
-              </span>
-              <Markdown text={entry.content} />
-            </li>
-          ))}
-        </ul>
+        <div className="message-label">
+          Plan <Timestamp block={block} />
+        </div>
+        <TodoList todos={blockTodos(block) || []} />
       </article>
     );
   const label =
@@ -115,7 +127,9 @@ function Block({ block }: { block: TranscriptBlock }) {
       className={`transcript-card message-${block.kind}${block.meta_kind === 'error' ? ' message-error' : ''}`}
       aria-label={`${label} message`}
     >
-      <div className="message-label">{label}</div>
+      <div className="message-label">
+        {label} <Timestamp block={block} />
+      </div>
       <Markdown text={block.text || block.title || ''} />
       {block.kind === 'permission' && (
         <p className="permission-answer">
@@ -217,6 +231,7 @@ export function Transcript({
       </dialog>
       {createPortal(
         <>
+          <AgentTodos todos={latestTodos(session?.blocks || [])} />
           <div className="transcript-toolbar">
             <button
               aria-expanded={promptsVisible}

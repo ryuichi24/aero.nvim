@@ -22,7 +22,9 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
-    "unified": "^11.0.5"
+    "tree-sitter-wasms": "^0.1.13",
+    "unified": "^11.0.5",
+    "web-tree-sitter": "^0.25.10"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -6,6 +6,25 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { attachedReports } from './report-preview';
 
 afterEach(cleanup);
+it('displays event timestamps and retains them when tool status changes', () => {
+  const timestamp = Date.UTC(2026, 9, 8, 12, 34, 56) / 1000;
+  const blocks = [
+    { kind: 'tool', id: 'read', title: 'Read file', status: 'pending', timestamp },
+    { kind: 'agent', text: 'Older message' },
+  ];
+  const { rerender } = render(<Transcript session={{ ...session, blocks }} />);
+  const time = document.querySelector('time')!;
+  expect(time.getAttribute('datetime')).toBe('2026-10-08T12:34:56.000Z');
+  expect(time.textContent).toMatch(/^2026-10-08 \d{2}:\d{2}:56$/);
+  expect(document.querySelectorAll('time')).toHaveLength(1);
+  rerender(
+    <Transcript
+      session={{ ...session, blocks: [{ ...blocks[0], status: 'completed' }, blocks[1]] }}
+    />,
+  );
+  expect(document.querySelector('time')!.textContent).toBe(time.textContent);
+  expect(screen.getByText('completed')).toBeTruthy();
+});
 it('recognizes quoted report paths and resource attachments only in the report directory', () => {
   expect(
     attachedReports(

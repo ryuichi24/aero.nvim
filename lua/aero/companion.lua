@@ -78,6 +78,7 @@ local function describe(s)
 			b.cache, b.cache_src, b.shown = nil, nil, nil
 		end
 		result.queue = vim.deepcopy(chat.queue)
+		result.usage = vim.deepcopy(chat.usage)
 		result.commands = vim.deepcopy(chat.commands or {})
 		result.models = require("aero.acp.models").options(chat)
 		result.modes = require("aero.acp.modes").options(chat)

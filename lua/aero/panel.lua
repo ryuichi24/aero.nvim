@@ -23,9 +23,10 @@ function M.enabled()
 end
 
 --- The panel window in the current tab, if it is open.
-function M.win()
-	local t = tab_state()
-	if t.win and api.nvim_win_is_valid(t.win) and api.nvim_win_get_tabpage(t.win) == api.nvim_get_current_tabpage() then
+function M.win(tab)
+	local t = tab and (tabs[tab] or {}) or tab_state()
+	tab = tab or api.nvim_get_current_tabpage()
+	if t.win and api.nvim_win_is_valid(t.win) and api.nvim_win_get_tabpage(t.win) == tab then
 		return t.win
 	end
 	t.win = nil
@@ -66,6 +67,10 @@ local function winbar(win)
 		((session.activity(s) or st):gsub("%%", "%%%%"))
 	)
 	local usage = require("aero.acp.usage").summary(s.chat)
+	local todos = require("aero.acp.todos").winbar(s.chat)
+	if todos then
+		bar = todos .. " %*·" .. bar
+	end
 	if usage then
 		bar = bar .. " %=%#AeroDim#" .. usage:gsub("%%", "%%%%") .. " %*"
 	end
