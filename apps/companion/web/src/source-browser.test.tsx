@@ -49,6 +49,62 @@ it('lists reports and opens rendered Markdown with a source toggle', async () =>
   client.clear();
 });
 
+it('filters report worktrees by branch or full path and resets the reader when switching', async () => {
+  const fetch = vi.fn(async (_url: unknown, options: RequestInit) => {
+    const { path, worktree } = JSON.parse(options.body as string);
+    return {
+      ok: true,
+      json: async () =>
+        path === ''
+          ? { entries: [{ name: 'findings.md', directory: false }] }
+          : { content: `# Findings for ${worktree}` },
+    };
+  });
+  vi.stubGlobal('fetch', fetch);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <SourceBrowser
+        mode="reports"
+        snapshot={{
+          connected: true,
+          cursor: '1',
+          sessions: [],
+          inbox: [],
+          workspaces: [],
+          worktrees: [
+            { path: '/very/long/project/main', branch: 'main' },
+            { path: '/another/project/review', branch: 'feature/review' },
+          ],
+        }}
+      />
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  expect(screen.queryByRole('combobox')).toBeNull();
+  await user.click(await screen.findByRole('button', { name: 'findings.md' }));
+  await screen.findByRole('heading', { name: 'Findings for /very/long/project/main' });
+  await user.type(screen.getByRole('searchbox', { name: 'Find a worktree' }), 'missing');
+  expect(screen.getByRole('status').textContent).toBe('No matching worktrees.');
+  await user.clear(screen.getByRole('searchbox'));
+  await user.type(screen.getByRole('searchbox'), '/another');
+  const options = within(screen.getByRole('group', { name: 'Report worktrees' }));
+  expect(options.queryByRole('button', { name: /main/ })).toBeNull();
+  await user.click(options.getByRole('button', { name: /feature\/review/ }));
+  expect(
+    screen.queryByRole('heading', { name: 'Findings for /very/long/project/main' }),
+  ).toBeNull();
+  expect(screen.getByText('Select a report to preview its Markdown.')).toBeTruthy();
+  await user.click(await screen.findByRole('button', { name: 'findings.md' }));
+  await screen.findByRole('heading', { name: 'Findings for /another/project/review' });
+  expect(
+    fetch.mock.calls.some(
+      ([, options]) => JSON.parse(options.body as string).worktree === '/another/project/review',
+    ),
+  ).toBe(true);
+  client.clear();
+});
+
 it('expands nested folders and keeps the tree while reading a file', async () => {
   const fetch = vi.fn(async (_url: unknown, options: RequestInit) => {
     const { path } = JSON.parse(options.body as string);

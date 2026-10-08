@@ -1,5 +1,62 @@
 @import 'tailwindcss';
 
+.report-worktree-picker {
+  @apply mb-4 rounded-xl border border-slate-700 bg-slate-900 p-3;
+}
+.report-worktree-picker > summary {
+  @apply flex min-h-11 cursor-pointer list-none items-center justify-between gap-3;
+}
+.report-worktree-picker > summary::-webkit-details-marker {
+  display: none;
+}
+.report-worktree-summary {
+  @apply flex min-w-0 flex-col gap-1;
+  overflow-wrap: anywhere;
+}
+.report-worktree-hint {
+  @apply block text-xs text-slate-400;
+  overflow-wrap: anywhere;
+}
+.report-worktree-change {
+  @apply shrink-0 text-sm text-sky-300;
+}
+.report-worktree-picker > label {
+  @apply mt-4 block;
+}
+.report-worktree-picker input {
+  @apply w-full min-w-0;
+  font-size: 16px;
+}
+.report-worktree-options {
+  @apply mt-3 grid max-h-80 gap-2 overflow-y-auto overscroll-contain sm:grid-cols-2;
+}
+.report-worktree-card {
+  @apply min-w-0 rounded-lg border border-slate-700;
+}
+.report-worktree-card > button {
+  @apply m-0 flex min-h-16 w-full flex-col items-start gap-1 rounded-lg border-0 p-3 text-left;
+  overflow-wrap: anywhere;
+}
+.report-worktree-card > button[aria-pressed='true'] {
+  @apply bg-sky-950 ring-2 ring-inset ring-sky-400;
+}
+.report-worktree-selected {
+  @apply text-xs font-medium text-sky-300;
+}
+.report-worktree-path {
+  @apply px-3 pb-2 text-xs text-slate-400;
+}
+.report-worktree-path summary {
+  @apply flex min-h-11 cursor-pointer items-center;
+}
+.report-worktree-path code {
+  overflow-wrap: anywhere;
+}
+.report-browser .source-entries button {
+  @apply min-h-11 w-full py-3 text-left;
+  overflow-wrap: anywhere;
+}
+
 .companion-header {
   @apply mx-auto grid max-w-4xl grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3;
 }

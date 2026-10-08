@@ -93,6 +93,7 @@ export function SourceBrowser({
   mode?: 'source' | 'reports';
 }) {
   const [chosen, setChosen] = useState<string>();
+  const [worktreeSearch, setWorktreeSearch] = useState('');
   const [path, setPath] = useState('');
   const [preview, setPreview] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
@@ -185,24 +186,96 @@ export function SourceBrowser({
   );
 
   return (
-    <section aria-label={mode === 'reports' ? 'Report browser' : 'Source browser'}>
+    <section
+      className={mode === 'reports' ? 'report-browser' : undefined}
+      aria-label={mode === 'reports' ? 'Report browser' : 'Source browser'}
+    >
       <h2>{mode === 'reports' ? 'Reports' : 'Source code'}</h2>
-      <label>
-        Worktree
-        <select
-          value={worktree || ''}
-          onChange={(event) => {
-            setChosen(event.target.value);
-            setPath('');
-          }}
-        >
-          {trees.map((tree) => (
-            <option key={tree.path} value={tree.path}>
-              {tree.branch || tree.path} · {tree.path}
-            </option>
-          ))}
-        </select>
-      </label>
+      {mode === 'reports' && trees.length > 0 ? (
+        <details className="report-worktree-picker" open={!chosen && trees.length > 1}>
+          <summary>
+            <span className="report-worktree-summary">
+              <span className="report-worktree-hint">Reports from</span>
+              <strong>
+                {trees.find((tree) => tree.path === worktree)?.branch ||
+                  worktree?.split('/').filter(Boolean).at(-1)}
+              </strong>
+              <span className="report-worktree-hint">
+                {worktree?.split('/').filter(Boolean).slice(-2).join('/')}
+              </span>
+            </span>
+            <span className="report-worktree-change">Change</span>
+          </summary>
+          <label>
+            Find a worktree
+            <input
+              type="search"
+              value={worktreeSearch}
+              placeholder="Search branch or folder…"
+              onChange={(event) => setWorktreeSearch(event.target.value)}
+            />
+          </label>
+          <div className="report-worktree-options" role="group" aria-label="Report worktrees">
+            {trees
+              .filter((tree) =>
+                `${tree.branch || ''} ${tree.path}`
+                  .toLowerCase()
+                  .includes(worktreeSearch.trim().toLowerCase()),
+              )
+              .map((tree) => (
+                <div className="report-worktree-card" key={tree.path}>
+                  <button
+                    aria-pressed={tree.path === worktree}
+                    onClick={(event) => {
+                      setChosen(tree.path);
+                      setPath('');
+                      setWorktreeSearch('');
+                      const picker = event.currentTarget.closest(
+                        '.report-worktree-picker',
+                      ) as HTMLDetailsElement;
+                      picker.open = false;
+                      picker.querySelector('summary')?.focus();
+                    }}
+                  >
+                    <strong>{tree.branch || tree.path.split('/').filter(Boolean).at(-1)}</strong>
+                    <span className="report-worktree-hint">
+                      {tree.path.split('/').filter(Boolean).slice(-2).join('/')}
+                    </span>
+                    {tree.path === worktree && (
+                      <span className="report-worktree-selected">Selected</span>
+                    )}
+                  </button>
+                  <details className="report-worktree-path">
+                    <summary>Full path</summary>
+                    <code>{tree.path}</code>
+                  </details>
+                </div>
+              ))}
+            {!trees.some((tree) =>
+              `${tree.branch || ''} ${tree.path}`
+                .toLowerCase()
+                .includes(worktreeSearch.trim().toLowerCase()),
+            ) && <p role="status">No matching worktrees.</p>}
+          </div>
+        </details>
+      ) : mode === 'source' ? (
+        <label>
+          Worktree
+          <select
+            value={worktree || ''}
+            onChange={(event) => {
+              setChosen(event.target.value);
+              setPath('');
+            }}
+          >
+            {trees.map((tree) => (
+              <option key={tree.path} value={tree.path}>
+                {tree.branch || tree.path} · {tree.path}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {!worktree && <p className="navigation-empty">No worktrees available.</p>}
       {worktree && (
         <>
