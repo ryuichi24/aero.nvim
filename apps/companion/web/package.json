@@ -1,6 +1,6 @@
 {
   "name": "aero-companion-web",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "private": true,
   "packageManager": "pnpm@11.22.0",
   "type": "module",
