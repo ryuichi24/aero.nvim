@@ -5,7 +5,7 @@ import { attachedReports, ReportPreview } from './report-preview';
 import { FullscreenAttention } from './fullscreen-attention';
 import type { Session, TranscriptBlock } from './types';
 import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
-import { AgentTodos, blockTodos, latestTodos, TodoList } from './agent-todos';
+import { blockTodos, TodoList } from './agent-todos';
 
 function readableStatus(status: string): string {
   return status.replaceAll('_', ' ');
@@ -80,7 +80,10 @@ function ToolContent({ block }: { block: TranscriptBlock }) {
 function Block({ block }: { block: TranscriptBlock }) {
   if (block.kind === 'tool')
     return (
-      <details className="transcript-card tool-card">
+      <details
+        className="transcript-card tool-card"
+        open={block.status === 'pending' || block.status === 'in_progress'}
+      >
         <summary>
           <span className="message-label">Tool</span>
           <span className="tool-title">{block.title || block.tool_kind || 'Tool call'}</span>
@@ -231,7 +234,12 @@ export function Transcript({
       </dialog>
       {createPortal(
         <>
-          <AgentTodos todos={latestTodos(session?.blocks || [])} />
+          {session?.activity && (
+            <div className="transcript-toolbar" role="status" aria-label="Current agent action">
+              <span className="status-badge status-in_progress">In progress</span>
+              <span>{session.activity}</span>
+            </div>
+          )}
           <div className="transcript-toolbar">
             <button
               aria-expanded={promptsVisible}

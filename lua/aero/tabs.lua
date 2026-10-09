@@ -78,9 +78,26 @@ function M.find(worktree)
 	return candidate
 end
 
+--- Check before changing tabs or assigning a checkout to a tab.
+function M.available(worktree)
+	if vim.fn.isdirectory(worktree) == 1 then
+		return true
+	end
+	vim.notify(
+		"Aero: worktree directory does not exist: "
+			.. worktree
+			.. "\nIf you renamed the folder, run git worktree repair <new-path> from the main repository, then refresh the dashboard.",
+		vim.log.levels.ERROR
+	)
+	return false
+end
+
 --- Switch to the worktree's tab, restoring its last code buffer when creating one.
----@return boolean created whether a new tab was opened
+---@return boolean|nil created whether a new tab was opened, or nil if the directory is missing
 function M.enter(worktree)
+	if not M.available(worktree) then
+		return nil
+	end
 	buffers.remember()
 	local tab = M.find(worktree)
 	if tab then

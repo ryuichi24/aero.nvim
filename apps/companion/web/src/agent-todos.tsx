@@ -1,6 +1,6 @@
 import type { TranscriptBlock } from './types';
 
-interface Todo {
+export interface Todo {
   content: string;
   status: string;
   priority?: string;
@@ -39,6 +39,19 @@ function parseTodos(value: unknown): Todo[] | undefined {
 export function blockTodos(block: TranscriptBlock): Todo[] | undefined {
   if (block.kind === 'plan') return parseTodos(block.entries);
   if (block.kind !== 'tool' || block.status === 'failed') return undefined;
+  for (let value of [block.rawOutput, block.rawInput]) {
+    if (typeof value === 'string') {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        continue;
+      }
+    }
+    if (value && typeof value === 'object' && 'todos' in value) {
+      const todos = parseTodos(block.rawOutput) ?? parseTodos(value.todos);
+      if (todos !== undefined) return todos;
+    }
+  }
   // ACP tool titles may include a namespace or a human-readable suffix.
   if (!/(?:^|[\s.:/])todo(?:write|read)(?:$|[\s(:])/i.test(block.title || '')) return undefined;
   return (

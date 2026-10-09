@@ -122,14 +122,13 @@ function M.setup(buf, root)
 			path_menu.show(buf, start, items)
 			return
 		else
-			path_menu.close()
-			-- Native slash-command navigation inserts the highlighted word.
-			if visible and vim.fn.complete_info({ "selected" }).selected >= 0 then return end
-			if visible then return end
+			if visible then vim.fn.complete(cursor[2] + 1, {}) end
 			start, items = M.candidates()
 		end
 		if start and items then
-			vim.fn.complete(start, M.fit(items, constrain(start)))
+			path_menu.show(buf, start, items)
+		else
+			path_menu.close()
 		end
 	end
 	api.nvim_create_autocmd({ "TextChangedI", "TextChangedP", "CursorMovedI" }, {

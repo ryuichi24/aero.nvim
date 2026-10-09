@@ -1,4 +1,4 @@
--- Path suggestions keep the typed query visible, including wrapped prompt lines.
+-- Prompt suggestions keep the typed query visible, including wrapped prompt lines.
 local M = {}
 local api = vim.api
 local active

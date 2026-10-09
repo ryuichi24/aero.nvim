@@ -68,6 +68,7 @@ export interface Session {
   status: 'idle' | 'busy' | 'waiting' | 'starting' | 'stopped' | 'exited';
   conversation?: string;
   acp_session_id?: string;
+  activity?: string;
   blocks?: TranscriptBlock[];
   queue?: string[];
   permission?: Permission;
@@ -90,7 +91,13 @@ export interface InboxEvent {
 }
 
 export interface Snapshot {
-  companion?: { ui?: { source_collapsed_by_default?: boolean } };
+  companion?: {
+    ui?: {
+      source_collapsed_by_default?: boolean;
+      todo_notifications?: boolean;
+      todo_notification_timeout?: number;
+    };
+  };
   boards?: { workspace: string; id: string; title: string }[];
   connected: boolean;
   cursor: string;

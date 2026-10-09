@@ -750,22 +750,32 @@ end
 --- Switch to the worktree's tab (with worktree_tabs), bringing the dashboard along to new tabs.
 local function enter_worktree(path)
 	if not tabs.enabled() then
+		if not tabs.available(path) then
+			return false
+		end
 		local buffers = require("aero.buffers")
 		buffers.remember()
 		vim.t.aero_worktree = path
 		vim.cmd.tcd(vim.fn.fnameescape(path))
 		buffers.restore(path, target_win())
-		return
+		return true
 	end
 	local had_dashboard = is_open() and config.options.dashboard.position ~= "current"
-	if tabs.enter(path) and had_dashboard then
+	local created = tabs.enter(path)
+	if created == nil then
+		return false
+	end
+	if created and had_dashboard then
 		M.open()
 	end
+	return true
 end
 
 local function open_session(s, how)
 	if how == "default" and panel.enabled() and config.options.dashboard.position ~= "current" then
-		enter_worktree(s.worktree)
+		if not enter_worktree(s.worktree) then
+			return
+		end
 		return panel.focus(s)
 	end
 	local win = target_win()
@@ -896,7 +906,9 @@ end
 local actions = {}
 
 local function open_report(item, how)
-	enter_worktree(item.wt.path)
+	if not enter_worktree(item.wt.path) then
+		return
+	end
 	local win = target_win()
 	api.nvim_set_current_win(win)
 	if how and how ~= "default" then
@@ -1202,8 +1214,8 @@ function actions.restart()
 	local item = current_item()
 	if item and item.kind == "session" then
 		local use_panel = panel.enabled() and config.options.dashboard.position ~= "current"
-		if use_panel then
-			enter_worktree(item.session.worktree)
+		if use_panel and not enter_worktree(item.session.worktree) then
+			return
 		end
 		local win = session.prepare_win(use_panel and panel.open() or target_win())
 		if session.start(item.session, win, true) then
@@ -1309,13 +1321,18 @@ end
 function actions.cd()
 	local dir = item_dir(current_item())
 	if dir then
+		if not tabs.available(dir) then
+			return
+		end
 		vim.cmd.tcd(vim.fn.fnameescape(dir))
 		notify("tcd " .. vim.fn.fnamemodify(dir, ":~"))
 	end
 end
 
 function M.open_worktree(dir, opener)
-	enter_worktree(dir)
+	if not enter_worktree(dir) then
+		return
+	end
 	local win = target_win()
 	api.nvim_set_current_win(win)
 	state.target = win
@@ -1396,7 +1413,9 @@ end
 function actions.terminal()
 	local dir = item_dir(current_item())
 	if dir then
-		enter_worktree(dir)
+		if not enter_worktree(dir) then
+			return
+		end
 		terminal.open(dir, target_win())
 	end
 end
@@ -1596,7 +1615,9 @@ function M.pick()
 		end,
 	}, function(c)
 		if c and panel.enabled() then
-			enter_worktree(c.session.worktree)
+			if not enter_worktree(c.session.worktree) then
+				return
+			end
 			panel.focus(c.session)
 		elseif c then
 			local win = api.nvim_get_current_win()

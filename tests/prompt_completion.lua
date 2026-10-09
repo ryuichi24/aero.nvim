@@ -75,5 +75,32 @@ end
 api.nvim_exec_autocmds("InsertLeave", { buffer = buf })
 assert(vim.o.pumwidth == original_width)
 if has_maxwidth then assert(vim.o.pummaxwidth == original_maxwidth) end
+-- Slash suggestions stay outside the typed line, including a wrapped line
+-- at the bottom of the prompt, and accept without submitting the draft.
+local menu = require("aero.acp.path_menu")
+local screenpos = vim.fn.screenpos
+local parent = api.nvim_get_current_win()
+local bottom = api.nvim_win_get_position(parent)[1] + api.nvim_win_get_height(parent)
+for _, wrapped in ipairs({ false, true }) do
+	start, items = suggestions("/rep")
+	local first = wrapped and bottom - 2 or 3
+	local last = wrapped and bottom or first
+	vim.fn.screenpos = function(_, _, col)
+		return { row = col == 1 and first or last, col = 1 }
+	end
+	menu.show(buf, start, items)
+	assert(menu.visible(buf), "slash menu missing")
+	local popup
+	for _, win in ipairs(api.nvim_list_wins()) do
+		local config = api.nvim_win_get_config(win)
+		if config.relative == "editor" then popup = config end
+	end
+	assert(popup and (popup.row >= last or popup.row + popup.height <= first - 1),
+		"slash menu overlaps the typed prompt")
+	assert(menu.accept(buf))
+	assert(api.nvim_get_current_line() == "/report")
+	assert(not menu.visible(buf))
+end
+vim.fn.screenpos = screenpos
 print("prompt completion: ok")
 vim.cmd.qa({ bang = true })

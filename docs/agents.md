@@ -55,18 +55,37 @@ with `acp = { decorations = false }`.
 
 The transcript's top bar shows the latest **todo progress** and what the agent is
 working on, alongside the panel's session details. It stays visible while you
-scroll the logs and in fullscreen. Press `gT` to open a live, scrollable todo list
-with status icons, highlighting, and priorities when reported. Close it with
-`q` or Escape. Todos follow ACP plan updates and `todowrite`/`todoread` tool calls,
+scroll the logs and in fullscreen. Todos follow ACP plan updates and
+`todowrite`/`todoread` tool calls,
 including saved conversation history; plan and todo tool cards in the logs use
 the same readable checklist formatting.
+
+Live todo changes also show session-labeled popups in the editor's
+upper-right corner, even for background ACP sessions. Each session has its own
+checklist; changes update its popup without moving your cursor. Popups follow you
+across tabs. Run `:Aero todos` to focus the most recently updated popup, or enter
+one with the mouse or window navigation to scroll it, and
+press `q` or Escape to dismiss it; the next change shows it again. On small screens,
+the newest sessions take priority. Restored history does not trigger notifications.
+Disable these popups with `acp = { todo_notifications = false }`.
+
+Popups automatically close 15 seconds after their last todo change. Configure
+`acp.todo_notification_timeout` in milliseconds; `0` keeps them open until dismissed.
+Focusing a popup pauses its timeout; leaving it starts a fresh timeout.
+If all popups have closed, `:Aero todos` reopens the latest session's todo popup.
+
+```lua
+require("aero").setup({
+  acp = { todo_notification_timeout = 10000 }, -- 10 seconds; 0 disables auto-close
+})
+vim.keymap.set("n", "<leader>at", "<cmd>Aero todos<CR>", { desc = "Focus agent todo popup" })
+```
 
 | Transcript key | Action |
 | --- | --- |
 | `i`, `a`, `o`, `I`, `A`, `<CR>` | Open prompt below transcript |
 | `<CR>` on an option / `1`–`9` | Answer pending permission |
 | `p` | Jump to pending permission |
-| `gT` | Open live agent todos |
 | `<C-c>` | Cancel the turn and pending request |
 
 The prompt is a regular Markdown buffer; closing it retains the draft.

@@ -73,6 +73,7 @@ local function describe(s)
 		end
 		result.conversation = identity(chat, identities)
 		result.acp_session_id = chat.session_id or chat.saved_session_id
+		result.activity = chat:activity()
 		result.blocks = vim.deepcopy(chat.blocks)
 		for _, b in ipairs(result.blocks) do
 			b.cache, b.cache_src, b.shown = nil, nil, nil
@@ -102,6 +103,8 @@ function M.dispatch(method, params)
 			companion = {
 				ui = {
 					source_collapsed_by_default = require("aero.config").options.companion.ui.source_collapsed_by_default,
+					todo_notifications = require("aero.config").options.acp.todo_notifications,
+					todo_notification_timeout = require("aero.config").options.acp.todo_notification_timeout,
 				},
 			},
 			agents = {},

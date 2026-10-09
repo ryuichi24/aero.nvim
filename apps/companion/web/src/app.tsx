@@ -10,6 +10,7 @@ import { operationID, parseSnapshot, post, RequestError, savePending } from './a
 import { CompanionProvider, useCompanionDispatch, useCompanionState } from './companion-context';
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
+import { TodoNotifications } from './todo-notifications';
 import { ReportCommand } from './report-command';
 import { SlashCommands, slashPickerOpen } from './slash-commands';
 import { UIZoom } from './ui-zoom';
@@ -938,6 +939,7 @@ function Companion() {
           </section>
         )}
       </main>
+      <TodoNotifications snapshot={pairing ? null : snapshot} />
     </FullscreenAttentionContext.Provider>
   );
 }

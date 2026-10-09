@@ -40,6 +40,25 @@ vim.keymap.set("n", "<leader>aw", aero.worktrees, { desc = "Search worktrees" })
 vim.keymap.set("n", "<leader>aW", aero.workspaces, { desc = "Search workspaces" })
 ```
 
+## Renaming worktree folders
+
+Renaming a Git branch does not rename its checkout directory. To move or rename
+the directory, use Git so its worktree metadata stays in sync:
+
+```sh
+git -C /path/to/main-repository worktree move /path/to/old-folder /path/to/new-folder
+```
+
+If you already renamed the folder manually, repair its registration:
+
+```sh
+git -C /path/to/main-repository worktree repair /path/to/new-folder
+```
+
+Then run `:Aero refresh` to re-read the paths. Aero reports missing directories
+before opening a checkout. Existing sessions retain their saved worktree paths;
+repairing Git's registration does not relocate those sessions.
+
 ## Attention inbox
 
 `:Aero inbox` collects events from ACP conversations in this Neovim instance, across

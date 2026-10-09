@@ -34,5 +34,28 @@ assert(tabs.enter(dir .. "/other"), "tab containing editing work must be preserv
 assert(api.nvim_get_current_tabpage() ~= editing)
 assert(not vim.t[editing].aero_worktree)
 
+-- A manually renamed folder leaves a stale path until Git's metadata is repaired.
+local current = api.nvim_get_current_tabpage()
+local cwd = vim.fn.getcwd()
+local count = #api.nvim_list_tabpages()
+local assigned = vim.t.aero_worktree
+assert(vim.fn.rename(worktree, dir .. "/renamed") == 0)
+local notify = vim.notify
+local message
+vim.notify = function(msg)
+	message = msg
+end
+assert(tabs.enter(worktree) == nil)
+assert(dashboard.open_worktree(worktree, function()
+	error("missing checkout must not invoke the opener")
+end) == nil)
+require("aero.config").options.worktree_tabs = false
+assert(dashboard.open_worktree(worktree) == nil)
+vim.notify = notify
+assert(message:find("git worktree repair", 1, true))
+assert(api.nvim_get_current_tabpage() == current)
+assert(#api.nvim_list_tabpages() == count)
+assert(vim.fn.getcwd() == cwd and vim.t.aero_worktree == assigned)
+
 vim.fn.delete(dir, "rf")
 print("Dashboard tab reuse tests passed.")

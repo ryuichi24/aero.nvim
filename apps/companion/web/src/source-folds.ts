@@ -10,7 +10,7 @@ export function collectFoldRanges(root: Node): FoldRange[] {
     const end = node.endPosition.row - (node.endPosition.column === 0 ? 1 : 0);
     if (
       end > start &&
-      /(?:block|body|comment|object|array|class_definition|function_definition|table_constructor|element|mapping|sequence|declaration_list|field_declaration_list|use_list|enum_variant_list|arguments)$/.test(
+      /(?:block|body|comment|object|object_type|array|class_definition|function_definition|function_declaration|arrow_function|function_expression|formal_parameters|jsx_expression|table_constructor|element|mapping|sequence|declaration_list|field_declaration_list|use_list|enum_variant_list|arguments)$/.test(
         node.type,
       )
     ) {

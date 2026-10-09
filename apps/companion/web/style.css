@@ -702,6 +702,36 @@ details[open] > .markdown-body {
 .status-pending {
   color: #f5c86b;
 }
+.todo-notifications {
+  position: fixed;
+  top: calc(5rem + env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  width: min(26rem, calc(100vw - 1.5rem));
+  z-index: 80;
+  pointer-events: none;
+}
+.todo-notifications-trigger {
+  display: block;
+  margin-left: auto;
+  pointer-events: auto;
+}
+.todo-notifications-stack {
+  max-height: 70dvh;
+  overflow: auto;
+}
+.todo-notification {
+  @apply mt-2 rounded-xl border border-slate-600 bg-slate-950 p-3 shadow-xl;
+  pointer-events: auto;
+}
+.todo-notification:focus-visible {
+  outline: 2px solid #80d4ad;
+}
+.todo-notification header {
+  @apply mb-2 flex items-center justify-between gap-2;
+}
+.todo-notification .agent-todos {
+  margin-bottom: 0;
+}
 .agent-todos {
   @apply mb-3 shrink-0 rounded-xl border border-slate-700 bg-slate-950 p-3;
 }

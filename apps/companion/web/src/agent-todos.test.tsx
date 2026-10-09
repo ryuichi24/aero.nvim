@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { latestTodos } from './agent-todos';
 import { Transcript } from './transcript';
@@ -35,7 +35,7 @@ it('uses the latest plan or todo tool snapshot and respects explicit clearing', 
   ).toBeUndefined();
 });
 
-it('keeps the live panel outside scrolling logs and updates it in fullscreen', () => {
+it('keeps checklists in history without the legacy pinned panel', () => {
   const session: Session = {
     id: 'test',
     name: 'Agent',
@@ -44,32 +44,7 @@ it('keeps the live panel outside scrolling logs and updates it in fullscreen', (
     status: 'busy',
     blocks: [{ kind: 'plan', entries }],
   };
-  const view = render(<Transcript session={session} />);
-  const summary = screen.getByText('Agent todos');
-  const panel = summary.closest('details')!;
-  expect(within(panel).getByText('1/3 completed')).toBeTruthy();
-  expect(within(panel).getByText('Working on: Implement the feature')).toBeTruthy();
-  expect(screen.getByRole('region', { name: 'Conversation transcript' }).contains(panel)).toBe(
-    false,
-  );
-  fireEvent.click(summary);
-  const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
-  dialog.showModal = () => dialog.setAttribute('open', '');
-  dialog.close = () => dialog.removeAttribute('open');
-  fireEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
-  expect(dialog.contains(panel)).toBe(true);
-  view.rerender(
-    <Transcript
-      session={{
-        ...session,
-        blocks: [
-          { kind: 'plan', entries: entries.map((entry) => ({ ...entry, status: 'completed' })) },
-        ],
-      }}
-    />,
-  );
-  expect(within(panel).getByText('3/3 completed')).toBeTruthy();
-  expect(within(panel).queryByText(/Working on:/)).toBeNull();
-  view.rerender(<Transcript session={{ ...session, id: 'other', blocks: [] }} />);
+  render(<Transcript session={session} />);
+  expect(screen.getByRole('article', { name: 'Agent plan' })).toBeTruthy();
   expect(screen.queryByText('Agent todos')).toBeNull();
 });

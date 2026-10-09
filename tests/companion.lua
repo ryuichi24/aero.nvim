@@ -40,6 +40,8 @@ wait(function()
 end)
 local snapshot = bridge.dispatch("snapshot")
 assert(snapshot.companion.ui.source_collapsed_by_default == true, "snapshot lost the default folding preference")
+assert(snapshot.companion.ui.todo_notifications == true, "snapshot lost todo notification preference")
+assert(snapshot.companion.ui.todo_notification_timeout == 15000, "snapshot lost todo notification timeout")
 assert(snapshot.workspaces[1].root == vim.fn.getcwd())
 assert(vim.tbl_contains(
 	vim.tbl_map(function(wt)
@@ -48,6 +50,17 @@ assert(vim.tbl_contains(
 	vim.fn.getcwd()
 ))
 local generation = snapshot.sessions[1].conversation
+assert(snapshot.sessions[1].activity == nil, "idle session has live activity")
+local chat = s.chat
+chat.busy = true
+chat:on_update({ sessionUpdate = "tool_call", toolCallId = "live-action", title = "Run checks", status = "in_progress" })
+local live = bridge.dispatch("snapshot").sessions[1]
+assert(live.activity:find("Run checks", 1, true), "snapshot omitted the current action")
+assert(live.blocks[#live.blocks].status == "in_progress", "snapshot omitted the running tool")
+chat:on_update({ sessionUpdate = "tool_call_update", toolCallId = "live-action", status = "completed" })
+assert(bridge.dispatch("snapshot").sessions[1].activity:find("thinking", 1, true), "completed tool remained current")
+chat.busy = false
+assert(bridge.dispatch("snapshot").sessions[1].activity == nil, "finished session retained live activity")
 local function params(id, extra)
 	return vim.tbl_extend("force", { operation_id = id, session = s.key, conversation = generation }, extra or {})
 end

@@ -28,6 +28,9 @@ local subcommands = {
 	inbox = function()
 		require("aero").inbox()
 	end,
+	todos = function()
+		require("aero.acp.todo_notifications").focus()
+	end,
 	companion = function(args)
 		require("aero.companion").command(args[1])
 	end,

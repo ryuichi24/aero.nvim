@@ -56,11 +56,8 @@ assert(transcript:find("### ✓ Command · completed · " .. os.date("%Y-%m-%d %
 wait(function() return vim.wo[require("aero.panel").win()].winbar:find("Todos 1/2 completed", 1, true) end)
 local bar = vim.wo[require("aero.panel").win()].winbar
 assert(bar:find("Run the tests", 1, true) and bar:find(s.name, 1, true), "todo summary replaced session details")
-local todo_mapping = vim.fn.maparg("gT", "n", false, true)
-assert(type(todo_mapping.callback) == "function", "live todo list has no transcript binding")
-todo_mapping.callback()
-assert(chat.todo_popup and api.nvim_win_is_valid(chat.todo_popup.win))
-require("aero.acp.todos").close(chat)
+assert(not bar:find("gT: list", 1, true), "legacy todo popup hint remains")
+assert(vim.tbl_isempty(vim.fn.maparg("gT", "n", false, true)), "legacy todo popup mapping remains")
 local _, metadata_cards = transcript:gsub("### Session", "")
 assert(metadata_cards == 1, "consecutive metadata did not form one compact card")
 assert(transcript:find("Model: OpenAI/GPT-6 Luna (openai/gpt-6-luna)\nModel: OpenAI/GPT-6.1 Sol", 1, true))

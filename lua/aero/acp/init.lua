@@ -437,6 +437,9 @@ function Chat:on_update(u)
 		return
 	end
 	local kind = u.sessionUpdate
+	if kind == "plan" or kind == "tool_call" or kind == "tool_call_update" then
+		self.todo_notification_snapshot = vim.deepcopy(require("aero.acp.todos").latest(self))
+	end
 	-- The local transcript already contains the history replayed by session/load.
 	if
 		self.replaying
@@ -502,6 +505,9 @@ function Chat:on_update(u)
 		return self:changed()
 	else
 		return
+	end
+	if kind == "plan" or kind == "tool_call" or kind == "tool_call_update" then
+		require("aero.acp.todo_notifications").update(self)
 	end
 	self:save_history()
 	self:render()
@@ -1067,9 +1073,6 @@ local function setup_transcript(chat)
 	map("gP", function()
 		require("aero.prompts").open(chat)
 	end, "view session prompt history")
-	map("gT", function()
-		require("aero.acp.todos").open(chat)
-	end, "view live agent todos")
 	api.nvim_create_autocmd("CursorMoved", {
 		buffer = buf,
 		callback = function()

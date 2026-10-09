@@ -26,12 +26,19 @@ idle ACP conversation to a saved workspace board. Session lists and transcripts
 show board/ticket assignments and the assigned ticket's committed state, shared
 with the Neovim dashboard and panel. See [task-agent setup](../docs/agent-tasks.md#assign-a-board-from-mobile).
 
-The transcript's **Agent todos** panel follows the latest ACP plan or
-`todowrite`/`todoread` tool update live. It shows completion progress, the items
-currently being worked on, statuses, and priorities when supplied by the agent.
-The panel stays above the scrolling logs, including in **Fullscreen logs**, and
-can be collapsed using its heading. Plan and todo tool entries in the history
-also render as readable lists.
+Session-labeled **todo notifications** follow live ACP plan and todo tool changes
+for every session, including agents outside the selected transcript. Upper-right
+popups show completion progress, current work, statuses, and priorities, and also
+appear inside fullscreen views. Close an individual popup with its × button or
+Escape while focused. The **Todos** button focuses the latest open popup or
+reopens the most recent checklist after notifications close. Hovering or focusing
+a popup pauses auto-close; leaving starts a fresh timeout. Initial connection
+history does not trigger notifications. Plan and todo tool entries in the history
+continue to render as readable lists.
+
+Companion popups share Neovim's configuration: `acp.todo_notifications = false`
+disables them, and `acp.todo_notification_timeout` sets milliseconds after the
+latest todo change (default 15000; `0` keeps popups open until dismissed).
 
 `scripts/` packages both tools into the ignored `dist/` directory. The shared
 version comes from `../release.json`; root Makefile commands build and test the

@@ -6,6 +6,34 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { attachedReports } from './report-preview';
 
 afterEach(cleanup);
+it('shows live activity and running tool input, then clears activity on completion', () => {
+  const block = {
+    kind: 'tool',
+    id: 'tests',
+    title: 'Run tests',
+    status: 'in_progress',
+    rawInput: { command: 'pnpm test' },
+  };
+  const { rerender } = render(
+    <Transcript
+      session={{ ...session, status: 'busy', activity: 'Run tests · 2s', blocks: [block] }}
+    />,
+  );
+  expect(screen.getByRole('status', { name: 'Current agent action' }).textContent).toContain(
+    'Run tests · 2s',
+  );
+  expect(document.querySelector('details.tool-card')?.hasAttribute('open')).toBe(true);
+  expect(screen.getByRole('group', { name: 'Input' }).textContent).toContain('pnpm test');
+  rerender(
+    <Transcript
+      session={{ ...session, blocks: [{ ...block, status: 'completed', rawOutput: 'Passed' }] }}
+    />,
+  );
+  expect(screen.queryByRole('status', { name: 'Current agent action' })).toBeNull();
+  expect(document.querySelectorAll('details.tool-card')).toHaveLength(1);
+  expect(document.querySelector('details.tool-card')?.hasAttribute('open')).toBe(false);
+  expect(screen.getByText('completed')).toBeTruthy();
+});
 it('displays event timestamps and retains them when tool status changes', () => {
   const timestamp = Date.UTC(2026, 9, 8, 12, 34, 56) / 1000;
   const blocks = [

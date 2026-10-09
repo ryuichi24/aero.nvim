@@ -38,6 +38,17 @@ function M.block(block)
 	if block.kind ~= "tool" or block.status == "failed" then
 		return nil
 	end
+	-- Some adapters use human-readable titles rather than the tool's name.
+	for _, value in ipairs({ block.rawOutput or false, block.rawInput or false }) do
+		if type(value) == "string" then
+			local ok, decoded = pcall(vim.json.decode, value)
+			value = ok and decoded or false
+		end
+		if type(value) == "table" and value.todos ~= nil then
+			local entries = parse(block.rawOutput) or parse(value.todos)
+			if entries then return entries end
+		end
+	end
 	local title = (block.title or ""):lower()
 	local name = title:match("^([%w_]+)") or ""
 	-- Namespaced calls and titles with arguments are also used by ACP adapters.
@@ -99,18 +110,11 @@ function M.winbar(chat)
 		return nil
 	end
 	local progress, active = summary(todos)
-	local bar = "%#AeroChatTool# " .. progress .. " · gT: list"
+	local bar = "%#AeroChatTool# " .. progress
 	if active ~= "" then
 		bar = bar .. "%#AeroChatPending# · " .. active:gsub("%%", "%%%%")
 	end
 	return bar
-end
-function M.close(chat)
-	local popup = chat.todo_popup
-	chat.todo_popup = nil
-	if popup and api.nvim_win_is_valid(popup.win) then
-		api.nvim_win_close(popup.win, true)
-	end
 end
 function M.update(chat)
 	local todos = M.latest(chat)
@@ -146,76 +150,6 @@ function M.update(chat)
 			end
 		end
 	end
-	local popup = chat.todo_popup
-	if not popup then
-		return
-	end
-	if
-		not api.nvim_win_is_valid(popup.win)
-		or not api.nvim_win_is_valid(popup.parent)
-		or api.nvim_win_get_buf(popup.parent) ~= chat.buf
-	then
-		M.close(chat)
-		return
-	end
-	local progress, active = summary(todos or {})
-	local lines, highlights = { progress }, { "AeroChatTool" }
-	if active ~= "" then
-		table.insert(lines, "Working on: " .. active)
-		table.insert(highlights, "AeroChatPending")
-	end
-	table.insert(lines, "")
-	table.insert(highlights, "AeroChatMeta")
-	for _, row in ipairs(M.rows(todos or {})) do
-		table.insert(lines, row.text)
-		table.insert(highlights, row.group)
-	end
-	if not todos or #todos == 0 then
-		table.insert(lines, "No current todos.")
-		table.insert(highlights, "AeroChatMeta")
-	end
-	vim.bo[popup.buf].modifiable = true
-	api.nvim_buf_set_lines(popup.buf, 0, -1, false, lines)
-	vim.bo[popup.buf].modifiable = false
-	local ns = api.nvim_create_namespace("Aero.acp.todos")
-	api.nvim_buf_clear_namespace(popup.buf, ns, 0, -1)
-	for index, group in ipairs(highlights) do
-		api.nvim_buf_set_extmark(popup.buf, ns, index - 1, 0, { end_col = #lines[index], hl_group = group })
-	end
-	api.nvim_win_set_config(popup.win, {
-		relative = "editor",
-		row = 1,
-		col = 2,
-		width = math.max(1, math.min(90, vim.o.columns - 6)),
-		height = math.max(1, math.min(#lines, math.floor(vim.o.lines / 2))),
-	})
-end
-function M.open(chat)
-	if chat.todo_popup and api.nvim_win_is_valid(chat.todo_popup.win) then
-		api.nvim_set_current_win(chat.todo_popup.win)
-		return
-	end
-	local parent = api.nvim_get_current_win()
-	local buf = api.nvim_create_buf(false, true)
-	vim.bo[buf].bufhidden = "wipe"
-	local win = api.nvim_open_win(buf, true, {
-		relative = "editor",
-		row = 1,
-		col = 2,
-		width = math.max(1, math.min(90, vim.o.columns - 6)),
-		height = 1,
-		border = "rounded",
-		title = " Agent todos · q to close ",
-		style = "minimal",
-	})
-	vim.wo[win].wrap, vim.wo[win].linebreak = true, true
-	chat.todo_popup = { win = win, buf = buf, parent = parent }
-	for _, key in ipairs({ "q", "<Esc>", "gT" }) do
-		vim.keymap.set("n", key, function()
-			M.close(chat)
-		end, { buffer = buf, nowait = true, desc = "Aero: close todos" })
-	end
-	M.update(chat)
 end
 function M.attach(chat)
 	local group = api.nvim_create_augroup("AeroTodos" .. chat.buf, { clear = true })
@@ -247,7 +181,6 @@ function M.attach(chat)
 		buffer = chat.buf,
 		once = true,
 		callback = function()
-			M.close(chat)
 			api.nvim_del_augroup_by_id(group)
 		end,
 	})
