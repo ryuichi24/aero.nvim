@@ -1132,13 +1132,14 @@ function actions.delete()
 			notify(err, vim.log.levels.WARN)
 			return
 		end
-	elseif item.kind == "report" then
-		if vim.fn.confirm("Delete report " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
+	elseif item.kind == "report" or item.kind == "export" then
+		local label = item.kind == "export" and "exported log" or "report"
+		if vim.fn.confirm("Delete " .. label .. " " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
 		local ok, err = vim.uv.fs_unlink(item.report.path)
 		if not ok then
-			notify("could not delete report: " .. err, vim.log.levels.ERROR)
+			notify("could not delete " .. label .. ": " .. err, vim.log.levels.ERROR)
 			return
 		end
 	elseif item.kind == "session" then
