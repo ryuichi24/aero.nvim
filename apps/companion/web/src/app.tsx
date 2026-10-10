@@ -20,6 +20,7 @@ import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
 import { SessionMetadata } from './session-metadata';
 import { SourceBrowser } from './source-browser';
+import { GitBrowser } from './git-browser';
 import { LifecycleForm } from './lifecycle-controls';
 import { AssignmentStatus, BoardAssignment } from './task-assignment';
 import { groupSessions, sessionLocation } from './sessionGroups';
@@ -557,6 +558,15 @@ function Companion() {
           </span>
           Reports
         </button>
+        <button
+          aria-current={view === 'git' ? 'page' : undefined}
+          onClick={() => dispatch({ type: 'navigate', view: 'git' })}
+        >
+          <span className="nav-icon" aria-hidden="true">
+            ±
+          </span>
+          Git
+        </button>
       </nav>
       <main className="mx-auto w-full max-w-4xl px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6">
         {pairing && (
@@ -726,6 +736,9 @@ function Companion() {
           onAction={act}
           actionsDisabled={!online || !!pending || !snapshot?.epoch}
         />
+        {!pairing && view === 'git' && (
+          <GitBrowser snapshot={snapshot} selectedWorktree={session?.worktree} />
+        )}
         {!pairing && sourceVisited && (
           <div hidden={view !== 'source'}>
             <SourceBrowser snapshot={snapshot} selectedWorktree={session?.worktree} />

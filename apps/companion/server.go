@@ -188,6 +188,10 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if r.URL.Path == "/api/git/status" || r.URL.Path == "/api/git/diff" {
+		b.git(w, r)
+		return
+	}
 	if r.URL.Path == "/api/source" || r.URL.Path == "/api/reports" {
 		b.source(w, r)
 		return

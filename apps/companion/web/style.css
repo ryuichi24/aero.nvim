@@ -704,7 +704,7 @@ details[open] > .markdown-body {
 }
 .todo-notifications {
   position: fixed;
-  top: calc(5rem + env(safe-area-inset-top));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
   right: max(0.75rem, env(safe-area-inset-right));
   width: min(26rem, calc(100vw - 1.5rem));
   z-index: 80;

@@ -54,8 +54,23 @@ local function target()
 	}
 end
 
+-- SystemObj:wait() only processes fast events, leaving scheduled UI timers blocked.
+-- Use vim.wait() so the progress window keeps refreshing during subprocesses.
+local function system_wait(cmd, timeout)
+	local result
+	local process = vim.system(cmd, { text = true }, function(value)
+		result = value
+	end)
+	if vim.wait(timeout, function()
+		return result ~= nil
+	end, 50) then
+		return result
+	end
+	return process:wait(0)
+end
+
 local function version_matches(path, version)
-	local result = vim.system({ path, "--version" }, { text = true }):wait(5000)
+	local result = system_wait({ path, "--version" }, 5000)
 	if result.code ~= 0 or vim.trim(result.stdout or "") ~= "aero-companion " .. version then
 		return nil, "companion executable version mismatch (requires " .. version .. ")"
 	end
@@ -76,11 +91,11 @@ function M.resolve()
 end
 
 local function download(url, path)
-	local result = vim.system({
+	local result = system_wait({
 		"curl", "--fail", "--location", "--silent", "--show-error",
 		"--proto", "=https", "--proto-redir", "=https", "--max-time", "120",
 		"--output", path, url,
-	}, { text = true }):wait(125000)
+	}, 125000)
 	if result.code ~= 0 then
 		return nil, "companion release download failed: " .. vim.trim(result.stderr or "")
 	end
@@ -139,7 +154,7 @@ function M.install()
 		end
 		progress.update("Verifying SHA-256 checksum")
 		local cmd = hasher == "sha256sum" and { hasher, temp } or { hasher, "-a", "256", temp }
-		local result = vim.system(cmd, { text = true }):wait(10000)
+		local result = system_wait(cmd, 10000)
 		local actual = (result.stdout or ""):match("^(%x+)")
 		if result.code ~= 0 or not actual or actual:lower() ~= expected then
 			return nil, "companion executable checksum verification failed"

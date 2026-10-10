@@ -1,0 +1,13 @@
+.git-diff {
+  overflow-x: auto;
+  white-space: pre;
+  max-width: 100%;
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.git-diff code > span {
+  width: max-content;
+  min-width: 100%;
+}

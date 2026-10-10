@@ -32,6 +32,7 @@ vim.fn.stdpath = function(kind)
 	return kind == "data" and root .. "/data" or stdpath(kind)
 end
 local downloads, mode = 0, "success"
+local elapsed_during_download = false
 local windows = #vim.api.nvim_list_wins()
 vim.system = function(cmd, opts, callback)
 	if cmd[1] ~= "curl" then
@@ -65,9 +66,25 @@ vim.system = function(cmd, opts, callback)
 		file:write(binary)
 	end
 	file:close()
+	local result = { code = mode == "download" and 22 or 0, stdout = "", stderr = "fixture HTTP 404" }
+	if downloads == 1 then
+		-- A real subprocess reproduces the event-loop behavior of a slow download.
+		vim.defer_fn(function()
+			local current = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(progress_win), 0, 1, false)[1]
+			elapsed_during_download = current:match("· [1-9]%d*s") ~= nil
+		end, 1200)
+		return system({ "sh", "-c", "sleep 1.5" }, opts, function()
+			callback(result)
+		end)
+	end
+	if callback then
+		vim.schedule(function()
+			callback(result)
+		end)
+	end
 	return {
 		wait = function()
-			return { code = mode == "download" and 22 or 0, stdout = "", stderr = "fixture HTTP 404" }
+			return result
 		end,
 	}
 end
@@ -76,6 +93,7 @@ local path, err = installer.resolve()
 assert(not path and err:find(":Aero companion install", 1, true))
 -- Exercise the actual user command; installation does not launch the bridge.
 vim.cmd("Aero companion install")
+assert(elapsed_during_download, "elapsed time did not refresh while the download was running")
 assert(#vim.api.nvim_list_wins() == windows, "successful install left progress open")
 path = assert(installer.resolve())
 assert(path == vim.fs.joinpath(root, "data", "Aero", "bin", release.version, asset))

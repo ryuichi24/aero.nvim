@@ -7,6 +7,11 @@ connects two independently buildable modules:
 - `companion/`: `aero-companion`, the mobile web bridge with its frontend under
   `companion/web/`.
 
+The companion's **Git** tab shows staged and unstaged changes for a selected
+worktree, including untracked files. Select a file to read its highlighted unified
+diff. Partially staged files appear in both groups with their corresponding diffs.
+The view refreshes every five seconds; **Refresh** reloads it immediately.
+
 The companion's **Reports** tab lists created reports for the selected worktree,
 using Aero's configured report storage (including reports outside the worktree).
 Select a report to preview rendered Markdown, use **Show source** to read the raw
@@ -27,7 +32,7 @@ show board/ticket assignments and the assigned ticket's committed state, shared
 with the Neovim dashboard and panel. See [task-agent setup](../docs/agent-tasks.md#assign-a-board-from-mobile).
 
 Session-labeled **todo notifications** follow live ACP plan and todo tool changes
-for every session, including agents outside the selected transcript. Upper-right
+for every session, including agents outside the selected transcript. Lower-right
 popups show completion progress, current work, statuses, and priorities, and also
 appear inside fullscreen views. Close an individual popup with its × button or
 Escape while focused. The **Todos** button focuses the latest open popup or
