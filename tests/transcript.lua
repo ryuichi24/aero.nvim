@@ -144,6 +144,19 @@ wait(function() return #marks() == 0 end)
 config.options.acp.decorations = true
 chat:render()
 wait(function() return #marks() > 0 end)
+
+-- Image chunks remain separate from following text and survive saved history.
+config.options.acp.image_previews = true
+local image = { type = "image", mimeType = "image/png", data = vim.base64.encode("\137PNG\0test") }
+chat:on_update({ sessionUpdate = "agent_message_chunk", content = image })
+chat:on_update({ sessionUpdate = "agent_message_chunk", content = { type = "text", text = "After the screenshot." } })
+wait(function() return text():find("![image](<", 1, true) and text():find("After the screenshot.", 1, true) end)
+assert(chat.blocks[#chat.blocks - 1].image.data == image.data)
+assert(chat.blocks[#chat.blocks].text == "After the screenshot.")
+history.flush(s)
+assert(history.load(s).blocks[#chat.blocks - 1].image.data == image.data, "image payload was not persisted")
+local cached_image = require("aero.acp.images").markdown(image):match("%(<(.*)>%)")
+vim.fn.delete(cached_image)
 sessions.delete(s)
 api.nvim_create_autocmd("VimLeavePre", { once = true, callback = function() vim.fn.delete(dir, "rf") end })
 print("Transcript tests passed (typed cards, metadata, commands, diffs, truncation, decoration, permissions, history).")

@@ -4,6 +4,7 @@ local config = require("aero.config")
 local spinner = require("aero.spinner")
 local usage = require("aero.acp.usage")
 local todos = require("aero.acp.todos")
+local images = require("aero.acp.images")
 local M = {}
 local ns = api.nvim_create_namespace("Aero.acp.render")
 local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
@@ -221,6 +222,8 @@ function M.build(chat, opts)
 				local diff = { "--- " .. one_line(item.path), "+++ " .. one_line(item.path) }
 				vim.list_extend(diff, cached.lines)
 				fenced(diff, "diff", group, max_lines * 3)
+			elseif item.type == "content" and item.content and item.content.type == "image" then
+				push(images.markdown(item.content, opts.export), nil, "body")
 			elseif item.type == "content" then
 				local text = vim.trim(content_text(item.content))
 				if text ~= "" then
@@ -265,7 +268,7 @@ function M.build(chat, opts)
 			if block.kind == "user" then
 				header("You", "AeroChatUser", "## ")
 				push("")
-				body(text_lines(block), nil, "AeroChatUser")
+				body(block.image and { images.markdown(block.image, opts.export) } or text_lines(block), nil, "AeroChatUser")
 				finish("AeroChatUser")
 				speaker = "user"
 			else
@@ -278,11 +281,11 @@ function M.build(chat, opts)
 					speaker = "agent"
 				end
 				if block.kind == "agent" then
-					body(text_lines(block), nil, "AeroChatAgent")
+					body(block.image and { images.markdown(block.image, opts.export) } or text_lines(block), nil, "AeroChatAgent")
 					finish("AeroChatAgent")
 				elseif block.kind == "thought" then
 					header("Thinking", "AeroChatThinking")
-					body(text_lines(block), "AeroChatThinking")
+					body(block.image and { images.markdown(block.image, opts.export) } or text_lines(block), "AeroChatThinking")
 					finish("AeroChatThinking")
 				elseif block.kind == "tool" then
 					tool(block)

@@ -405,7 +405,7 @@ end
 
 function Chat:append(kind, text)
 	local b = self.blocks[#self.blocks]
-	if b and b.kind == kind then
+	if b and b.kind == kind and not b.image then
 		b.text = b.text .. text
 	else
 		b = { kind = kind, text = text, timestamp = not self.replaying and os.time() or nil }
@@ -415,6 +415,17 @@ function Chat:append(kind, text)
 	if (kind == "agent" or kind == "thought") and not self.replaying and not b.shown then
 		b.shown = #b.text - #text
 		table.insert(self.revealing, b)
+	end
+end
+
+function Chat:append_content(kind, content)
+	if type(content) == "table" and content.type == "image" then
+		table.insert(self.blocks, {
+			kind = kind, text = "[image]", image = vim.deepcopy(content),
+			timestamp = not self.replaying and os.time() or nil,
+		})
+	else
+		self:append(kind, content_text(content))
 	end
 end
 
@@ -453,12 +464,12 @@ function Chat:on_update(u)
 		return
 	end
 	if kind == "user_message_chunk" then
-		self:append("user", content_text(u.content))
+		self:append_content("user", u.content)
 	elseif kind == "agent_message_chunk" then
-		self:append("agent", content_text(u.content))
+		self:append_content("agent", u.content)
 		self.doing = { kind = "writing" }
 	elseif kind == "agent_thought_chunk" then
-		self:append("thought", content_text(u.content))
+		self:append_content("thought", u.content)
 		self.doing = { kind = "thinking" }
 	elseif kind == "tool_call" or kind == "tool_call_update" then
 		-- the latest tool call is what the agent is doing, until it finishes

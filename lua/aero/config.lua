@@ -29,6 +29,7 @@ M.defaults = {
 		-- prompt window height
 		prompt_height = 25,
 		decorations = true, -- native transcript cards, colors, and visual borders
+		image_previews = false, -- expose ACP images to Markdown image renderers (e.g. image.nvim)
 		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
 		todo_notifications = true, -- session-labeled todo change popups
 		todo_notification_timeout = 15000, -- milliseconds after the last change; 0 keeps popups open

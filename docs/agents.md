@@ -125,6 +125,52 @@ panel session, even if hidden. `/cancel` also works. Cancellation discards queue
 prompts and pending permissions while retaining the conversation; continue after
 the agent acknowledges cancellation.
 
+## Inline image previews in Kitty
+
+ACP image messages and images in tool results (including Playwright MCP
+screenshots) can appear directly in the transcript using
+[image.nvim](https://github.com/3rd/image.nvim). Enable Aero's image links:
+
+```lua
+require("aero").setup({
+  acp = { image_previews = true },
+})
+```
+
+Install ImageMagick (`brew install imagemagick` on macOS), and configure
+`image.nvim`. With Neovim's built-in `vim.pack`, load it before Aero's setup:
+
+```lua
+vim.pack.add({ "https://github.com/3rd/image.nvim" })
+
+require("image").setup({
+  backend = "kitty",
+  processor = "magick_cli",
+  integrations = {
+    markdown = {
+      enabled = true,
+      floating_windows = true,
+      download_remote_images = false,
+      only_render_image_at_cursor = false,
+    },
+  },
+  max_height_window_percentage = 50,
+})
+```
+
+The Markdown integration also requires the `markdown` and `markdown_inline`
+Tree-sitter parsers. `floating_windows = true` allows previews in Aero's floating
+transcript panels. Image.nvim manages image placement, scrolling, and resizing.
+If using tmux, enable `allow-passthrough` and `focus-events` as described in
+image.nvim's setup guide.
+
+Aero caches embedded PNG, JPEG, GIF, WebP, and AVIF payloads under
+`stdpath("cache")/aero/images`; repeated images share the same file. Saved ACP
+history retains the original payload, so previews can be rebuilt after clearing
+the cache. Image previews are opt-in; unsupported or invalid payloads and exported
+transcripts retain the `[image]` label. The agent's ACP adapter must forward image
+content: a screenshot filename alone does not provide an embedded image.
+
 ## Permissions and file access
 
 Requests display numbered choices. The transcript cursor moves to the options, but
