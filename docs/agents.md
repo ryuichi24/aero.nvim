@@ -86,6 +86,7 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero todos<CR>", { desc = "Focus agent t
 | `i`, `a`, `o`, `I`, `A`, `<CR>` | Open prompt below transcript |
 | `<CR>` on an option / `1`–`9` | Answer pending permission |
 | `p` | Jump to pending permission |
+| `<C-g>` | Toggle the input panel, keeping the draft |
 | `<C-c>` | Cancel the turn and pending request |
 
 The prompt is a regular Markdown buffer; closing it retains the draft.
@@ -98,6 +99,7 @@ The prompt is a regular Markdown buffer; closing it retains the draft.
 | `<Tab>` / `<S-Tab>` | Next / previous suggestion in the automatic slash-command menu |
 | `@` (insert mode) | Show inline fuzzy suggestions for worktree files and folders |
 | `q` | Close in normal mode |
+| `<C-g>` | Toggle the input panel in normal or insert mode, keeping the draft |
 | `<C-c>` | Cancel the turn |
 
 Slash-command suggestions appear automatically as you type `/`, including agent-provided

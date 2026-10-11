@@ -1017,6 +1017,7 @@ function Chat:get_prompt_buf()
 		end
 	end, { buffer = buf, desc = "Aero: report picker / cancel / newline" })
 	map("n", "q", "<cmd>close<cr>", "close prompt (draft is kept)")
+	map({ "n", "i" }, "<C-g>", with_chat("toggle_prompt"), "toggle prompt (draft is kept)")
 	map({ "n", "i" }, "<C-c>", with_chat("cancel"), "cancel turn")
 	-- complete the agent's slash commands with <C-x><C-o>
 	vim.bo[buf].omnifunc = "v:lua.require'aero.acp'.omnifunc"
@@ -1024,6 +1025,28 @@ function Chat:get_prompt_buf()
 	require("aero.acp.completion").setup(buf, self.s.worktree)
 	require("aero.fullscreen").bind(buf)
 	return buf
+end
+
+--- Toggle this tab's prompt windows without discarding the draft.
+function Chat:toggle_prompt()
+	local tab = api.nvim_get_current_tabpage()
+	local closed = false
+	if self.prompt_buf and api.nvim_buf_is_valid(self.prompt_buf) then
+		for _, win in ipairs(vim.fn.win_findbuf(self.prompt_buf)) do
+			if api.nvim_win_get_tabpage(win) == tab then
+				vim.cmd.stopinsert()
+				api.nvim_win_close(win, true)
+				closed = true
+			end
+		end
+	end
+	if not closed then
+		return self:compose()
+	end
+	local transcript = vim.fn.bufwinid(self.buf)
+	if transcript ~= -1 then
+		api.nvim_set_current_win(transcript)
+	end
 end
 
 --- Open the prompt window below the transcript and start insert mode.
@@ -1081,6 +1104,9 @@ local function setup_transcript(chat)
 	map("p", function()
 		chat:answer_permission()
 	end, "go to the pending permission request")
+	map("<C-g>", function()
+		chat:toggle_prompt()
+	end, "toggle prompt (draft is kept)")
 	map("gP", function()
 		require("aero.prompts").open(chat)
 	end, "view session prompt history")
@@ -1198,6 +1224,15 @@ function M.start(s, buf, agent, resume, session_id, opts)
 	spinner.ensure()
 	chat:handshake(resume)
 	return chat
+end
+
+--- Toggle the input for a session, or the currently focused Aero buffer.
+function M.toggle_prompt(s)
+	local key = s and s.key or vim.b.aero_chat_key or vim.b.aero_session
+	local chat = key and chats_by_key[key]
+	if chat then
+		chat:toggle_prompt()
+	end
 end
 
 function M.compose(s)
