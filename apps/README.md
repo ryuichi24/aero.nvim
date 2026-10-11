@@ -7,8 +7,9 @@ connects two independently buildable modules:
 - `companion/`: `aero-companion`, the mobile web bridge with its frontend under
   `companion/web/`.
 
-The companion's **Git** tab shows staged and unstaged changes for a selected
-worktree, including untracked files. Select a file to read its highlighted unified
+The companion's **Git** tab groups worktrees by workspace. Select a workspace to
+see each worktree's staged and unstaged counts, then select a worktree to browse
+its changed files, including untracked files. Select a file to read its highlighted unified
 diff. Partially staged files appear in both groups with their corresponding diffs.
 The view refreshes every five seconds; **Refresh** reloads it immediately.
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { post } from './api';
 import type { Snapshot } from './types';
+import { groupSessions, type WorktreeGroup } from './sessionGroups';
 import './git-browser.css';
 
 interface GitEntry {
@@ -9,6 +10,43 @@ interface GitEntry {
   original_path?: string;
   index: string;
   worktree: string;
+}
+
+function GitWorktree({
+  tree,
+  active,
+  online,
+  onSelect,
+}: {
+  tree: WorktreeGroup;
+  active: boolean;
+  online: boolean;
+  onSelect: () => void;
+}) {
+  const status = useQuery({
+    queryKey: ['git', tree.path, 'status'],
+    queryFn: () => post<{ entries: GitEntry[] }>('git/status', { worktree: tree.path }),
+    enabled: online,
+    refetchInterval: 5000,
+  });
+  const entries = status.data?.entries;
+  return (
+    <button className="git-worktree" aria-pressed={active} onClick={onSelect}>
+      <strong>{tree.label}</strong>
+      <span className="git-worktree-path">{tree.path}</span>
+      <span>
+        {status.error
+          ? 'Status unavailable'
+          : !online
+            ? 'Offline'
+            : !entries
+              ? 'Loading status…'
+              : !entries.length
+                ? 'Working tree clean'
+                : `${entries.filter((entry) => ![' ', '?'].includes(entry.index)).length} staged · ${entries.filter((entry) => entry.worktree !== ' ').length} unstaged`}
+      </span>
+    </button>
+  );
 }
 
 export function GitBrowser({
@@ -19,13 +57,28 @@ export function GitBrowser({
   selectedWorktree?: string;
 }) {
   const [chosen, setChosen] = useState('');
-  const [selected, setSelected] = useState<{ path: string; staged: boolean }>();
+  const [chosenWorkspace, setChosenWorkspace] = useState('');
+  const [fileSelection, setSelected] = useState<{
+    worktree: string;
+    path: string;
+    staged: boolean;
+  }>();
   const client = useQueryClient();
-  const trees = snapshot?.worktrees || [];
+  const groups = snapshot
+    ? groupSessions({ ...snapshot, workspaces: snapshot.workspaces || [], sessions: [] })
+    : [];
+  const workspace =
+    groups.find((group) => group.key === chosenWorkspace) ||
+    groups.find((group) =>
+      group.worktrees.some((tree) => tree.path === (chosen || selectedWorktree)),
+    ) ||
+    groups[0];
+  const trees = workspace?.worktrees || [];
   const worktree =
     trees.find((tree) => tree.path === chosen)?.path ||
     trees.find((tree) => tree.path === selectedWorktree)?.path ||
     trees[0]?.path;
+  const selected = fileSelection?.worktree === worktree ? fileSelection : undefined;
   const online = !!snapshot?.connected && !!worktree;
   const status = useQuery({
     queryKey: ['git', worktree, 'status'],
@@ -44,29 +97,54 @@ export function GitBrowser({
     <section aria-label="Git browser">
       <h2>Git changes</h2>
       <label>
-        Worktree
+        Workspace
         <select
-          value={worktree || ''}
+          value={workspace?.key || ''}
           onChange={(event) => {
-            setChosen(event.target.value);
+            setChosenWorkspace(event.target.value);
+            setChosen('');
             setSelected(undefined);
           }}
         >
-          {trees.map((tree) => (
-            <option key={tree.path} value={tree.path}>
-              {tree.branch || tree.path} · {tree.path}
+          {groups.map((group) => (
+            <option key={group.key} value={group.key}>
+              {group.name}
+              {group.root ? ` · ${group.root}` : ''}
             </option>
           ))}
         </select>
       </label>
+      {workspace && (
+        <nav className="git-worktrees" aria-label={`${workspace.name} worktrees`}>
+          {trees.map((tree) => (
+            <GitWorktree
+              key={tree.path}
+              tree={tree}
+              active={tree.path === worktree}
+              online={!!snapshot?.connected}
+              onSelect={() => {
+                setChosen(tree.path);
+                setSelected(undefined);
+              }}
+            />
+          ))}
+        </nav>
+      )}
       {!worktree && <p>No worktrees available.</p>}
       {!snapshot?.connected && <p role="status">Connect to Neovim to browse Git changes.</p>}
       <button
         disabled={!online || status.isFetching || diff.isFetching}
-        onClick={() => void client.invalidateQueries({ queryKey: ['git', worktree] })}
+        onClick={() => {
+          for (const tree of trees) void client.invalidateQueries({ queryKey: ['git', tree.path] });
+        }}
       >
         Refresh
       </button>
+      {worktree && (
+        <h3>
+          {workspace?.name} / {trees.find((tree) => tree.path === worktree)?.label}
+        </h3>
+      )}
       {status.isLoading && <p role="status">Loading Git status…</p>}
       {status.error && <p role="alert">{status.error.message}</p>}
       {status.data && (
@@ -92,7 +170,9 @@ export function GitBrowser({
                                 ? 'true'
                                 : undefined
                             }
-                            onClick={() => setSelected({ path: entry.path, staged })}
+                            onClick={() =>
+                              setSelected({ worktree: worktree!, path: entry.path, staged })
+                            }
                           >
                             <code>{staged ? entry.index : entry.worktree}</code>{' '}
                             {entry.original_path ? `${entry.original_path} → ` : ''}
