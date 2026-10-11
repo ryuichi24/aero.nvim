@@ -19,6 +19,7 @@ function SourceFolder({
   online,
   onSelect,
   mode,
+  filter = '',
 }: {
   worktree: string;
   path: string;
@@ -26,6 +27,7 @@ function SourceFolder({
   online: boolean;
   onSelect: (path: string) => void;
   mode: 'source' | 'reports';
+  filter?: string;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const query = useQuery({
@@ -44,42 +46,54 @@ function SourceFolder({
           </button>
         </li>
       )}
-      {query.data?.entries?.map((entry) => {
-        const entryPath = path ? `${path}/${entry.name}` : entry.name;
-        const open = expanded[entryPath] ?? selected.startsWith(`${entryPath}/`);
-        return (
-          <li key={entry.name}>
-            <button
-              aria-expanded={entry.directory ? open : undefined}
-              aria-current={!entry.directory && selected === entryPath ? 'true' : undefined}
-              onClick={() =>
-                entry.directory
-                  ? setExpanded((current) => ({ ...current, [entryPath]: !open }))
-                  : onSelect(entryPath)
-              }
-            >
-              <span aria-hidden="true">{entry.directory ? (open ? '▾ ' : '▸ ') : '· '}</span>
-              {entry.name}
-              {entry.directory ? '/' : ''}
-            </button>
-            {entry.directory && open && (
-              <SourceFolder
-                worktree={worktree}
-                path={entryPath}
-                selected={selected}
-                online={online}
-                onSelect={onSelect}
-                mode={mode}
-              />
-            )}
-          </li>
-        );
-      })}
+      {query.data?.entries
+        ?.filter(
+          (entry) =>
+            entry.directory || entry.name.toLowerCase().includes(filter.trim().toLowerCase()),
+        )
+        .map((entry) => {
+          const entryPath = path ? `${path}/${entry.name}` : entry.name;
+          const open = expanded[entryPath] ?? selected.startsWith(`${entryPath}/`);
+          return (
+            <li key={entry.name}>
+              <button
+                aria-expanded={entry.directory ? open : undefined}
+                aria-current={!entry.directory && selected === entryPath ? 'true' : undefined}
+                onClick={() =>
+                  entry.directory
+                    ? setExpanded((current) => ({ ...current, [entryPath]: !open }))
+                    : onSelect(entryPath)
+                }
+              >
+                <span aria-hidden="true">{entry.directory ? (open ? '▾ ' : '▸ ') : '· '}</span>
+                {entry.name}
+                {entry.directory ? '/' : ''}
+              </button>
+              {entry.directory && open && (
+                <SourceFolder
+                  worktree={worktree}
+                  path={entryPath}
+                  selected={selected}
+                  online={online}
+                  onSelect={onSelect}
+                  mode={mode}
+                  filter={filter}
+                />
+              )}
+            </li>
+          );
+        })}
       {query.data?.entries?.length === 0 && (
         <li className="navigation-empty">
           {mode === 'reports' ? 'No reports created yet.' : 'Empty directory.'}
         </li>
       )}
+      {!!filter.trim() &&
+        !!query.data?.entries?.length &&
+        !query.data.entries.some(
+          (entry) =>
+            entry.directory || entry.name.toLowerCase().includes(filter.trim().toLowerCase()),
+        ) && <li className="navigation-empty">No matching reports in this folder.</li>}
     </ul>
   );
 }
@@ -88,14 +102,18 @@ export function SourceBrowser({
   snapshot,
   selectedWorktree,
   mode = 'source',
+  contextControlled = false,
 }: {
   snapshot: Snapshot | null;
   selectedWorktree?: string;
   mode?: 'source' | 'reports';
+  contextControlled?: boolean;
 }) {
   const [chosen, setChosen] = useState<string>();
   const [worktreeSearch, setWorktreeSearch] = useState('');
   const [path, setPath] = useState('');
+  const [readerOpen, setReaderOpen] = useState(true);
+  const [reportSearch, setReportSearch] = useState('');
   const [preview, setPreview] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const fullscreenDialog = useRef<HTMLDialogElement>(null);
@@ -223,7 +241,21 @@ export function SourceBrowser({
       aria-label={mode === 'reports' ? 'Report browser' : 'Source browser'}
     >
       <h2>{mode === 'reports' ? 'Reports' : 'Source code'}</h2>
-      {mode === 'reports' && trees.length > 0 ? (
+      {mode === 'reports' && (
+        <label>
+          Search report names
+          <input
+            type="search"
+            value={reportSearch}
+            onChange={(event) => {
+              setReportSearch(event.target.value);
+              setReaderOpen(false);
+            }}
+            placeholder="Find a report in this worktree"
+          />
+        </label>
+      )}
+      {!contextControlled && mode === 'reports' && trees.length > 0 ? (
         <details className="report-worktree-picker" open={!chosen && trees.length > 1}>
           <summary>
             <span className="report-worktree-summary">
@@ -290,7 +322,7 @@ export function SourceBrowser({
             ) && <p role="status">No matching worktrees.</p>}
           </div>
         </details>
-      ) : mode === 'source' ? (
+      ) : !contextControlled && mode === 'source' ? (
         <label>
           Worktree
           <select
@@ -333,7 +365,12 @@ export function SourceBrowser({
           {query.isFetching && <p role="status">Loading {mode}…</p>}
           {query.error && <p role="alert">{query.error.message}</p>}
           {!snapshot?.connected && <p role="status">Connect to Neovim to browse {mode}.</p>}
-          <div className="source-layout">
+          {content !== undefined && readerOpen && (
+            <button className="mobile-reader-back" onClick={() => setReaderOpen(false)}>
+              ← {mode === 'reports' ? 'All reports' : 'File tree'}
+            </button>
+          )}
+          <div className="source-layout" data-reading={content !== undefined && readerOpen}>
             <nav className="source-tree" aria-label="File tree">
               <SourceFolder
                 key={worktree}
@@ -341,8 +378,12 @@ export function SourceBrowser({
                 path=""
                 selected={path}
                 online={!!snapshot?.connected}
-                onSelect={setPath}
+                onSelect={(value) => {
+                  setPath(value);
+                  setReaderOpen(true);
+                }}
                 mode={mode}
+                filter={mode === 'reports' ? reportSearch : ''}
               />
             </nav>
             <div className="source-reader">

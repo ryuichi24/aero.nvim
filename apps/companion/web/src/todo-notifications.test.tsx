@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TodoNotifications } from './todo-notifications';
 import type { Session, Snapshot } from './types';
@@ -33,6 +33,40 @@ const snapshot = (sessions: Session[], timeout = 15000): Snapshot => ({
   workspaces: [],
   worktrees: [],
   companion: { ui: { todo_notification_timeout: timeout } },
+});
+
+it('places Todos in the shared and fullscreen headers and restores focus after dismissal', async () => {
+  render(
+    <>
+      <header data-testid="app-header">
+        <span id="todo-controls" />
+      </header>
+      <dialog data-testid="fullscreen">
+        <header>
+          <span data-todo-trigger />
+        </header>
+      </dialog>
+      <TodoNotifications snapshot={snapshot([session('Agent', 'pending')], 0)} />
+    </>,
+  );
+  const header = screen.getByTestId('app-header');
+  await waitFor(() =>
+    expect(header.contains(screen.getByRole('button', { name: 'Todos' }))).toBe(true),
+  );
+  const trigger = screen.getByRole('button', { name: 'Todos' });
+  expect(trigger.closest('.todo-notifications')).toBeNull();
+  fireEvent.click(trigger);
+  const card = screen.getByLabelText('Agent todo notification');
+  fireEvent.keyDown(card, { key: 'Escape' });
+  expect(document.activeElement).toBe(trigger);
+  const dialog = screen.getByTestId('fullscreen');
+  await act(async () => dialog.setAttribute('open', ''));
+  expect(
+    dialog.querySelector('header')!.contains(screen.getByRole('button', { name: 'Todos' })),
+  ).toBe(true);
+  await act(async () => dialog.removeAttribute('open'));
+  expect(header.contains(screen.getByRole('button', { name: 'Todos' }))).toBe(true);
+  expect(screen.getAllByRole('button', { name: 'Todos' })).toHaveLength(1);
 });
 
 it('notifies first creation for every background session without moving focus or replaying history', () => {
@@ -79,6 +113,61 @@ it('notifies first creation for every background session without moving focus or
   view.rerender(<TodoNotifications snapshot={snapshot([])} />);
   expect(screen.queryByLabelText('Claude todo notification')).toBeNull();
 });
+
+it.each([
+  {
+    name: 'starting snapshots',
+    starting: true,
+    status: 'stopped' as const,
+    conversation: undefined,
+  },
+  { name: 'unobserved startup', starting: false, status: 'stopped' as const, conversation: 'one' },
+  {
+    name: 'conversation replacement',
+    starting: false,
+    status: 'busy' as const,
+    conversation: 'one',
+  },
+])(
+  'does not notify restored todos on resume with $name, but still notifies live changes',
+  ({ starting, status, conversation }) => {
+    const view = render(
+      <TodoNotifications
+        snapshot={snapshot([{ ...session('Agent', 'pending'), status, conversation }], 0)}
+      />,
+    );
+    if (starting) {
+      view.rerender(
+        <TodoNotifications
+          snapshot={snapshot(
+            [{ ...session('Agent', 'pending'), conversation: 'resumed', status: 'starting' }],
+            0,
+          )}
+        />,
+      );
+      expect(screen.queryByLabelText('Agent todo notification')).toBeNull();
+    }
+    view.rerender(
+      <TodoNotifications
+        snapshot={snapshot(
+          [{ ...session('Agent', 'in_progress'), conversation: 'resumed', status: 'idle' }],
+          0,
+        )}
+      />,
+    );
+    expect(screen.queryByLabelText('Agent todo notification')).toBeNull();
+    // Restored history remains available on demand.
+    fireEvent.click(screen.getByRole('button', { name: 'Todos' }));
+    expect(screen.getByLabelText('Agent todo notification')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss Agent todos' }));
+    view.rerender(
+      <TodoNotifications
+        snapshot={snapshot([{ ...session('Agent', 'completed'), conversation: 'resumed' }], 0)}
+      />,
+    );
+    expect(screen.getByLabelText('Agent todo notification')).toBeTruthy();
+  },
+);
 
 it('expires, resets only on todo changes, reopens, and pauses while focused', () => {
   vi.useFakeTimers();

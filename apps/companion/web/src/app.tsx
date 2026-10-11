@@ -11,6 +11,7 @@ import { CompanionProvider, useCompanionDispatch, useCompanionState } from './co
 import { draftKey } from './companion-state';
 import { Transcript } from './transcript';
 import { TodoNotifications } from './todo-notifications';
+import { actionableAttention } from './attention';
 import { ReportCommand } from './report-command';
 import { SlashCommands, slashPickerOpen } from './slash-commands';
 import { UIZoom } from './ui-zoom';
@@ -19,8 +20,12 @@ import { Screenshots } from './screenshots';
 import { Recordings } from './recordings';
 import { SessionBrowser } from './session-browser';
 import { SessionMetadata } from './session-metadata';
-import { SourceBrowser } from './source-browser';
-import { GitBrowser } from './git-browser';
+import { CompanionHome } from './companion-home';
+import { NavigationIcon } from './navigation-icon';
+import type { View } from './companion-state';
+import { readStored, store } from './browser-storage';
+import { AgentTodos, latestTodos } from './agent-todos';
+import { WorkspaceReview } from './workspace-review';
 import { LifecycleForm } from './lifecycle-controls';
 import { AssignmentStatus, BoardAssignment } from './task-assignment';
 import { groupSessions, sessionLocation } from './sessionGroups';
@@ -88,8 +93,147 @@ function Companion() {
   const submittingRef = useRef(false);
   const streamRef = useRef<EventSource | null>(null);
   const resumedRef = useRef<string | null>(null);
-  const [sourceVisited, setSourceVisited] = useState(false);
-  const [reportsVisited, setReportsVisited] = useState(false);
+  const [sessionTab, setSessionTab] = useState<'conversation' | 'artifacts' | 'details'>(
+    'conversation',
+  );
+  const [routeReady, setRouteReady] = useState(false);
+  const [creationRequest, setCreationRequest] = useState(0);
+  const [lightTheme, setLightTheme] = useState(() => {
+    try {
+      return localStorage.getItem('aero-appearance') === 'light';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = lightTheme ? 'light' : 'dark';
+    try {
+      localStorage.setItem('aero-appearance', lightTheme ? 'light' : 'dark');
+    } catch {
+      /* Optional preference. */
+    }
+    return () => {
+      delete document.documentElement.dataset.theme;
+    };
+  }, [lightTheme]);
+  const [reviewWorktree, setReviewWorktree] = useState(() =>
+    readStored<string>(
+      'aero-review-worktree',
+      readStored<string>('aero-review-worktree', ''),
+      'local',
+    ),
+  );
+  const [workspaceScope, setWorkspaceScope] = useState(() =>
+    readStored<string>('aero-workspace-scope', '', 'local'),
+  );
+  const [lastWorkspaceView, setLastWorkspaceView] = useState<'reports' | 'git' | 'source'>(() => {
+    const saved = readStored<string>(
+      'aero-workspace-view',
+      readStored<string>('aero-workspace-view', 'reports'),
+      'local',
+    );
+    return saved === 'source' || saved === 'git' ? saved : 'reports';
+  });
+  const [contextSearch, setContextSearch] = useState('');
+  const [recent, setRecent] = useState<string[]>(() => {
+    const value = readStored<unknown>('aero-recent-sessions', []);
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+  });
+  useEffect(() => store('aero-recent-sessions', recent), [recent]);
+  useEffect(() => store('aero-workspace-scope', workspaceScope, 'local'), [workspaceScope]);
+  useEffect(() => store('aero-review-worktree', reviewWorktree, 'local'), [reviewWorktree]);
+  useEffect(() => store('aero-workspace-view', lastWorkspaceView, 'local'), [lastWorkspaceView]);
+  useEffect(() => {
+    if (!snapshot?.connected) return;
+    if (
+      workspaceScope &&
+      !snapshot.workspaces.some((workspace) => workspace.root === workspaceScope)
+    )
+      setWorkspaceScope('');
+  }, [snapshot, workspaceScope]);
+  const workspaceView = view === 'reports' || view === 'source' || view === 'git';
+  const scopedSnapshot =
+    snapshot && workspaceScope
+      ? {
+          ...snapshot,
+          workspaces: snapshot.workspaces.filter((workspace) => workspace.root === workspaceScope),
+          worktrees: snapshot.worktrees.filter(
+            (tree) => tree.workspace === workspaceScope || tree.path === workspaceScope,
+          ),
+          sessions: snapshot.sessions.filter((session) =>
+            snapshot.worktrees.some(
+              (tree) =>
+                tree.path === session.worktree &&
+                (tree.workspace === workspaceScope || tree.path === workspaceScope),
+            ),
+          ),
+        }
+      : snapshot;
+  const reviewTree = scopedSnapshot?.worktrees.find((tree) => tree.path === reviewWorktree);
+  const reviewGroups = scopedSnapshot
+    ? groupSessions({ ...scopedSnapshot, sessions: [] })
+        .map((workspace) => ({
+          ...workspace,
+          worktrees: workspace.worktrees.filter((tree) =>
+            `${workspace.name} ${workspace.root} ${tree.branch} ${tree.path}`
+              .toLowerCase()
+              .includes(contextSearch.toLowerCase()),
+          ),
+        }))
+        .filter((workspace) => workspace.worktrees.length > 0)
+    : [];
+  useEffect(() => {
+    function restore() {
+      try {
+        const route = JSON.parse(decodeURIComponent(window.location.hash.slice(1)) || '{}');
+        if (
+          ['home', 'sessions', 'inbox', 'conversation', 'reports', 'source', 'git'].includes(
+            route.view,
+          )
+        ) {
+          if (route.selection?.id && typeof route.selection.id === 'string')
+            dispatch({ type: 'select-session', selection: route.selection });
+          dispatch({ type: 'navigate', view: route.view });
+          setSessionTab(['artifacts', 'details'].includes(route.tab) ? route.tab : 'conversation');
+          if (typeof route.worktree === 'string') setReviewWorktree(route.worktree);
+        } else {
+          dispatch({ type: 'navigate', view: 'home' });
+        }
+      } catch {
+        /* Ignore unrelated or obsolete URL fragments. */
+      }
+    }
+    if (!pendingRef.current) restore();
+    setRouteReady(true);
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [dispatch]);
+  useEffect(() => {
+    if (!routeReady) return;
+    window.history.replaceState(
+      null,
+      '',
+      `#${encodeURIComponent(JSON.stringify({ view, selection: selected, worktree: reviewWorktree, tab: sessionTab }))}`,
+    );
+  }, [routeReady, view, selected, reviewWorktree, sessionTab]);
+
+  function navigate(next: View, worktree = reviewWorktree) {
+    setReviewWorktree(worktree);
+    dispatch({ type: 'navigate', view: next });
+    if (next === 'reports' || next === 'git' || next === 'source') setLastWorkspaceView(next);
+    // Give browser Back a concrete landing route on its first navigation.
+    if (!window.location.hash)
+      window.history.replaceState(
+        null,
+        '',
+        `#${encodeURIComponent(JSON.stringify({ view, selection: selected, worktree: reviewWorktree }))}`,
+      );
+    window.history.pushState(
+      null,
+      '',
+      `#${encodeURIComponent(JSON.stringify({ view: next, selection: selected, worktree }))}`,
+    );
+  }
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [attentionHost, setAttentionHost] = useState<HTMLElement | null>(null);
   const attentionOrigin = useRef<HTMLButtonElement | null>(null);
@@ -143,6 +287,27 @@ function Companion() {
   }, [confirmUnpair]);
   const attentionButton = useRef<HTMLButtonElement>(null);
   const attentionClose = useRef<HTMLButtonElement>(null);
+  const attentionPanel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    function dismissOutside(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (deviceMenu.current?.open && !deviceMenu.current.contains(target))
+        deviceMenu.current.open = false;
+      if (
+        attentionOpen &&
+        !attentionPanel.current?.contains(target) &&
+        !attentionButton.current?.contains(target) &&
+        !attentionOrigin.current?.contains(target)
+      ) {
+        setAttentionOpen(false);
+        setAttentionHost(null);
+      }
+    }
+    document.addEventListener('pointerdown', dismissOutside, true);
+    return () => document.removeEventListener('pointerdown', dismissOutside, true);
+  }, [attentionOpen]);
 
   function closeAttention() {
     setAttentionOpen(false);
@@ -158,11 +323,6 @@ function Companion() {
     setAttentionOpen(false);
     setAttentionHost(null);
   }, [view, pairing]);
-
-  useEffect(() => {
-    if (view === 'source') setSourceVisited(true);
-    if (view === 'reports') setReportsVisited(true);
-  }, [view]);
 
   const connect = useCallback(() => {
     streamRef.current?.close();
@@ -242,7 +402,7 @@ function Companion() {
   useEffect(() => {
     if (view !== 'conversation') return;
     titleRef.current?.focus({ preventScroll: true });
-    titleRef.current?.scrollIntoView?.({ block: 'start' });
+    if (window.scrollY > 0) window.scrollTo({ top: 0 });
   }, [view, selected?.id, selected?.conversation]);
 
   function openSession(selection: Selection) {
@@ -250,6 +410,13 @@ function Companion() {
     setAttentionOpen(false);
     setAttentionHost(null);
     dispatch({ type: 'select-session', selection });
+    setSessionTab('conversation');
+    setRecent((items) => [selection.id, ...items.filter((id) => id !== selection.id)].slice(0, 10));
+    window.history.pushState(
+      null,
+      '',
+      `#${encodeURIComponent(JSON.stringify({ view: 'conversation', selection, worktree: reviewWorktree }))}`,
+    );
   }
 
   async function submitPending(action: PendingAction) {
@@ -374,23 +541,36 @@ function Companion() {
     () => (snapshot ? sessionLocation(groupSessions(snapshot), selected) : undefined),
     [snapshot, selected],
   );
+  const attentionEntries = actionableAttention(snapshot);
+  const visibleAttentionEntries = attentionEntries.filter(
+    (entry) =>
+      attentionOpen ||
+      !workspaceScope ||
+      entry.workspace === workspaceScope ||
+      scopedSnapshot?.sessions.some((session) => session.id === entry.session),
+  );
 
   return (
     <FullscreenAttentionContext.Provider
       value={
-        fullscreenAttention ? (
-          <button
-            aria-expanded={attentionOpen}
-            aria-controls="attention-inbox"
-            onClick={(event) => {
-              attentionOrigin.current = event.currentTarget;
-              setAttentionHost(event.currentTarget.closest<HTMLElement>('dialog, .image-preview'));
-              attentionOpen ? closeAttention() : setAttentionOpen(true);
-            }}
-          >
-            Attention{snapshot?.inbox.length ? ` (${snapshot.inbox.length})` : ''}
-          </button>
-        ) : null
+        <>
+          <span data-todo-trigger className="todo-control-slot" />
+          {fullscreenAttention && (
+            <button
+              aria-expanded={attentionOpen}
+              aria-controls="attention-inbox"
+              onClick={(event) => {
+                attentionOrigin.current = event.currentTarget;
+                setAttentionHost(
+                  event.currentTarget.closest<HTMLElement>('dialog, .image-preview'),
+                );
+                attentionOpen ? closeAttention() : setAttentionOpen(true);
+              }}
+            >
+              Attention{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
+            </button>
+          )}
+        </>
       }
     >
       <header className="sticky top-0 z-20 border-b border-slate-700/60 bg-slate-900/95 px-4 py-3 backdrop-blur sm:px-6">
@@ -401,7 +581,11 @@ function Companion() {
               Companion
             </span>
           </h1>
-          <span id="connection" role="status">
+          <span
+            id="connection"
+            role="status"
+            className={online ? 'text-green-300' : 'text-red-300'}
+          >
             {connection}
           </span>
           <div className="header-actions">
@@ -417,8 +601,9 @@ function Companion() {
                 attentionOpen ? closeAttention() : setAttentionOpen(true);
               }}
             >
-              Attention{snapshot?.inbox.length ? ` (${snapshot.inbox.length})` : ''}
+              Attention{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
             </button>
+            <span id="todo-controls" className="todo-control-slot" />
             <details
               ref={deviceMenu}
               className="device-menu"
@@ -438,6 +623,14 @@ function Companion() {
               <div className="device-menu-panel">
                 <p className="device-menu-label">Display zoom</p>
                 <UIZoom />
+                <label className="fullscreen-attention-setting">
+                  <input
+                    type="checkbox"
+                    checked={lightTheme}
+                    onChange={(event) => setLightTheme(event.target.checked)}
+                  />
+                  Light appearance
+                </label>
                 <label className="fullscreen-attention-setting">
                   <input
                     type="checkbox"
@@ -513,59 +706,32 @@ function Companion() {
       )}
       <nav className="primary-nav" aria-label="Companion navigation">
         <button
-          aria-current={view === 'sessions' ? 'page' : undefined}
-          onClick={() => dispatch({ type: 'navigate', view: 'sessions' })}
+          aria-current={view === 'home' ? 'page' : undefined}
+          onClick={() => navigate('home')}
         >
-          <span className="nav-icon" aria-hidden="true">
-            ▦
-          </span>
+          <NavigationIcon name="home" />
+          Home
+        </button>
+        <button
+          aria-current={view === 'sessions' || view === 'conversation' ? 'page' : undefined}
+          onClick={() => navigate('sessions')}
+        >
+          <NavigationIcon name="sessions" />
           Sessions
         </button>
         <button
           aria-current={view === 'inbox' ? 'page' : undefined}
-          onClick={() => dispatch({ type: 'navigate', view: 'inbox' })}
+          onClick={() => navigate('inbox')}
         >
-          <span className="nav-icon" aria-hidden="true">
-            ◇
-          </span>
-          Inbox{snapshot?.inbox.length ? ` (${snapshot.inbox.length})` : ''}
+          <NavigationIcon name="inbox" />
+          Inbox{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
         </button>
         <button
-          disabled={!selected}
-          aria-current={view === 'conversation' ? 'page' : undefined}
-          onClick={() => dispatch({ type: 'navigate', view: 'conversation' })}
+          aria-current={workspaceView ? 'page' : undefined}
+          onClick={() => navigate(lastWorkspaceView)}
         >
-          <span className="nav-icon" aria-hidden="true">
-            ≡
-          </span>
-          Transcript
-        </button>
-        <button
-          aria-current={view === 'source' ? 'page' : undefined}
-          onClick={() => dispatch({ type: 'navigate', view: 'source' })}
-        >
-          <span className="nav-icon" aria-hidden="true">
-            ⌘
-          </span>
-          Source
-        </button>
-        <button
-          aria-current={view === 'reports' ? 'page' : undefined}
-          onClick={() => dispatch({ type: 'navigate', view: 'reports' })}
-        >
-          <span className="nav-icon" aria-hidden="true">
-            ▤
-          </span>
-          Reports
-        </button>
-        <button
-          aria-current={view === 'git' ? 'page' : undefined}
-          onClick={() => dispatch({ type: 'navigate', view: 'git' })}
-        >
-          <span className="nav-icon" aria-hidden="true">
-            ±
-          </span>
-          Git
+          <NavigationIcon name="workspace" />
+          Workspace
         </button>
       </nav>
       <main className="mx-auto w-full max-w-4xl px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6">
@@ -621,9 +787,192 @@ function Companion() {
             </button>
           </form>
         )}
-        <p id="notice" role="status">
+        <p
+          id="notice"
+          role="status"
+          hidden={view === 'conversation' && notice === 'Action accepted'}
+        >
           {notice}
         </p>
+        {!online && !pairing && (
+          <p className="connection-banner" role="status">
+            {connection}. Showing last-known data; actions are unavailable until the connection
+            returns.
+          </p>
+        )}
+        {!pairing && view !== 'conversation' && (
+          <label className="workspace-scope">
+            Workspace scope
+            <select
+              value={workspaceScope}
+              onChange={(event) => setWorkspaceScope(event.target.value)}
+            >
+              <option value="">All workspaces</option>
+              {snapshot?.workspaces.map((workspace) => (
+                <option key={workspace.root} value={workspace.root}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!pairing && view === 'home' && (
+          <CompanionHome
+            snapshot={scopedSnapshot}
+            recent={recent}
+            onSelect={openSession}
+            onNavigate={navigate}
+            onCreate={() => {
+              setCreationRequest((value) => value + 1);
+              navigate('sessions');
+            }}
+          />
+        )}
+        {!pairing && workspaceView && (
+          <section className="workspace-context" aria-label="Workspace review context">
+            <h2>Workspace</h2>
+            <details open={!reviewTree}>
+              <summary>
+                {reviewTree?.branch || reviewTree?.path || 'Choose a worktree'} · Change context
+              </summary>
+              <label>
+                Find a worktree
+                <input
+                  type="search"
+                  value={contextSearch}
+                  onChange={(event) => setContextSearch(event.target.value)}
+                  placeholder="Workspace, branch, or path"
+                />
+              </label>
+              <div className="context-options">
+                {reviewGroups.map((workspace) => {
+                  const worktrees = workspace.worktrees.map((tree) => (
+                    <button
+                      key={tree.path}
+                      aria-pressed={tree.path === reviewWorktree}
+                      onClick={(event) => {
+                        navigate(view, tree.path);
+                        setContextSearch('');
+                        const details = event.currentTarget.closest('details');
+                        if (details) {
+                          details.open = false;
+                          details.querySelector('summary')?.focus();
+                        }
+                      }}
+                    >
+                      {tree.label}
+                      <span>{tree.path}</span>
+                    </button>
+                  ));
+                  return workspaceScope ? (
+                    <div key={workspace.key}>{worktrees}</div>
+                  ) : (
+                    <details key={workspace.key} open={contextSearch.trim() ? true : undefined}>
+                      <summary>{workspace.name}</summary>
+                      {worktrees}
+                    </details>
+                  );
+                })}
+                {snapshot && reviewGroups.length === 0 && <p>No matching worktrees.</p>}
+              </div>
+            </details>
+            {reviewTree && (
+              <details className="worktree-management">
+                <summary>Manage worktree</summary>
+                {reviewTree.workspace && (
+                  <LifecycleForm
+                    title="New worktree"
+                    path="worktree_create"
+                    data={{ workspace: reviewTree.workspace }}
+                    field="branch"
+                    disabled={!online || !!pending || !snapshot?.epoch}
+                    onAction={act}
+                  />
+                )}
+                {reviewTree.branch && (
+                  <LifecycleForm
+                    title="Rename worktree branch"
+                    path="worktree_rename"
+                    data={{
+                      workspace: reviewTree.workspace,
+                      worktree: reviewTree.path,
+                      target: reviewTree.target,
+                    }}
+                    field="name"
+                    initial={reviewTree.branch}
+                    disabled={!online || !!pending || !reviewTree.target}
+                    onAction={act}
+                  />
+                )}
+                {reviewTree.workspace && reviewTree.path !== reviewTree.workspace && (
+                  <LifecycleForm
+                    title="Delete worktree"
+                    path="worktree_delete"
+                    data={{
+                      workspace: reviewTree.workspace,
+                      worktree: reviewTree.path,
+                      target: reviewTree.target,
+                    }}
+                    destructive
+                    force
+                    disabled={!online || !!pending || !reviewTree.target}
+                    onAction={act}
+                  />
+                )}
+              </details>
+            )}
+            <nav className="local-nav" aria-label="Workspace tools">
+              {(
+                [
+                  ['reports', 'Reports'],
+                  ['git', 'Changes'],
+                  ['source', 'Source'],
+                ] as const
+              ).map(([next, label]) => (
+                <button
+                  key={next}
+                  aria-current={view === next ? 'page' : undefined}
+                  onClick={() => navigate(next)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            {view === 'reports' && reviewTree && (
+              <details className="report-create">
+                <summary>Create report with an agent</summary>
+                <p>
+                  Select a session in this worktree to choose or create a report in its composer.
+                </p>
+                {snapshot?.sessions
+                  .filter((item) => item.worktree === reviewTree.path)
+                  .map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        const selection = { id: item.id, conversation: item.conversation };
+                        openSession(selection);
+                        if (!state.drafts[draftKey(selection)]?.trim())
+                          dispatch({ type: 'draft', value: '/report' });
+                        else
+                          dispatch({
+                            type: 'notice',
+                            message:
+                              'Your existing draft is kept. Clear it and choose Select or create report from Prompt actions.',
+                          });
+                      }}
+                    >
+                      Use {item.name}
+                    </button>
+                  ))}
+                {!snapshot?.sessions.some((item) => item.worktree === reviewTree.path) && (
+                  <button onClick={() => navigate('sessions')}>Create a session first</button>
+                )}
+              </details>
+            )}
+            {!reviewTree && <p>Choose a worktree to review its reports, changes, and source.</p>}
+          </section>
+        )}
         {retry && pending && (
           <button
             id="retry"
@@ -636,6 +985,7 @@ function Companion() {
         <AttentionSurface host={attentionOpen ? attentionHost : null}>
           <section
             id="attention-inbox"
+            ref={attentionPanel}
             aria-labelledby="attention-title"
             hidden={view !== 'inbox' && !attentionOpen}
             className={
@@ -672,8 +1022,8 @@ function Companion() {
               </>
             )}
             <div id="inbox">
-              {snapshot?.inbox.map((entry) => {
-                const owner = snapshot.sessions.find(
+              {visibleAttentionEntries.map((entry) => {
+                const owner = snapshot?.sessions.find(
                   (item) => item.id === entry.session && item.conversation === entry.conversation,
                 );
                 const permission = entry.kind === 'permission' ? owner?.permission : undefined;
@@ -723,44 +1073,44 @@ function Companion() {
                 );
               })}
             </div>
-            {snapshot?.connected && snapshot.inbox.length === 0 && (
+            {snapshot?.connected && visibleAttentionEntries.length === 0 && (
               <p className="navigation-empty">No attention events right now.</p>
             )}
           </section>
         </AttentionSurface>
         <SessionBrowser
-          snapshot={snapshot}
+          snapshot={scopedSnapshot}
           selected={selected}
           active={view === 'sessions'}
           onSelect={openSession}
           onAction={act}
           actionsDisabled={!online || !!pending || !snapshot?.epoch}
+          creationRequest={creationRequest}
         />
-        {!pairing && view === 'git' && (
-          <GitBrowser snapshot={snapshot} selectedWorktree={session?.worktree} />
-        )}
-        {!pairing && sourceVisited && (
-          <div hidden={view !== 'source'}>
-            <SourceBrowser snapshot={snapshot} selectedWorktree={session?.worktree} />
-          </div>
-        )}
-        {!pairing && reportsVisited && (
-          <div hidden={view !== 'reports'}>
-            <SourceBrowser
-              mode="reports"
-              snapshot={snapshot}
-              selectedWorktree={session?.worktree}
-            />
-          </div>
+        {!pairing && (
+          <WorkspaceReview
+            snapshot={snapshot ? { ...snapshot, connected: online } : null}
+            worktree={reviewTree?.path || ''}
+            view={view}
+          />
         )}
         {selected && (
           <section id="conversation" hidden={view !== 'conversation'}>
-            <button
-              className="back-to-sessions"
-              onClick={() => dispatch({ type: 'navigate', view: 'sessions' })}
-            >
-              ← All sessions
-            </button>
+            <div className="session-heading">
+              <button
+                className="back-to-sessions"
+                aria-label="← All sessions"
+                title="All sessions"
+                onClick={() => navigate('sessions')}
+              >
+                ←
+              </button>
+              <h2 id="title" ref={titleRef} tabIndex={-1}>
+                {session
+                  ? `${session.name} · ${session.status}`
+                  : 'Session or conversation unavailable'}
+              </h2>
+            </div>
             {location && (
               <nav className="session-breadcrumb" aria-label="Current session location">
                 <span>{location.workspace.name}</span>
@@ -770,185 +1120,276 @@ function Companion() {
                 <strong>{location.session.name}</strong>
               </nav>
             )}
-            <h2 id="title" ref={titleRef} tabIndex={-1}>
-              {session
-                ? `${session.name} · ${session.status}`
-                : 'Session or conversation unavailable'}
-            </h2>
-            {session && <SessionMetadata session={session} />}
-            {session && (
-              <div aria-label="Session actions">
-                <AssignmentStatus session={session} />
-                {snapshot && (
-                  <BoardAssignment
-                    key={session.id}
-                    session={session}
-                    snapshot={snapshot}
-                    disabled={!online || !!pending || !session.target}
-                    onAction={act}
-                  />
-                )}
-                {(session.status === 'stopped' || session.status === 'exited') && (
+            <div className="session-navigation">
+              <nav className="local-nav" aria-label="Session views">
+                {(['conversation', 'artifacts', 'details'] as const).map((tab) => (
                   <button
-                    disabled={!online || !!pending || !session.target}
-                    onClick={() =>
-                      act('session_resume', { session: session.id, target: session.target })
-                    }
+                    key={tab}
+                    aria-current={sessionTab === tab ? 'page' : undefined}
+                    onClick={() => {
+                      setSessionTab(tab);
+                      window.history.pushState(
+                        null,
+                        '',
+                        `#${encodeURIComponent(JSON.stringify({ view, selection: selected, worktree: reviewWorktree, tab }))}`,
+                      );
+                    }}
                   >
-                    Resume session
+                    {tab === 'conversation'
+                      ? 'Conversation'
+                      : tab === 'artifacts'
+                        ? 'Artifacts'
+                        : 'Details'}
                   </button>
-                )}
-                <LifecycleForm
-                  key={`rename:${session.id}`}
-                  title="Rename session"
-                  path="session_rename"
-                  data={{ session: session.id, target: session.target }}
-                  field="name"
-                  initial={session.name}
-                  disabled={!online || !!pending || !session.target}
-                  onAction={act}
-                />
-                <LifecycleForm
-                  title="Delete session"
-                  path="session_delete"
-                  data={{ session: session.id, target: session.target }}
-                  destructive
-                  disabled={!online || !!pending || !session.target}
-                  onAction={act}
-                />
-              </div>
-            )}
-            {session && (
-              <Screenshots
-                key={`screenshots:${session.id}:${session.conversation}`}
-                session={session}
-              />
-            )}
-            {session && (
-              <Recordings
-                key={`recordings:${session.id}:${session.conversation}`}
-                session={session}
-              />
-            )}
-            <Transcript
-              key={`${selected.id}:${selected.conversation}`}
-              session={session}
-              reportsDirectory={
-                snapshot?.worktrees.find((tree) => tree.path === session?.worktree)
-                  ?.reports_directory
-              }
-              online={!!snapshot?.connected}
-              active={view === 'conversation'}
-              composer={
-                <form
-                  id="compose"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (sendBlockReason) return;
-                    act('prompt', { text: prompt });
-                  }}
-                >
-                  <label>
-                    Follow-up prompt
-                    <textarea
-                      rows={3}
-                      placeholder="What should the agent do next? Type / for commands."
-                      required
-                      value={prompt}
-                      onChange={(event) => dispatch({ type: 'draft', value: event.target.value })}
-                    />
-                  </label>
-                  {session && snapshot && (
-                    <SlashCommands
-                      prompt={prompt}
+                ))}
+              </nav>
+              {session && (
+                <details className="session-review-links">
+                  <summary aria-label="Review this worktree">Review</summary>
+                  <div className="session-review-menu">
+                    {(
+                      [
+                        ['reports', 'Reports'],
+                        ['git', 'Changes'],
+                        ['source', 'Source'],
+                      ] as const
+                    ).map(([next, label]) => (
+                      <button key={next} onClick={() => navigate(next, session.worktree)}>
+                        {label} for this worktree
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+            <div hidden={sessionTab !== 'details'}>
+              {session && <SessionMetadata session={session} />}
+              {session && <AgentTodos todos={latestTodos(session.blocks || [])} />}
+              {session && (
+                <div aria-label="Session actions">
+                  <AssignmentStatus session={session} />
+                  {snapshot && (
+                    <BoardAssignment
+                      key={session.id}
                       session={session}
                       snapshot={snapshot}
-                      disabled={composerDisabled}
-                      onChoose={(value) => dispatch({ type: 'draft', value })}
+                      disabled={!online || !!pending || !session.target}
                       onAction={act}
                     />
                   )}
-                  {session && prompt.trim() === '/report' && (
-                    <ReportCommand
-                      key={`${session.id}:${session.conversation}`}
-                      worktree={session.worktree}
-                      online={online && !pending}
-                      onChoose={(value) => dispatch({ type: 'draft', value })}
-                    />
-                  )}
-                  <button
-                    className="primary-action"
-                    id="send"
-                    disabled={!!sendBlockReason}
-                    aria-describedby={sendBlockReason ? 'send-block-reason' : undefined}
-                  >
-                    Send prompt
-                  </button>
-                  {sendBlockReason && (
-                    <p id="send-block-reason" role="status" className="mt-2 text-sm text-amber-300">
-                      {sendBlockReason} Your draft is kept here.
-                    </p>
-                  )}
-                  <button
-                    id="cancel"
-                    type="button"
-                    disabled={disabled}
-                    aria-describedby={
-                      disabled
-                        ? composerBlockReason
-                          ? 'send-block-reason'
-                          : 'cancel-block-reason'
-                        : undefined
-                    }
-                    onClick={() => act('cancel')}
-                  >
-                    Cancel turn &amp; queue
-                  </button>
-                  {disabled && !composerBlockReason && (
-                    <p
-                      id="cancel-block-reason"
-                      role="status"
-                      className="mt-2 text-sm text-amber-300"
-                    >
-                      Cancellation is unavailable. {actionBlockReason}
-                    </p>
-                  )}
-                </form>
-              }
-              feedback={
-                <>
-                  {notice && notice !== 'Action accepted' && <p role="status">{notice}</p>}
-                  {retry && pending && (
+                  {(session.status === 'stopped' || session.status === 'exited') && (
                     <button
-                      type="button"
-                      disabled={submitting || pairing || !online}
-                      onClick={() => void submitPending(pending)}
+                      disabled={!online || !!pending || !session.target}
+                      onClick={() =>
+                        act('session_resume', { session: session.id, target: session.target })
+                      }
                     >
-                      Retry identical action
+                      Resume session
                     </button>
                   )}
-                </>
-              }
-            />
-            {session?.permission && (
-              <div id="permission">
-                <p>{session.permission.title}</p>
-                {session.permission.options.map((option) => (
-                  <button
-                    key={option.optionId}
-                    disabled={disabled}
-                    onClick={() =>
-                      act('permission', {
-                        permission: session.permission?.id,
-                        option: option.optionId,
-                      })
-                    }
+                  <LifecycleForm
+                    key={`rename:${session.id}`}
+                    title="Rename session"
+                    path="session_rename"
+                    data={{ session: session.id, target: session.target }}
+                    field="name"
+                    initial={session.name}
+                    disabled={!online || !!pending || !session.target}
+                    onAction={act}
+                  />
+                  <LifecycleForm
+                    title="Delete session"
+                    path="session_delete"
+                    data={{ session: session.id, target: session.target }}
+                    destructive
+                    disabled={!online || !!pending || !session.target}
+                    onAction={act}
+                  />
+                </div>
+              )}
+            </div>
+            <div hidden={sessionTab !== 'artifacts'}>
+              {session && (
+                <Screenshots
+                  key={`screenshots:${session.id}:${session.conversation}`}
+                  session={session}
+                />
+              )}
+              {session && (
+                <Recordings
+                  key={`recordings:${session.id}:${session.conversation}`}
+                  session={session}
+                />
+              )}
+            </div>
+            <div className="session-conversation" hidden={sessionTab !== 'conversation'}>
+              {session && (session.status === 'stopped' || session.status === 'exited') && (
+                <button
+                  disabled={!online || !!pending || !session.target}
+                  onClick={() =>
+                    act('session_resume', { session: session.id, target: session.target })
+                  }
+                >
+                  Resume session
+                </button>
+              )}
+              <Transcript
+                key={`${selected.id}:${selected.conversation}`}
+                session={session}
+                reportsDirectory={
+                  snapshot?.worktrees.find((tree) => tree.path === session?.worktree)
+                    ?.reports_directory
+                }
+                online={!!snapshot?.connected}
+                active={view === 'conversation' && sessionTab === 'conversation'}
+                composer={
+                  <form
+                    id="compose"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (sendBlockReason) return;
+                      act('prompt', { text: prompt });
+                    }}
                   >
-                    {option.name || option.optionId}
-                  </button>
-                ))}
-              </div>
-            )}
+                    <label>
+                      <span className="sr-only">Follow-up prompt</span>
+                      <textarea
+                        rows={2}
+                        placeholder="What should the agent do next? Type / for commands."
+                        required
+                        value={prompt}
+                        onChange={(event) => dispatch({ type: 'draft', value: event.target.value })}
+                      />
+                    </label>
+                    {session && snapshot && (
+                      <SlashCommands
+                        prompt={prompt}
+                        session={session}
+                        snapshot={snapshot}
+                        disabled={composerDisabled}
+                        onChoose={(value) => dispatch({ type: 'draft', value })}
+                        onAction={act}
+                      />
+                    )}
+                    {session && prompt.trim() === '/report' && (
+                      <ReportCommand
+                        key={`${session.id}:${session.conversation}`}
+                        worktree={session.worktree}
+                        online={online && !pending}
+                        onChoose={(value) => dispatch({ type: 'draft', value })}
+                      />
+                    )}
+                    <div className="composer-toolbar">
+                      <details className="composer-actions">
+                        <summary aria-label="Prompt actions">Actions</summary>
+                        <div className="quick-actions">
+                          {['report', 'model', 'mode', 'export'].map((command) => (
+                            <button
+                              key={command}
+                              type="button"
+                              disabled={!!prompt.trim()}
+                              onClick={(event) => {
+                                dispatch({ type: 'draft', value: `/${command}` });
+                                const details = event.currentTarget.closest('details');
+                                if (details) details.open = false;
+                              }}
+                            >
+                              {command === 'report'
+                                ? 'Select or create report'
+                                : command === 'export'
+                                  ? 'Export transcript'
+                                  : `Change ${command}`}
+                            </button>
+                          ))}
+                        </div>
+                        {!!prompt.trim() && (
+                          <p className="text-sm text-slate-400">
+                            Your draft is kept. Clear it before choosing a different prompt action.
+                          </p>
+                        )}
+                      </details>
+                      <button
+                        className="primary-action"
+                        id="send"
+                        aria-label="Send prompt"
+                        disabled={!!sendBlockReason}
+                        aria-describedby={sendBlockReason ? 'send-block-reason' : undefined}
+                      >
+                        Send
+                      </button>
+                      <button
+                        id="cancel"
+                        type="button"
+                        aria-label="Cancel turn & queue"
+                        title="Cancel the current turn and queued prompts"
+                        disabled={disabled}
+                        aria-describedby={
+                          disabled
+                            ? composerBlockReason
+                              ? 'send-block-reason'
+                              : 'cancel-block-reason'
+                            : undefined
+                        }
+                        onClick={() => act('cancel')}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {sendBlockReason && (
+                      <p
+                        id="send-block-reason"
+                        role="status"
+                        className="mt-2 text-sm text-amber-300"
+                      >
+                        {sendBlockReason} Your draft is kept here.
+                      </p>
+                    )}
+                    {disabled && !composerBlockReason && (
+                      <p
+                        id="cancel-block-reason"
+                        role="status"
+                        className="mt-2 text-sm text-amber-300"
+                      >
+                        Cancellation is unavailable. {actionBlockReason}
+                      </p>
+                    )}
+                  </form>
+                }
+                feedback={
+                  <>
+                    {notice && notice !== 'Action accepted' && <p role="status">{notice}</p>}
+                    {retry && pending && (
+                      <button
+                        type="button"
+                        disabled={submitting || pairing || !online}
+                        onClick={() => void submitPending(pending)}
+                      >
+                        Retry identical action
+                      </button>
+                    )}
+                  </>
+                }
+              />
+              {session?.permission && (
+                <div id="permission">
+                  <p>{session.permission.title}</p>
+                  {session.permission.options.map((option) => (
+                    <button
+                      key={option.optionId}
+                      disabled={disabled}
+                      onClick={() =>
+                        act('permission', {
+                          permission: session.permission?.id,
+                          option: option.optionId,
+                        })
+                      }
+                    >
+                      {option.name || option.optionId}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         )}
       </main>

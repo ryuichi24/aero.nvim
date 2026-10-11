@@ -14,6 +14,7 @@ export function LifecycleForm({
   agents,
   destructive = false,
   force = false,
+  initiallyOpen = false,
 }: {
   title: string;
   path: ActionPath;
@@ -25,13 +26,18 @@ export function LifecycleForm({
   agents?: string[];
   destructive?: boolean;
   force?: boolean;
+  initiallyOpen?: boolean;
 }) {
   const [value, setValue] = useState(initial);
   const [agent, setAgent] = useState(agents?.[0] || '');
   const [forceRemoval, setForceRemoval] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   return (
-    <details ref={detailsRef} className="my-2 rounded-lg border border-slate-700 p-2">
+    <details
+      ref={detailsRef}
+      open={initiallyOpen || undefined}
+      className="my-2 rounded-lg border border-slate-700 p-2"
+    >
       <summary className="cursor-pointer p-2">{title}</summary>
       <form
         onSubmit={async (event) => {

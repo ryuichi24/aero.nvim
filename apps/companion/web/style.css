@@ -1,5 +1,197 @@
 @import 'tailwindcss';
 
+/* Neutral editor surfaces, shared by existing Tailwind slate utilities. */
+@theme {
+  --color-slate-950: #090909;
+  --color-slate-900: #141414;
+  --color-slate-800: #202020;
+  --color-slate-700: #303030;
+  --color-slate-600: #454545;
+  --color-slate-500: #737373;
+  --color-slate-400: #a3a3a3;
+  --color-slate-300: #d4d4d4;
+  --color-slate-200: #e5e5e5;
+  --color-slate-100: #f5f5f5;
+  --color-sky-300: #e5e5e5;
+  --color-sky-400: #d4d4d4;
+  --color-sky-950: #202020;
+}
+
+@theme inline {
+  --color-canvas: var(--color-slate-950);
+  --color-panel: var(--color-slate-900);
+  --color-raised: var(--color-slate-800);
+}
+
+:root {
+  --aero-surface: var(--color-slate-900);
+  --aero-page: var(--color-slate-950);
+  --aero-muted: var(--color-slate-400);
+  --aero-accent: var(--color-sky-300);
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-slate-950: #f8fafc;
+  --color-slate-900: #ffffff;
+  --color-slate-800: #f1f5f9;
+  --color-slate-700: #e2e8f0;
+  --color-slate-600: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-300: #334155;
+  --color-slate-200: #1e293b;
+  --color-slate-100: #0f172a;
+  --color-sky-300: #404040;
+  --color-sky-400: #525252;
+  --color-sky-950: #f1f1f1;
+  --color-amber-200: #92400e;
+  --color-amber-300: #92400e;
+  --color-green-300: #166534;
+  --color-red-300: #b91c1c;
+  --color-violet-300: #6d28d9;
+}
+.companion-home,
+#sessions,
+#conversation,
+.workspace-context {
+  @apply border-0 bg-transparent p-0;
+}
+.report-create,
+.worktree-management {
+  @apply my-3 rounded-2xl bg-slate-800 p-3;
+}
+.report-create > summary,
+.worktree-management > summary {
+  @apply min-h-11 cursor-pointer py-2;
+}
+.local-nav button[aria-current='page']:hover,
+.local-nav button[aria-pressed='true']:hover {
+  @apply bg-sky-300;
+}
+.log-composer {
+  @apply min-h-0 shrink-0 overflow-y-auto border-t border-slate-700 bg-panel;
+  max-height: 50%;
+}
+.transcript-fullscreen .log-composer {
+  @apply static;
+}
+.transcript-fullscreen > .transcript-toolbar {
+  @apply flex-nowrap gap-2;
+}
+.transcript-fullscreen > .transcript-toolbar strong {
+  @apply truncate text-sm;
+}
+.transcript-fullscreen > .transcript-toolbar button {
+  @apply m-0 shrink-0 px-2 text-xs;
+}
+.quick-actions {
+  @apply my-4 grid grid-cols-2 gap-2 sm:grid-cols-4;
+}
+.quick-actions > button {
+  @apply m-0 min-h-14 rounded-2xl border-0 bg-slate-800 px-3 text-sm;
+}
+.home-session-list {
+  @apply grid gap-3 my-4;
+}
+.home-session-list .session-button {
+  @apply m-0 rounded-2xl border-0 bg-slate-900 p-4;
+}
+.local-nav {
+  @apply my-4 flex flex-wrap gap-2;
+}
+.local-nav button {
+  @apply m-0 min-h-11 rounded-full px-4;
+}
+.local-nav button[aria-current='page'],
+.local-nav button[aria-pressed='true'] {
+  @apply bg-sky-300 text-slate-950 border-sky-300;
+}
+.workspace-context > details {
+  @apply rounded-2xl bg-slate-800 p-4;
+}
+.workspace-context summary,
+.composer-actions summary {
+  @apply min-h-11 cursor-pointer py-2;
+}
+.context-options {
+  @apply grid gap-2 max-h-80 overflow-auto;
+}
+.context-options button {
+  @apply m-0 text-left;
+}
+.context-options span {
+  @apply block text-xs text-slate-400 break-all;
+}
+.session-review-links {
+  @apply relative shrink-0;
+}
+.session-review-links > summary {
+  @apply flex min-h-11 cursor-pointer items-center rounded-full border border-slate-600 bg-raised px-2 text-xs;
+}
+.session-review-menu {
+  @apply absolute top-full right-0 z-20 mt-2 grid w-64 max-w-[calc(100vw-2rem)] gap-1 rounded-xl border border-slate-600 bg-panel p-2 shadow-xl;
+}
+.session-review-links button {
+  @apply m-0 w-full border-0 bg-transparent text-left text-sm text-sky-300;
+}
+.session-heading {
+  @apply flex min-w-0 items-center gap-3;
+}
+.session-heading #title {
+  @apply m-0 min-w-0 flex-1 text-lg;
+  overflow-wrap: anywhere;
+}
+.session-heading .back-to-sessions {
+  @apply m-0 shrink-0 px-3;
+}
+#conversation > .session-breadcrumb {
+  @apply my-2;
+}
+.session-navigation {
+  @apply flex min-w-0 items-center gap-2;
+}
+.session-navigation .local-nav {
+  @apply my-2 flex-1 flex-nowrap gap-1;
+}
+.session-navigation .local-nav button {
+  @apply px-2 text-xs;
+}
+.session-create {
+  @apply my-4 rounded-2xl bg-slate-800 p-4;
+}
+.session-create > summary {
+  @apply min-h-11 cursor-pointer font-medium py-2;
+}
+.workspace-scope {
+  @apply mb-5 block;
+}
+.session-conversation {
+  @apply flex flex-col;
+}
+.session-conversation > #permission {
+  @apply -order-1;
+}
+.connection-banner {
+  @apply my-4 rounded-2xl bg-amber-400/10 p-4 text-sm text-amber-200;
+}
+.mobile-reader-back {
+  @apply hidden max-sm:block;
+}
+@media (max-width: 639px) {
+  .mobile-reader-back {
+    @apply block;
+  }
+  .source-layout[data-reading='true'] > .source-tree {
+    @apply hidden;
+  }
+  .source-layout[data-reading='false'] > .source-reader {
+    @apply hidden;
+  }
+  .source-layout > .source-tree {
+    @apply max-h-none;
+  }
+}
+
 .report-worktree-picker {
   @apply mb-4 rounded-xl border border-slate-700 bg-slate-900 p-3;
 }
@@ -61,7 +253,7 @@
   @apply mx-auto grid max-w-4xl grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3;
 }
 .companion-header #connection {
-  @apply min-w-0 text-right text-xs text-sky-300;
+  @apply min-w-0 text-right text-xs;
 }
 .header-actions {
   @apply col-span-2 flex items-center justify-between gap-3;
@@ -70,13 +262,13 @@
   @apply m-0;
 }
 .attention-trigger {
-  @apply flex-1;
+  @apply inline-flex h-11 min-h-11 flex-1 items-center justify-center py-0;
 }
 .device-menu {
   @apply relative shrink-0;
 }
 .device-menu summary {
-  @apply flex min-h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-3.5 py-2.5 text-sm font-medium;
+  @apply flex h-11 min-h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-3.5 py-0 text-sm font-medium;
 }
 .device-menu summary::-webkit-details-marker {
   display: none;
@@ -223,9 +415,11 @@ textarea {
   font-size: max(16px, 1rem);
 }
 
-section,
-form#pair {
-  @apply mb-4 min-w-0 rounded-2xl border border-slate-700/60 bg-slate-900 p-4 sm:p-5;
+@layer components {
+  section,
+  form#pair {
+    @apply mb-4 min-w-0 rounded-2xl border border-slate-700/60 bg-panel p-4 sm:p-5;
+  }
 }
 .primary-action {
   @apply border-sky-400 bg-sky-400 font-semibold text-slate-950;
@@ -284,7 +478,7 @@ form#pair {
   display: none !important;
 }
 .primary-nav {
-  @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 border-t border-slate-700 bg-slate-900/95 px-3 pt-2 backdrop-blur;
+  @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 gap-1 border-t border-slate-700 bg-slate-900/95 px-3 pt-2 backdrop-blur;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 .primary-nav button {
@@ -569,19 +763,94 @@ form#pair {
   @apply hidden;
 }
 #connection {
-  @apply min-w-0 flex-1 text-xs leading-relaxed text-sky-300 sm:text-sm;
+  @apply min-w-0 flex-1 text-xs leading-relaxed sm:text-sm;
 }
 #compose {
-  @apply mt-4 border-t border-slate-700 pt-1;
+  @apply m-0 min-w-0 p-3;
+}
+#compose > label {
+  @apply m-0;
+}
+#compose textarea {
+  @apply mt-0 min-h-16 w-full resize-none;
+  max-height: min(20dvh, 10rem);
+}
+.composer-toolbar {
+  @apply mt-2 flex min-w-0 flex-wrap items-start gap-2;
+}
+.composer-toolbar > button {
+  @apply m-0 min-h-11 shrink-0 px-3;
+}
+.composer-toolbar .composer-actions {
+  @apply min-w-0 flex-1;
+}
+.composer-toolbar .composer-actions > summary {
+  @apply flex min-h-11 cursor-pointer items-center rounded-xl border border-slate-600 px-3 text-sm;
+}
+.composer-toolbar .composer-actions[open] {
+  @apply order-last basis-full;
+}
+.composer-toolbar .quick-actions {
+  @apply grid-cols-2;
+}
+.transcript-inline {
+  @apply min-w-0 overflow-hidden rounded-2xl border border-slate-600 bg-panel;
+  height: var(--transcript-height, 65dvh);
+}
+.transcript-content {
+  @apply flex h-full min-h-0 min-w-0 flex-col;
+}
+@media (max-height: 700px) and (max-width: 639px) {
+  #conversation > .session-breadcrumb,
+  .session-conversation .transcript-activity {
+    @apply hidden;
+  }
+  body:has(#conversation:not([hidden])) .companion-header h1 {
+    @apply hidden;
+  }
+  body:has(#conversation:not([hidden])) .companion-header #connection {
+    @apply col-start-1 col-end-2 row-start-1;
+  }
+  body:has(#conversation:not([hidden])) main {
+    @apply pt-2;
+  }
+  .session-navigation .local-nav {
+    @apply my-1;
+  }
+}
+.transcript-controls {
+  @apply flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-700 bg-raised/50 p-2;
+}
+.transcript-controls button {
+  @apply m-0 min-h-11 px-2 text-xs;
+}
+.transcript-activity {
+  @apply flex shrink-0 items-start gap-2 border-b border-slate-700 px-3 py-2 text-xs text-slate-300;
+}
+.transcript-activity > span:last-child {
+  @apply min-w-0;
+  overflow-wrap: anywhere;
+}
+.transcript-activity .status-badge {
+  @apply m-0 shrink-0;
+}
+@media (max-width: 639px) {
+  :root[data-composer-keyboard='open'] .companion-header,
+  :root[data-composer-keyboard='open'] .session-heading,
+  :root[data-composer-keyboard='open'] #conversation > .session-breadcrumb,
+  :root[data-composer-keyboard='open'] .session-navigation,
+  :root[data-composer-keyboard='open'] .primary-nav,
+  :root[data-composer-keyboard='open'] .transcript-activity {
+    @apply hidden;
+  }
 }
 
 #transcript {
-  max-height: 55dvh;
-  overflow: auto;
+  @apply min-h-0 min-w-0 flex-1 overflow-auto bg-canvas p-3;
   overflow-wrap: anywhere;
-  overscroll-behavior: auto;
-  padding: 2px;
-  border-radius: 8px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-slate-500) var(--color-slate-900);
 }
 .transcript-toolbar {
   @apply mb-2 flex shrink-0 flex-wrap items-center justify-between gap-3;
@@ -591,8 +860,8 @@ form#pair {
   overflow-wrap: anywhere;
 }
 .transcript-prompts {
-  @apply mb-3 shrink-0 rounded-xl border border-slate-700 p-3;
-  max-height: 35dvh;
+  @apply m-2 shrink-0 rounded-xl border border-slate-700 p-3;
+  max-height: 25%;
   overflow: auto;
 }
 .transcript-prompts input {
@@ -612,11 +881,11 @@ form#pair {
 }
 .transcript-fullscreen .log-composer {
   flex-shrink: 0;
-  max-height: 45dvh;
+  max-height: 50%;
   overflow: auto;
 }
 .transcript-fullscreen #compose {
-  margin-top: 0.5rem;
+  @apply m-0;
 }
 .transcript-fullscreen > div {
   @apply flex min-h-0 flex-1 flex-col;
@@ -634,25 +903,24 @@ form#pair {
   margin-bottom: 0;
 }
 .message-user {
-  border-left: 3px solid #8cbcff;
-  background: #14243a;
+  @apply border-l-[3px] border-l-sky-300 bg-raised;
 }
 .message-agent {
-  border-left: 3px solid #80d4ad;
+  @apply border-l-[3px] border-l-green-300;
 }
 .message-info {
-  color: #c0cbd9;
+  @apply text-slate-300;
 }
 .message-error,
 .message-permission {
-  border-left: 3px solid #f5c86b;
+  @apply border-l-[3px] border-l-amber-300;
 }
 .message-label,
 .tool-data-label {
   font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
-  color: #a7bdd4;
+  @apply text-slate-400;
   margin-bottom: 10px;
 }
 .transcript-card summary {
@@ -675,7 +943,7 @@ details[open] > .markdown-body {
   margin-top: 14px;
 }
 .thought-card {
-  color: #bcc8d8;
+  @apply text-slate-300;
 }
 .status-badge {
   @apply ml-2 inline-block rounded-md bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300;
@@ -693,14 +961,14 @@ details[open] > .markdown-body {
   @apply text-slate-400;
 }
 .status-completed {
-  color: #80d4ad;
+  @apply text-green-300;
 }
 .status-failed {
-  color: #ffaaa5;
+  @apply text-red-300;
 }
 .status-in_progress,
 .status-pending {
-  color: #f5c86b;
+  @apply text-amber-300;
 }
 .todo-notifications {
   position: fixed;
@@ -710,10 +978,22 @@ details[open] > .markdown-body {
   z-index: 80;
   pointer-events: none;
 }
-.todo-notifications-trigger {
-  display: block;
-  margin-left: auto;
-  pointer-events: auto;
+.todo-control-slot {
+  @apply inline-flex shrink-0 items-center;
+}
+.todo-control-slot:empty {
+  @apply hidden;
+}
+.todo-toolbar-button {
+  @apply m-0 inline-flex h-11 min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 px-2 py-0 sm:px-3;
+}
+body:has(#conversation:not([hidden])) .todo-notifications {
+  bottom: calc(5.5rem + env(safe-area-inset-bottom) + var(--companion-composer-height, 0px));
+}
+@media (min-width: 1100px) {
+  body:has(#conversation:not([hidden])) .todo-notifications {
+    bottom: calc(1rem + var(--companion-composer-height, 0px));
+  }
 }
 .todo-notifications-stack {
   max-height: 70dvh;
@@ -724,7 +1004,7 @@ details[open] > .markdown-body {
   pointer-events: auto;
 }
 .todo-notification:focus-visible {
-  outline: 2px solid #80d4ad;
+  @apply outline-2 outline-green-300;
 }
 .todo-notification header {
   @apply mb-2 flex items-center justify-between gap-2;
@@ -744,7 +1024,7 @@ details[open] > .markdown-body {
 .agent-todos progress {
   width: 100%;
   height: 5px;
-  accent-color: #80d4ad;
+  @apply accent-green-300;
 }
 .agent-todo-current {
   @apply my-2 text-sm text-amber-200;
@@ -780,10 +1060,10 @@ details[open] > .markdown-body {
 .agent-todo-in_progress .agent-todo-icon,
 .agent-todo-in_progress .agent-todo-status,
 .priority-high {
-  color: #f5c86b;
+  @apply text-amber-300;
 }
 .agent-todo-completed .agent-todo-icon {
-  color: #80d4ad;
+  @apply text-green-300;
 }
 .agent-todo-completed .agent-todo-content,
 .agent-todo-cancelled .agent-todo-content {
@@ -793,7 +1073,7 @@ details[open] > .markdown-body {
   text-decoration: line-through;
 }
 .permission-answer {
-  color: #f5c86b;
+  @apply text-amber-300;
   font-size: 0.875rem;
   margin-bottom: 0;
 }
@@ -802,7 +1082,7 @@ details[open] > .markdown-body {
 }
 .queued-prompt + .queued-prompt {
   margin-top: 12px;
-  border-top: 1px solid #33475e;
+  @apply border-t border-slate-700;
   padding-top: 12px;
 }
 .tool-data {
@@ -813,7 +1093,7 @@ details[open] > .markdown-body {
   overflow-wrap: anywhere;
 }
 .tool-diff {
-  border-left: 2px solid #657990;
+  @apply border-l-2 border-slate-600;
   padding-left: 10px;
   margin: 12px 0;
 }
@@ -870,7 +1150,7 @@ details[open] > .markdown-body {
   margin-top: 0.35em;
 }
 .markdown-body a {
-  color: #9dc9ff;
+  @apply text-sky-300;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
@@ -878,12 +1158,11 @@ details[open] > .markdown-body {
 .markdown-body blockquote {
   margin: 1em 0;
   padding-left: 12px;
-  border-left: 3px solid #657990;
-  color: #bcc8d8;
+  @apply border-l-[3px] border-slate-600 text-slate-300;
 }
 .markdown-body hr {
   border: 0;
-  border-top: 1px solid #33475e;
+  @apply border-t border-slate-700;
   margin: 1em 0;
 }
 .markdown-body code,
@@ -892,7 +1171,7 @@ details[open] > .markdown-body {
   font-size: 0.88em;
 }
 .markdown-body :not(pre) > code {
-  background: #26384f;
+  @apply bg-raised;
   padding: 0.15em 0.35em;
   border-radius: 4px;
 }
@@ -900,7 +1179,7 @@ details[open] > .markdown-body {
 .tool-data pre {
   white-space: pre;
   overflow: auto;
-  background: #0d1117;
+  @apply bg-canvas;
   padding: 12px;
   border-radius: 7px;
   font-size: 0.875rem;
@@ -919,7 +1198,7 @@ details[open] > .markdown-body {
   overflow-x: auto;
   margin: 0.8em 0;
   padding: 12px;
-  background: #0d1117;
+  @apply bg-canvas;
   border-radius: 7px;
 }
 .markdown-mermaid svg {
@@ -943,7 +1222,7 @@ details[open] > .markdown-body {
   min-height: 44px;
   margin: 0;
   padding: 10px;
-  background: rgb(13 17 23 / 85%);
+  @apply bg-panel/85;
   opacity: 0.7;
   transition: opacity 150ms ease;
 }
@@ -961,7 +1240,7 @@ details[open] > .markdown-body {
   margin: 0;
   padding: 16px;
   border: 0;
-  background: #0d1117;
+  @apply bg-canvas;
   color: inherit;
 }
 .mermaid-fullscreen[open] {
@@ -990,12 +1269,12 @@ details[open] > .markdown-body {
 }
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid #33475e;
+  @apply border border-slate-700;
   padding: 7px 9px;
   text-align: left;
 }
 .markdown-body th {
-  background: #1e2d40;
+  @apply bg-raised;
 }
 .markdown-body .task-list-item {
   list-style: none;
@@ -1007,7 +1286,7 @@ details[open] > .markdown-body {
   padding: 0;
 }
 .markdown-image {
-  color: #bcc8d8;
+  @apply text-slate-300;
   font-style: italic;
 }
 .transcript-timestamp {
@@ -1016,4 +1295,83 @@ details[open] > .markdown-body {
   font-weight: normal;
   white-space: nowrap;
   margin-left: 0.5rem;
+}
+
+@media (min-width: 1100px) {
+  .primary-nav {
+    @apply top-[120px] right-auto bottom-auto left-4 w-40 max-w-40 translate-none grid-cols-1 border-0 bg-transparent shadow-none backdrop-blur-none;
+  }
+  .primary-nav button {
+    @apply justify-start pl-4;
+  }
+  main {
+    @apply pl-8;
+    margin-left: max(184px, calc((100vw - 896px) / 2)) !important;
+    max-width: min(896px, calc(100vw - 216px)) !important;
+  }
+}
+@media (max-width: 1099px) {
+  .todo-notifications {
+    @apply bottom-[calc(5.5rem+env(safe-area-inset-bottom))];
+  }
+  body:has(#compose textarea:focus) .todo-notifications {
+    @apply invisible;
+  }
+}
+@media (max-width: 639px) {
+  .companion-header {
+    @apply grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1;
+  }
+  .companion-header h1 > span {
+    @apply hidden;
+  }
+  .companion-header #connection {
+    @apply col-span-full row-start-2 text-left;
+  }
+  .header-actions {
+    @apply col-start-2 col-end-[-1] row-start-1 justify-end gap-2;
+  }
+  .header-actions .attention-trigger {
+    @apply flex-initial px-2 py-0 text-xs;
+  }
+  .device-menu summary {
+    @apply gap-0 px-2;
+  }
+  .device-menu summary > span {
+    @apply hidden;
+  }
+  .workspace-scope {
+    @apply mt-0 text-xs;
+  }
+}
+@media (min-width: 375px) and (max-width: 639px) {
+  .quick-actions {
+    @apply grid-cols-4;
+  }
+  .quick-actions button {
+    @apply p-2 text-xs;
+  }
+}
+:root[data-theme='light'] .markdown-body a {
+  @apply text-sky-300;
+}
+:root[data-theme='light'] .markdown-body blockquote {
+  @apply text-slate-400;
+}
+:root[data-theme='light'] .markdown-body :not(pre) > code,
+:root[data-theme='light'] .markdown-body th {
+  @apply bg-slate-700;
+}
+:root[data-theme='light'] .markdown-body td,
+:root[data-theme='light'] .markdown-body th {
+  @apply border-slate-600;
+}
+:root[data-theme='light'] .markdown-body pre,
+:root[data-theme='light'] .tool-data pre,
+:root[data-theme='light'] .source-code {
+  @apply bg-neutral-950 text-neutral-200;
+}
+:root[data-theme='light'] .mermaid-fullscreen,
+:root[data-theme='light'] .mermaid-preview-controls button {
+  @apply bg-canvas;
 }

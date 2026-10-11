@@ -12,6 +12,17 @@ interface GitEntry {
   worktree: string;
 }
 
+const statusColors: Record<string, string> = {
+  M: 'text-amber-300',
+  T: 'text-amber-300',
+  A: 'text-green-300',
+  '?': 'text-green-300',
+  D: 'text-red-300',
+  U: 'text-red-300',
+  R: 'text-violet-300',
+  C: 'text-violet-300',
+};
+
 function GitWorktree({
   tree,
   active,
@@ -52,12 +63,15 @@ function GitWorktree({
 export function GitBrowser({
   snapshot,
   selectedWorktree,
+  contextControlled = false,
 }: {
   snapshot: Snapshot | null;
   selectedWorktree?: string;
+  contextControlled?: boolean;
 }) {
   const [chosen, setChosen] = useState('');
   const [chosenWorkspace, setChosenWorkspace] = useState('');
+  const [readerOpen, setReaderOpen] = useState(true);
   const [fileSelection, setSelected] = useState<{
     worktree: string;
     path: string;
@@ -96,25 +110,27 @@ export function GitBrowser({
   return (
     <section aria-label="Git browser">
       <h2>Git changes</h2>
-      <label>
-        Workspace
-        <select
-          value={workspace?.key || ''}
-          onChange={(event) => {
-            setChosenWorkspace(event.target.value);
-            setChosen('');
-            setSelected(undefined);
-          }}
-        >
-          {groups.map((group) => (
-            <option key={group.key} value={group.key}>
-              {group.name}
-              {group.root ? ` · ${group.root}` : ''}
-            </option>
-          ))}
-        </select>
-      </label>
-      {workspace && (
+      {!contextControlled && (
+        <label>
+          Workspace
+          <select
+            value={workspace?.key || ''}
+            onChange={(event) => {
+              setChosenWorkspace(event.target.value);
+              setChosen('');
+              setSelected(undefined);
+            }}
+          >
+            {groups.map((group) => (
+              <option key={group.key} value={group.key}>
+                {group.name}
+                {group.root ? ` · ${group.root}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {!contextControlled && workspace && (
         <nav className="git-worktrees" aria-label={`${workspace.name} worktrees`}>
           {trees.map((tree) => (
             <GitWorktree
@@ -150,7 +166,12 @@ export function GitBrowser({
       {status.data && (
         <>
           {status.data.entries.length === 0 && <p role="status">Working tree clean.</p>}
-          <div className="source-layout">
+          {selected && readerOpen && (
+            <button className="mobile-reader-back" onClick={() => setReaderOpen(false)}>
+              ← Changed files
+            </button>
+          )}
+          <div className="source-layout" data-reading={!!selected && readerOpen}>
             <nav className="source-tree" aria-label="Changed files">
               {[true, false].map((staged) => {
                 const entries = status.data.entries.filter((entry) =>
@@ -170,11 +191,16 @@ export function GitBrowser({
                                 ? 'true'
                                 : undefined
                             }
-                            onClick={() =>
-                              setSelected({ worktree: worktree!, path: entry.path, staged })
-                            }
+                            onClick={() => {
+                              setSelected({ worktree: worktree!, path: entry.path, staged });
+                              setReaderOpen(true);
+                            }}
                           >
-                            <code>{staged ? entry.index : entry.worktree}</code>{' '}
+                            <code
+                              className={`font-semibold ${statusColors[staged ? entry.index : entry.worktree] || 'text-slate-400'}`}
+                            >
+                              {staged ? entry.index : entry.worktree}
+                            </code>{' '}
                             {entry.original_path ? `${entry.original_path} → ` : ''}
                             {entry.path}
                             {entry.index === '?' ? ' (untracked)' : ''}
@@ -207,16 +233,7 @@ export function GitBrowser({
                       {diff.data.content.split('\n').map((line, index) => (
                         <span
                           key={index}
-                          style={{
-                            display: 'block',
-                            minHeight: '1em',
-                            background: line.startsWith('+')
-                              ? '#14532d55'
-                              : line.startsWith('-')
-                                ? '#7f1d1d55'
-                                : undefined,
-                            color: line.startsWith('@@') ? '#7dd3fc' : undefined,
-                          }}
+                          className={`block min-h-[1em] ${line.startsWith('+') ? 'bg-green-900/30' : line.startsWith('-') ? 'bg-red-900/30' : ''} ${line.startsWith('@@') ? 'text-sky-300' : ''}`}
                         >
                           {line}
                         </span>

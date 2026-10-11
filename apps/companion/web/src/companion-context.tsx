@@ -1,4 +1,5 @@
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useReducer, useEffect } from 'react';
+import { readStored, store } from './browser-storage';
 import type { Dispatch, ReactNode } from 'react';
 import { readPending } from './api';
 import { companionReducer, initialState } from './companion-state';
@@ -8,9 +9,16 @@ const StateContext = createContext<CompanionState | null>(null);
 const DispatchContext = createContext<Dispatch<CompanionAction> | null>(null);
 
 export function CompanionProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(companionReducer, undefined, () =>
-    initialState(readPending()),
-  );
+  const [state, dispatch] = useReducer(companionReducer, undefined, () => {
+    const initial = initialState(readPending());
+    const saved = readStored<unknown>('aero-drafts', {});
+    const drafts =
+      saved && typeof saved === 'object' && !Array.isArray(saved)
+        ? Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === 'string'))
+        : {};
+    return { ...initial, drafts: { ...initial.drafts, ...drafts } };
+  });
+  useEffect(() => store('aero-drafts', state.drafts), [state.drafts]);
   return (
     <StateContext.Provider value={state}>
       <DispatchContext.Provider value={dispatch}>{children}</DispatchContext.Provider>

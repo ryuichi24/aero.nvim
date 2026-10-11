@@ -95,6 +95,7 @@ describe('workspace session browser', () => {
   it('navigates workspace → worktree → exact session with touch-friendly disclosures', async () => {
     const onSelect = vi.fn();
     render(<SessionBrowser snapshot={snapshot} selected={null} active onSelect={onSelect} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Group by workspace/worktree' }));
     const aero = screen.getByRole('group', { name: 'Workspace Aero' });
     const workspaceButton = within(aero).getByRole('button', { name: /^Aero/ });
     expect(workspaceButton.getAttribute('aria-expanded')).toBe('false');
@@ -116,6 +117,7 @@ describe('workspace session browser', () => {
 
   it('searches across hierarchy and automatically exposes matches without losing their workspace', async () => {
     render(<SessionBrowser snapshot={snapshot} selected={null} active onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Group by workspace/worktree' }));
     const search = screen.getByRole('searchbox');
     await userEvent.type(search, 'Review');
     expect(screen.getByRole('group', { name: 'Workspace Aero' })).toBeTruthy();
@@ -137,6 +139,7 @@ describe('workspace session browser', () => {
     view.rerender(
       <SessionBrowser snapshot={snapshot} selected={selected} active onSelect={vi.fn()} />,
     );
+    await userEvent.click(screen.getByRole('button', { name: 'Group by workspace/worktree' }));
     const current = screen.getByRole('button', { name: /^Review · waiting/ });
     expect(current.getAttribute('aria-current')).toBe('page');
     const mobile = screen.getByRole('group', { name: 'Worktree mobile-ui' });
@@ -160,7 +163,7 @@ describe('workspace session browser', () => {
     ).toBe('page');
   });
 
-  it('keeps existing groups open when another workspace is discovered', () => {
+  it('keeps existing groups open when another workspace is discovered', async () => {
     const initial = {
       ...snapshot,
       workspaces: [snapshot.workspaces[0]],
@@ -170,6 +173,7 @@ describe('workspace session browser', () => {
     const view = render(
       <SessionBrowser snapshot={initial} selected={null} active onSelect={vi.fn()} />,
     );
+    await userEvent.click(screen.getByRole('button', { name: 'Group by workspace/worktree' }));
     expect(screen.getByRole('button', { name: /^Shared name · busy/ })).toBeTruthy();
     view.rerender(<SessionBrowser snapshot={snapshot} selected={null} active onSelect={vi.fn()} />);
     expect(screen.getByRole('button', { name: /^Shared name · busy/ })).toBeTruthy();

@@ -7,23 +7,44 @@ connects two independently buildable modules:
 - `companion/`: `aero-companion`, the mobile web bridge with its frontend under
   `companion/web/`.
 
-The companion's **Git** tab groups worktrees by workspace. Select a workspace to
-see each worktree's staged and unstaged counts, then select a worktree to browse
+The companion uses four main destinations: **Home**, **Sessions**, **Inbox**, and
+**Workspace**. Home summarizes attention and running agents, offers quick actions,
+and remembers recently opened and pinned sessions. Sessions defaults to a searchable
+flat list with status filters; **Group by workspace/worktree** exposes the hierarchy
+and its management actions. New session creation is available directly from Home.
+
+Session details separate **Conversation**, **Artifacts**, and **Details**. Conversation
+keeps prompts and permission responses accessible; Artifacts contains screenshots and
+recordings; Details contains usage, todo progress, assignment, and session management.
+The composer’s **Prompt actions** exposes report, model, mode, and export commands.
+Existing drafts are preserved when choosing report workflows from Workspace.
+
+The **Workspace** hub shares one explicit worktree context across **Reports**,
+**Changes**, and **Source**. Opening another session does not change this review context;
+session-specific review links explicitly switch it. Browser Back and reload preserve
+the main route, session selection, and session drafts. Visited readers retain their
+file selections and position during navigation. Device settings include dark/light
+appearance, zoom, fullscreen attention, and unpairing.
+
+The companion's **Workspace → Changes** view lets you choose a worktree to browse
 its changed files, including untracked files. Select a file to read its highlighted unified
 diff. Partially staged files appear in both groups with their corresponding diffs.
 The view refreshes every five seconds; **Refresh** reloads it immediately.
 
-The companion's **Reports** tab lists created reports for the selected worktree,
+The companion's **Workspace → Reports** view lists created reports for the selected worktree,
 using Aero's configured report storage (including reports outside the worktree).
 Select a report to preview rendered Markdown, use **Show source** to read the raw
 text, or **Fullscreen** for a larger preview. **Refresh** reloads the report list
-and content after an agent updates a report.
+and content after an agent updates a report. Search filters report names within the
+displayed folders. **Create report with an agent** opens the selected worktree's
+session composer with the existing report picker/creation workflow.
 
-The companion's **Source** tab lets paired devices select a worktree, expand
+The companion's **Workspace → Source** view lets paired devices select a worktree, expand
 nested folders in a persistent file tree, and read files with syntax highlighting
 and line numbers. Markdown files open in preview mode with a source toggle.
-It defaults to the selected session's worktree and remembers your position when
-switching tabs. Use **Refresh** to reload changes from disk.
+It uses the shared review worktree and remembers your position when switching views.
+On phones, readers open separately from their file list with an explicit Back button.
+Use **Refresh** to reload changes from disk.
 Source browsing requires a connected Neovim host and supports UTF-8 text files up
 to 2 MiB.
 

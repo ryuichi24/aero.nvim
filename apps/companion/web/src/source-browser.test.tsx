@@ -155,8 +155,8 @@ it('filters report worktrees by branch or full path and resets the reader when s
   await screen.findByRole('heading', { name: 'Findings for /very/long/project/main' });
   await user.type(screen.getByRole('searchbox', { name: 'Find a worktree' }), 'missing');
   expect(screen.getByRole('status').textContent).toBe('No matching worktrees.');
-  await user.clear(screen.getByRole('searchbox'));
-  await user.type(screen.getByRole('searchbox'), '/another');
+  await user.clear(screen.getByRole('searchbox', { name: 'Find a worktree' }));
+  await user.type(screen.getByRole('searchbox', { name: 'Find a worktree' }), '/another');
   const options = within(screen.getByRole('group', { name: 'Report worktrees' }));
   expect(options.queryByRole('button', { name: /main/ })).toBeNull();
   await user.click(options.getByRole('button', { name: /feature\/review/ }));

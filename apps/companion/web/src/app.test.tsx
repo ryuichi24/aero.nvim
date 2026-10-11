@@ -47,6 +47,8 @@ function connect(snapshot = initial) {
   act(() => FakeEvents.emit(snapshot));
 }
 async function open() {
+  if (!screen.queryByRole('button', { name: /Test agent ·/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
   await userEvent.click(screen.getByRole('button', { name: /Test agent ·/ }));
 }
 function draft(text: string) {
@@ -55,6 +57,7 @@ function draft(text: string) {
   });
 }
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   sessionStorage.clear();
   const storage = new Map<string, string>();
   vi.stubGlobal('localStorage', {
@@ -71,6 +74,302 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('dismisses Attention and Device on outside clicks while keeping inside clicks and trigger toggles working', async () => {
+    render(<App />);
+    connect();
+    const attention = screen.getByRole('button', { name: 'Attention' });
+    await userEvent.click(attention);
+    await userEvent.click(screen.getByRole('heading', { name: 'Attention inbox' }));
+    expect(screen.getByRole('heading', { name: 'Attention inbox' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('heading', { name: 'Aero Companion' }));
+    expect(screen.queryByRole('heading', { name: 'Attention inbox' })).toBeNull();
+    await userEvent.click(attention);
+    await userEvent.click(attention);
+    expect(screen.queryByRole('heading', { name: 'Attention inbox' })).toBeNull();
+    const summary = screen.getByText('Device', { selector: 'summary' });
+    const menu = summary.parentElement as HTMLDetailsElement;
+    await userEvent.click(summary);
+    expect(menu.open).toBe(true);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Light appearance' }));
+    expect(menu.open).toBe(true);
+    await userEvent.click(screen.getByRole('heading', { name: 'Aero Companion' }));
+    expect(menu.open).toBe(false);
+    await userEvent.click(summary);
+    await userEvent.click(summary);
+    expect(menu.open).toBe(false);
+  });
+  it('shares workspace scope with review and groups worktrees when browsing all workspaces', async () => {
+    render(<App />);
+    connect({
+      ...initial,
+      workspaces: [
+        { root: '/alpha', name: 'Alpha' },
+        { root: '/beta', name: 'Beta' },
+      ],
+      worktrees: [
+        { path: '/alpha', workspace: '/alpha', branch: 'alpha-main' },
+        { path: '/alpha-feature', workspace: '/alpha', branch: 'alpha-feature' },
+        { path: '/beta', workspace: '/beta', branch: 'beta-main' },
+      ],
+    });
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Workspace scope' }),
+      '/alpha',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    const context = screen.getByRole('region', { name: 'Workspace review context' });
+    expect(within(context).getByRole('button', { name: /alpha-main/ })).toBeTruthy();
+    expect(within(context).getByRole('button', { name: /alpha-feature/ })).toBeTruthy();
+    expect(within(context).queryByRole('button', { name: /beta-main/ })).toBeNull();
+    expect(within(context).queryByText('Alpha', { selector: 'summary' })).toBeNull();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Workspace scope' }), '');
+    await userEvent.click(within(context).getByText('Beta', { selector: 'summary' }));
+    expect(within(context).getByRole('button', { name: /beta-main/ })).toBeTruthy();
+    await userEvent.click(within(context).getByRole('button', { name: /beta-main/ }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Workspace scope' }),
+      '/alpha',
+    );
+    expect(
+      within(context).getByText('Choose a worktree to review its reports, changes, and source.'),
+    ).toBeTruthy();
+    expect(within(context).queryByText('Manage worktree')).toBeNull();
+  });
+
+  it('shows only requests with current selectable options in Inbox and attention counts', async () => {
+    render(<App />);
+    const snapshot: Snapshot = {
+      ...initial,
+      sessions: [
+        {
+          ...initial.sessions[0],
+          status: 'waiting',
+          permission: {
+            id: 'pending',
+            title: 'Allow command?',
+            options: [{ optionId: 'allow', name: 'Allow once' }],
+          },
+        },
+      ],
+      inbox: [
+        {
+          id: 'done',
+          session: 'stable-session',
+          conversation: 'generation-1',
+          kind: 'completed',
+          text: 'Turn completed',
+        },
+        {
+          id: 'pending',
+          session: 'stable-session',
+          conversation: 'generation-1',
+          kind: 'permission',
+          text: 'Select an option',
+        },
+        {
+          id: 'stale',
+          session: 'stable-session',
+          conversation: 'older-generation',
+          kind: 'permission',
+          text: 'Old request',
+        },
+      ],
+    };
+    connect(snapshot);
+    expect(screen.getByRole('button', { name: 'Attention (1)' })).toBeTruthy();
+    expect(screen.getByText('1 permission requires a response')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Inbox (1)' }));
+    expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'completed: Turn completed' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'permission: Old request' })).toBeNull();
+    connect({
+      ...snapshot,
+      sessions: [
+        {
+          ...snapshot.sessions[0],
+          permission: { ...snapshot.sessions[0].permission!, options: [] },
+        },
+      ],
+    });
+    expect(screen.getByText('No attention events right now.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Attention' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Inbox' })).toBeTruthy();
+  });
+  it('remembers workspace scope, review worktree, and tool after closing the browser session', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ entries: [] })));
+    const snapshot: Snapshot = {
+      ...initial,
+      workspaces: [
+        { root: '/workspace', name: 'Project' },
+        { root: '/other', name: 'Other' },
+      ],
+      worktrees: [
+        { path: '/workspace', workspace: '/workspace', branch: 'main' },
+        { path: '/other', workspace: '/other', branch: 'review' },
+      ],
+      sessions: [
+        ...initial.sessions,
+        { ...initial.sessions[0], id: 'other-session', name: 'Other agent', worktree: '/other' },
+      ],
+    };
+    const first = render(<App />);
+    connect(snapshot);
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Workspace scope' }),
+      '/other',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    await userEvent.click(screen.getByRole('button', { name: 'review /other' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Changes' }));
+    first.unmount();
+    sessionStorage.clear();
+    window.history.replaceState(null, '', '/');
+    render(<App />);
+    connect(snapshot);
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Workspace scope' }).value).toBe(
+      '/other',
+    );
+    expect(screen.getByRole('button', { name: /^Other agent ·/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Test agent ·/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    expect(await screen.findByRole('heading', { name: 'Git changes' })).toBeTruthy();
+    expect(screen.getByText(/review · Change context/)).toBeTruthy();
+  });
+
+  it('falls back to all workspaces when a remembered workspace is no longer available', async () => {
+    localStorage.setItem('aero-workspace-scope', JSON.stringify('/removed'));
+    render(<App />);
+    connect({ ...initial, connected: false });
+    expect(localStorage.getItem('aero-workspace-scope')).toBe(JSON.stringify('/removed'));
+    connect(initial);
+    await waitFor(() =>
+      expect(localStorage.getItem('aero-workspace-scope')).toBe(JSON.stringify('')),
+    );
+    expect(screen.getByRole('button', { name: /^Test agent ·/ })).toBeTruthy();
+  });
+
+  it('keeps a newer draft through reload and identical-action recovery', async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Lost receipt'))
+      .mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    const first = render(<App />);
+    connect();
+    await open();
+    draft('Original request');
+    await userEvent.click(screen.getByRole('button', { name: 'Send prompt' }));
+    await screen.findByRole('button', { name: 'Retry identical action' });
+    const sent = fetch.mock.calls[0][1].body;
+    draft('New draft written while recovering');
+    first.unmount();
+    render(<App />);
+    connect();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('New draft written while recovering');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry identical action' }));
+    await screen.findByText('Action accepted');
+    expect(fetch.mock.calls[1][1].body).toBe(sent);
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('New draft written while recovering');
+  });
+  it('keeps review context and report selection independent of the selected conversation', async () => {
+    const fetch = vi.fn().mockImplementation((_url, options) => {
+      const data = JSON.parse(options.body);
+      return Promise.resolve(
+        response(
+          data.path
+            ? { content: `# Report for ${data.worktree}` }
+            : { entries: [{ name: 'plan.md', directory: false }] },
+        ),
+      );
+    });
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    const snapshot: Snapshot = {
+      ...initial,
+      workspaces: [{ root: '/workspace', name: 'Project' }],
+      worktrees: [
+        { path: '/workspace', workspace: '/workspace', branch: 'main' },
+        { path: '/other', workspace: '/workspace', branch: 'review' },
+      ],
+    };
+    connect(snapshot);
+    expect(
+      within(screen.getByRole('navigation', { name: 'Companion navigation' }))
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Home', 'Sessions', 'Inbox', 'Workspace']);
+    await userEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    await userEvent.click(screen.getByRole('button', { name: 'review /other' }));
+    await screen.findByRole('button', { name: 'plan.md' });
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search report names' }), 'missing');
+    expect(screen.queryByRole('button', { name: 'plan.md' })).toBeNull();
+    expect(screen.getByText('No matching reports in this folder.')).toBeTruthy();
+    await userEvent.clear(screen.getByRole('searchbox', { name: 'Search report names' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'plan.md' }));
+    expect(await screen.findByRole('heading', { name: 'Report for /other' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    await open();
+    draft('Review without losing my draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    expect(await screen.findByRole('heading', { name: 'Report for /other' })).toBeTruthy();
+    expect(screen.getByText(/review · Change context/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    await open();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('Review without losing my draft');
+    expect(
+      fetch.mock.calls.every(([, options]) => JSON.parse(options.body).worktree === '/other'),
+    ).toBe(true);
+  });
+
+  it('restores drafts and Details after reload and browser Back returns to Home', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({})));
+    const first = render(<App />);
+    connect();
+    await open();
+    draft('Survive reload');
+    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
+    expect(screen.getByRole('region', { name: 'Session metadata' })).toBeTruthy();
+    first.unmount();
+    render(<App />);
+    connect();
+    expect(screen.getByRole('region', { name: 'Session metadata' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('Survive reload');
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    await act(async () => {
+      window.history.back();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(screen.getByRole('heading', { name: 'Your workspace, at a glance' })).toBeTruthy();
+  });
+
+  it('filters the flat session list and retains grouping as an explicit option', async () => {
+    render(<App />);
+    connect({
+      ...initial,
+      sessions: [
+        ...initial.sessions,
+        { ...initial.sessions[0], id: 'running', name: 'Worker', status: 'busy' },
+      ],
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Running' }));
+    expect(screen.getByRole('button', { name: /^Worker · busy/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Test agent ·/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Group by workspace/worktree' }));
+    expect(screen.getByRole('button', { name: /^Worker · busy/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Test agent ·/ })).toBeNull();
+  });
   it('explains connection-related send blocking and preserves typing until reconnection', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({})));
     render(<App />);
@@ -387,7 +686,7 @@ describe('mobile companion', () => {
       screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
     ).toBe('Next request');
   });
-  it('shows each populated media gallery once below the session actions and hides empty galleries', async () => {
+  it('shows populated media galleries in Artifacts and hides empty galleries', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(new Uint8Array([0]), { status: 206 })),
@@ -395,6 +694,7 @@ describe('mobile companion', () => {
     render(<App />);
     connect(initial);
     await open();
+    await userEvent.click(screen.getByRole('button', { name: 'Artifacts' }));
     expect(screen.queryByText('Screenshots (0)')).toBeNull();
     expect(screen.queryByText('Recordings (0)')).toBeNull();
     connect({
@@ -410,19 +710,13 @@ describe('mobile companion', () => {
     const recordings = screen.getAllByText('Recordings (1)');
     expect(screenshots).toHaveLength(1);
     expect(recordings).toHaveLength(1);
-    const rename = screen.getByText('Rename session', { selector: 'summary' });
-    expect(
-      rename.compareDocumentPosition(screenshots[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      rename.compareDocumentPosition(recordings[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Follow-up prompt' })).toBeNull();
     await waitFor(() => expect(screen.getByText('Saved for later')).toBeTruthy());
     connect(initial);
     expect(document.querySelectorAll('.session-screenshots')).toHaveLength(0);
     expect(document.querySelectorAll('#transcript')).toHaveLength(1);
   });
-  it('keeps a session screenshot list available above the transcript', async () => {
+  it('keeps the session screenshot gallery available when reopening Artifacts', async () => {
     render(<App />);
     connect({
       ...initial,
@@ -434,6 +728,7 @@ describe('mobile companion', () => {
       ],
     });
     await open();
+    await userEvent.click(screen.getByRole('button', { name: 'Artifacts' }));
     const summary = screen.getByText('Screenshots (1)');
     await userEvent.click(summary);
     const gallery = screen.getByRole('list', { name: 'Session screenshots' });
@@ -442,6 +737,7 @@ describe('mobile companion', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     await userEvent.click(screen.getByRole('button', { name: '← All sessions' }));
     await open();
+    await userEvent.click(screen.getByRole('button', { name: 'Artifacts' }));
     expect(screen.getByRole('list', { name: 'Session screenshots' })).toBeTruthy();
   });
   it('answers permissions from the inbox without selecting a session', async () => {
@@ -520,7 +816,7 @@ describe('mobile companion', () => {
         worktrees: [{ path: '/workspace', workspace: '/workspace', branch: 'main' }],
       };
       connect(snapshot);
-      await userEvent.click(screen.getByText('New AI session', { selector: 'summary' }));
+      await userEvent.click(screen.getByRole('button', { name: 'New session' }));
       await userEvent.click(screen.getByRole('button', { name: 'New AI session' }));
       const starting: Snapshot = {
         ...snapshot,
@@ -573,8 +869,9 @@ describe('mobile companion', () => {
         workspaces: [{ root: '/workspace', name: 'Project' }],
         worktrees: [{ path: '/workspace', workspace: '/workspace', branch: 'main' }],
       });
+      await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+      await userEvent.click(screen.getByText('New session', { selector: 'summary' }));
       const summary = screen.getByText('New AI session', { selector: 'summary' });
-      await userEvent.click(summary);
       const input = screen.getByRole('textbox', {
         name: 'Session name (optional)',
       }) as HTMLInputElement;
@@ -656,7 +953,8 @@ describe('mobile companion', () => {
       worktrees: [{ path: '/workspace', workspace: '/workspace', branch: 'main' }],
     };
     connect(snapshot);
-    await userEvent.click(screen.getByText('New AI session', { selector: 'summary' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    await userEvent.click(screen.getByText('New session', { selector: 'summary' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Session name (optional)' }), 'Phone');
     await userEvent.click(screen.getByRole('button', { name: 'New AI session' }));
     await screen.findByText(/Outcome unknown/);
@@ -724,10 +1022,14 @@ describe('mobile companion', () => {
     connect({ ...snapshot, cursor: 'epoch:2' });
     connect({ ...snapshot, cursor: 'new-epoch:1' });
     await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
-    expect(screen.getAllByRole('button', { name: 'completed: Turn completed' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'completed: Turn completed' })).toBeNull();
+    expect(screen.getByText('No attention events right now.')).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
     connect({ ...initial, sessions: [{ ...initial.sessions[0], conversation: 'replacement' }] });
-    await userEvent.click(screen.getByRole('button', { name: 'Transcript' }));
+    await act(async () => {
+      window.history.back();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
     expect(screen.getByText('Session or conversation unavailable')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Send prompt' }) as HTMLButtonElement).disabled,
@@ -875,18 +1177,28 @@ describe('mobile companion', () => {
         { path: '/workspace', workspace: '/workspace', branch: 'mobile-ui' },
         { path: '/other', workspace: '/other', branch: 'main' },
       ],
+      sessions: [
+        {
+          ...initial.sessions[0],
+          permission: {
+            id: 'permission',
+            title: 'Choose an option',
+            options: [{ optionId: 'allow', name: 'Allow once' }],
+          },
+        },
+      ],
       inbox: [
         {
           id: 'event',
           session: 'stable-session',
           conversation: 'generation-1',
-          kind: 'completed',
-          text: 'Turn completed',
+          kind: 'permission',
+          text: 'Choose an option',
         },
       ],
     });
     await userEvent.click(screen.getByRole('button', { name: 'Inbox (1)' }));
-    await userEvent.click(screen.getByRole('button', { name: 'completed: Turn completed' }));
+    await userEvent.click(screen.getByRole('button', { name: 'permission: Choose an option' }));
     expect(screen.getByRole('navigation', { name: 'Current session location' }).textContent).toBe(
       'Aero/mobile-ui/Test agent',
     );

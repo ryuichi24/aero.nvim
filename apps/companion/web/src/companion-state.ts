@@ -1,6 +1,6 @@
 import type { PendingAction, Selection } from './types';
 
-export type View = 'sessions' | 'inbox' | 'conversation' | 'source' | 'reports' | 'git';
+export type View = 'home' | 'sessions' | 'inbox' | 'conversation' | 'source' | 'reports' | 'git';
 export interface CompanionState {
   pending: PendingAction | null;
   selected: Selection | null;
@@ -27,7 +27,7 @@ export function initialState(pending: PendingAction | null): CompanionState {
   return {
     pending,
     selected,
-    view: selected ? 'conversation' : 'sessions',
+    view: selected ? 'conversation' : 'home',
     online: false,
     connection: 'Disconnected',
     pairing: true,
@@ -102,7 +102,8 @@ export function companionReducer(state: CompanionState, action: CompanionAction)
           ? { selected: null, view: 'sessions' as const }
           : {}),
         drafts:
-          action.action.path === 'prompt'
+          action.action.path === 'prompt' &&
+          state.drafts[draftKey(selection)] === action.action.data.text
             ? { ...state.drafts, [draftKey(selection)]: '' }
             : state.drafts,
       };

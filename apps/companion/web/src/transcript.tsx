@@ -166,12 +166,68 @@ export function Transcript({
   const prompts = (session?.blocks || []).flatMap((block, index) =>
     block.kind === 'user' ? [{ text: block.text || '', index }] : [],
   );
-  const [container] = useState(() => document.createElement('div'));
+  const [container] = useState(() => {
+    const node = document.createElement('div');
+    node.className = 'transcript-content';
+    return node;
+  });
   const inline = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const element = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  const wasFullscreen = useRef(false);
+  useLayoutEffect(() => {
+    if (!active || !inline.current) return;
+    const host = inline.current;
+    const viewport = window.visualViewport;
+    function resize() {
+      document.documentElement.dataset.composerKeyboard =
+        viewport && viewport.height < window.innerHeight * 0.8 ? 'open' : 'closed';
+      const bottom = (viewport?.height || window.innerHeight) + (viewport?.offsetTop || 0);
+      const navigation = document.querySelector<HTMLElement>('.primary-nav');
+      const navRect = navigation?.getBoundingClientRect();
+      const navTop = navRect?.height ? navRect.top : undefined;
+      const mobile = window.innerWidth < 1100;
+      const availableBottom = mobile && navTop !== undefined ? Math.min(bottom, navTop) : bottom;
+      const top = Math.max(host.getBoundingClientRect().top, viewport?.offsetTop || 0);
+      if (!fullscreen)
+        host.style.setProperty(
+          '--transcript-height',
+          `${Math.max(180, availableBottom - top - 12)}px`,
+        );
+      if (fullscreen && dialog.current) {
+        dialog.current.style.height = `${viewport?.height || window.innerHeight}px`;
+        dialog.current.style.top = `${viewport?.offsetTop || 0}px`;
+        dialog.current.style.bottom = 'auto';
+      }
+      document.documentElement.style.setProperty(
+        '--companion-composer-height',
+        `${container.querySelector<HTMLElement>('.log-composer')?.getBoundingClientRect().height || 0}px`,
+      );
+    }
+    resize();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+    observer?.observe(document.querySelector('main') || host);
+    const composerElement = container.querySelector('.log-composer');
+    if (composerElement) observer?.observe(composerElement);
+    window.addEventListener('resize', resize);
+    window.addEventListener('scroll', resize, { passive: true });
+    viewport?.addEventListener('resize', resize);
+    viewport?.addEventListener('scroll', resize);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('scroll', resize);
+      viewport?.removeEventListener('resize', resize);
+      viewport?.removeEventListener('scroll', resize);
+      document.documentElement.style.removeProperty('--companion-composer-height');
+      delete document.documentElement.dataset.composerKeyboard;
+      dialog.current?.style.removeProperty('height');
+      dialog.current?.style.removeProperty('top');
+      dialog.current?.style.removeProperty('bottom');
+    };
+  }, [active, fullscreen]);
   useLayoutEffect(() => {
     setPromptsVisible(false);
     setPromptSearch('');
@@ -182,7 +238,15 @@ export function Transcript({
     const host = fullscreen ? dialog.current! : inline.current!;
     host.appendChild(container);
     if (element.current) element.current.scrollTop = scrollTop;
-    if (!fullscreen) return;
+    if (!fullscreen) {
+      if (wasFullscreen.current) {
+        setInputVisible(true);
+        button.current?.focus();
+      }
+      wasFullscreen.current = false;
+      return;
+    }
+    wasFullscreen.current = true;
     const modal = dialog.current!;
     const overflow = document.body.style.overflow;
     modal.showModal();
@@ -192,7 +256,6 @@ export function Transcript({
     return () => {
       modal.close();
       document.body.style.overflow = overflow;
-      button.current?.focus();
     };
   }, [container, fullscreen]);
   useLayoutEffect(() => {
@@ -204,12 +267,7 @@ export function Transcript({
   }, [active, session?.blocks, session?.queue]);
   return (
     <ImageSession.Provider value={session?.id || ''}>
-      <div className="transcript-toolbar">
-        <button ref={button} onClick={() => setFullscreen(true)}>
-          Fullscreen logs
-        </button>
-      </div>
-      <div ref={inline} />
+      <div ref={inline} className="transcript-inline" />
       <dialog
         ref={dialog}
         className="transcript-fullscreen"
@@ -220,27 +278,13 @@ export function Transcript({
         <header className="transcript-toolbar">
           <strong>{session?.name || 'Agent'} · Logs</strong>
           {fullscreen && <FullscreenAttention />}
-          {composer && (
-            <button
-              aria-expanded={inputVisible}
-              aria-controls="log-composer"
-              onClick={() => setInputVisible((value) => !value)}
-            >
-              {inputVisible ? 'Hide input' : 'Show input'}
-            </button>
-          )}
           <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
         </header>
       </dialog>
       {createPortal(
         <>
-          {session?.activity && (
-            <div className="transcript-toolbar" role="status" aria-label="Current agent action">
-              <span className="status-badge status-in_progress">In progress</span>
-              <span>{session.activity}</span>
-            </div>
-          )}
-          <div className="transcript-toolbar">
+          <div className="transcript-controls">
+            <strong className="sr-only">Agent logs</strong>
             <button
               aria-expanded={promptsVisible}
               aria-controls="transcript-prompts"
@@ -248,7 +292,30 @@ export function Transcript({
             >
               Prompts ({prompts.length})
             </button>
+            <button
+              hidden={fullscreen}
+              ref={button}
+              aria-label="Fullscreen logs"
+              onClick={() => setFullscreen(true)}
+            >
+              Fullscreen
+            </button>
+            {composer && (
+              <button
+                aria-expanded={inputVisible}
+                aria-controls="log-composer"
+                onClick={() => setInputVisible((value) => !value)}
+              >
+                {inputVisible ? 'Hide input' : 'Show input'}
+              </button>
+            )}
           </div>
+          {session?.activity && (
+            <div className="transcript-activity" role="status" aria-label="Current agent action">
+              <span className="status-badge status-in_progress">Working</span>
+              <span>{session.activity}</span>
+            </div>
+          )}
           {promptsVisible && (
             <nav id="transcript-prompts" className="transcript-prompts" aria-label="Prompt history">
               <input
@@ -298,6 +365,11 @@ export function Transcript({
                 follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
             }}
           >
+            {!session?.blocks?.length && (
+              <p className="navigation-empty">
+                No logs yet. Send a prompt to start the conversation.
+              </p>
+            )}
             {session?.blocks?.map((block, index) => (
               <div
                 key={`${block.kind}:${block.id || index}`}
@@ -332,7 +404,7 @@ export function Transcript({
             )}
           </div>
           {composer && (
-            <div id="log-composer" className="log-composer" hidden={fullscreen && !inputVisible}>
+            <div id="log-composer" className="log-composer" hidden={!inputVisible}>
               {composer}
               {fullscreen && feedback}
             </div>

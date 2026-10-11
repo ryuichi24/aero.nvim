@@ -6,6 +6,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { attachedReports } from './report-preview';
 
 afterEach(cleanup);
+it('hides and restores the inline composer without losing the draft or log position', () => {
+  render(
+    <Transcript
+      session={session}
+      composer={<textarea aria-label="Draft" defaultValue="Initial draft" />}
+    />,
+  );
+  const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Draft' });
+  fireEvent.change(input, { target: { value: 'Keep this edited draft' } });
+  const logs = screen.getByRole('region', { name: 'Conversation transcript' });
+  logs.scrollTop = 120;
+  fireEvent.click(screen.getByRole('button', { name: 'Hide input' }));
+  expect(screen.queryByRole('textbox', { name: 'Draft' })).toBeNull();
+  expect(logs.scrollTop).toBe(120);
+  fireEvent.click(screen.getByRole('button', { name: 'Show input' }));
+  expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(input);
+  expect(input.value).toBe('Keep this edited draft');
+});
 it('shows live activity and running tool input, then clears activity on completion', () => {
   const block = {
     kind: 'tool',

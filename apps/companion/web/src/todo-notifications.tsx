@@ -67,18 +67,30 @@ function Notification({
 
 export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
   const baseline = useRef<Map<string, string> | null>(null);
+  const previousSessions = useRef<Snapshot['sessions']>([]);
   const epoch = useRef<string | undefined>(undefined);
   const recent = useRef<Card[]>([]);
   const revision = useRef(0);
   const [cards, setCards] = useState<Card[]>([]);
   const [focusKey, setFocusKey] = useState<string>();
   const [host, setHost] = useState<HTMLElement>(document.body);
+  const [triggerHost, setTriggerHost] = useState<HTMLElement>(document.body);
+  const trigger = useRef<HTMLButtonElement>(null);
   const enabled = snapshot?.companion?.ui?.todo_notifications !== false;
   const timeout = snapshot?.companion?.ui?.todo_notification_timeout ?? 15000;
 
   useEffect(() => {
-    const locate = () =>
-      setHost(document.querySelector<HTMLElement>('dialog[open], .image-preview') || document.body);
+    const locate = () => {
+      const surface =
+        document.querySelector<HTMLElement>('dialog[open], .image-preview') || document.body;
+      setHost(surface);
+      setTriggerHost(
+        (surface === document.body
+          ? document.querySelector<HTMLElement>('#todo-controls')
+          : surface.querySelector<HTMLElement>('[data-todo-trigger]') ||
+            surface.querySelector<HTMLElement>('header')) || surface,
+      );
+    };
     const observer = new MutationObserver(locate);
     observer.observe(document.body, {
       subtree: true,
@@ -93,6 +105,7 @@ export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
   useEffect(() => {
     if (!snapshot) {
       baseline.current = null;
+      previousSessions.current = [];
       recent.current = [];
       setCards([]);
       return;
@@ -103,16 +116,33 @@ export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
     const previous = reset ? new Map<string, string>() : baseline.current!;
     const next = new Map<string, string>();
     const updates: Card[] = [];
+    const notifications: Card[] = [];
+    const priorSessions = new Map(
+      (reset ? [] : previousSessions.current).map((session) => [session.id, session]),
+    );
     for (const session of snapshot.sessions) {
       const key = JSON.stringify([session.id, session.conversation]);
       const todos = latestTodos(session.blocks || []);
       const signature = JSON.stringify(todos) || '';
       next.set(key, signature);
       if (todos !== undefined && (reset || previous.get(key) !== signature)) {
-        updates.push({ key, name: session.name, todos, revision: ++revision.current });
+        const card = { key, name: session.name, todos, revision: ++revision.current };
+        updates.push(card);
+        const prior = priorSessions.get(session.id);
+        // Startup/replay is a baseline, not new agent work. Keep its checklist
+        // available from Todos, and notify only subsequent live changes.
+        const restoring =
+          session.status === 'starting' ||
+          prior?.status === 'starting' ||
+          (prior &&
+            (prior.conversation !== session.conversation ||
+              (['stopped', 'exited'].includes(prior.status) &&
+                !['stopped', 'exited'].includes(session.status))));
+        if (!restoring) notifications.push(card);
       }
     }
     baseline.current = next;
+    previousSessions.current = snapshot.sessions;
     if (reset) recent.current = [];
     recent.current = [
       ...updates,
@@ -130,7 +160,7 @@ export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
       !enabled || reset
         ? []
         : [
-            ...updates,
+            ...notifications,
             ...current
               .filter(
                 (card) => next.has(card.key) && !updates.some((item) => item.key === card.key),
@@ -141,38 +171,69 @@ export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
   }, [snapshot, enabled]);
 
   if (!snapshot || !enabled) return null;
-  return createPortal(
-    <aside className="todo-notifications" aria-label="Agent todo notifications">
-      <button
-        className="todo-notifications-trigger"
-        disabled={!recent.current.length && !cards.length}
-        onClick={() => {
-          const card = cards[0] || recent.current[0];
-          if (!card) return;
-          setFocusKey(card.key);
-          setCards((current) => [
-            { ...card, revision: ++revision.current },
-            ...current.filter((item) => item.key !== card.key),
-          ]);
-        }}
-      >
-        Todos
-      </button>
-      <div className="todo-notifications-stack" aria-live="polite" aria-relevant="additions text">
-        {cards.map((card) => (
-          <Notification
-            key={card.key}
-            card={card}
-            timeout={timeout}
-            focus={focusKey === card.key}
-            dismiss={() => {
-              setCards((current) => current.filter((item) => item.key !== card.key));
-              setFocusKey(undefined);
-            }}
-          />
-        ))}
-      </div>
-    </aside>,
-    host,
+  return (
+    <>
+      {createPortal(
+        <button
+          ref={trigger}
+          className="todo-toolbar-button"
+          aria-label="Todos"
+          aria-controls="todo-notifications-stack"
+          aria-expanded={cards.length > 0}
+          title="Agent todo lists"
+          disabled={!recent.current.length && !cards.length}
+          onClick={() => {
+            const card = cards[0] || recent.current[0];
+            if (!card) return;
+            setFocusKey(card.key);
+            setCards((current) => [
+              { ...card, revision: ++revision.current },
+              ...current.filter((item) => item.key !== card.key),
+            ]);
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m3 6 2 2 3-4M11 6h10M3 13h5M11 13h10M3 20h5M11 20h10" />
+          </svg>
+          <span className="sr-only sm:not-sr-only">Todos</span>
+        </button>,
+        triggerHost,
+      )}
+      {createPortal(
+        <aside className="todo-notifications" aria-label="Agent todo notifications">
+          <div
+            id="todo-notifications-stack"
+            className="todo-notifications-stack"
+            aria-live="polite"
+            aria-relevant="additions text"
+          >
+            {cards.map((card) => (
+              <Notification
+                key={card.key}
+                card={card}
+                timeout={timeout}
+                focus={focusKey === card.key}
+                dismiss={() => {
+                  setCards((current) => current.filter((item) => item.key !== card.key));
+                  setFocusKey(undefined);
+                  if (focusKey === card.key) trigger.current?.focus();
+                }}
+              />
+            ))}
+          </div>
+        </aside>,
+        host,
+      )}
+    </>
   );
 }
