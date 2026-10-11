@@ -6,7 +6,7 @@ local images = require("aero.acp.images")
 local bytes = "\137PNG\r\n\26\n\0binary\255\n"
 local content = { type = "image", mimeType = "image/png", data = vim.base64.encode(bytes) }
 local markdown = images.markdown(content)
-local path = assert(markdown:match("^!%[image%]%(<(.*)>%)$"))
+local path = assert(markdown:match("^!%[image%]%((.*)%)$"))
 local fd = assert(vim.uv.fs_open(path, "r", 0))
 assert(vim.uv.fs_read(fd, #bytes + 1, 0) == bytes, "image payload was corrupted")
 vim.uv.fs_close(fd)

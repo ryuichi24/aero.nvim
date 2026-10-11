@@ -35,9 +35,9 @@ function M.markdown(content, export)
 		end
 		path, paths[key] = result, result
 	end
-	-- Angle brackets allow cache paths with spaces; encode Markdown delimiters.
-	path = path:gsub("%%", "%%25"):gsub("<", "%%3C"):gsub(">", "%%3E")
-	return "![image](<" .. path .. ">)"
+	-- image.nvim consumes the literal Tree-sitter link_destination, including
+	-- angle brackets when present. Use a bare destination for ordinary paths.
+	return "![image](" .. path .. ")"
 end
 
 return M
