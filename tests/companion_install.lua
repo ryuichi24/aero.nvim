@@ -16,8 +16,7 @@ local function expected_hash()
 	local file = assert(io.open(fixture, "wb"))
 	file:write(binary)
 	file:close()
-	local cmd = vim.fn.executable("sha256sum") == 1 and { "sha256sum", fixture }
-		or { "shasum", "-a", "256", fixture }
+	local cmd = vim.fn.executable("sha256sum") == 1 and { "sha256sum", fixture } or { "shasum", "-a", "256", fixture }
 	local result = system(cmd, { text = true }):wait()
 	assert(result.code == 0)
 	return assert(result.stdout:match("^(%x+)"))
@@ -32,7 +31,7 @@ vim.fn.stdpath = function(kind)
 	return kind == "data" and root .. "/data" or stdpath(kind)
 end
 local downloads, mode = 0, "success"
-local elapsed_during_download = false
+local progress_during_download = false
 local windows = #vim.api.nvim_list_wins()
 vim.system = function(cmd, opts, callback)
 	if cmd[1] ~= "curl" then
@@ -68,10 +67,14 @@ vim.system = function(cmd, opts, callback)
 	file:close()
 	local result = { code = mode == "download" and 22 or 0, stdout = "", stderr = "fixture HTTP 404" }
 	if downloads == 1 then
+		vim.defer_fn(function()
+			opts.stderr(nil, "######## 42.")
+			opts.stderr(nil, "5%\r")
+		end, 300)
 		-- A real subprocess reproduces the event-loop behavior of a slow download.
 		vim.defer_fn(function()
 			local current = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(progress_win), 0, 1, false)[1]
-			elapsed_during_download = current:match("· [1-9]%d*s") ~= nil
+			progress_during_download = current:find("42.5% downloaded", 1, true) ~= nil
 		end, 1200)
 		return system({ "sh", "-c", "sleep 1.5" }, opts, function()
 			callback(result)
@@ -93,7 +96,7 @@ local path, err = installer.resolve()
 assert(not path and err:find(":Aero companion install", 1, true))
 -- Exercise the actual user command; installation does not launch the bridge.
 vim.cmd("Aero companion install")
-assert(elapsed_during_download, "elapsed time did not refresh while the download was running")
+assert(progress_during_download, "download percentage did not refresh while the download was running")
 assert(#vim.api.nvim_list_wins() == windows, "successful install left progress open")
 path = assert(installer.resolve())
 assert(path == vim.fs.joinpath(root, "data", "Aero", "bin", release.version, asset))

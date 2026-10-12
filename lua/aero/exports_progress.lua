@@ -9,6 +9,7 @@ function M.start(name, opts)
 	vim.bo[buf].bufhidden = "wipe"
 	local started = vim.uv.now()
 	local stage, bytes = opts.stage or "Starting agent", 0
+	local detail
 	local width = math.max(1, math.min(64, vim.o.columns - 4))
 	local win = api.nvim_open_win(buf, false, {
 		relative = "editor",
@@ -28,7 +29,7 @@ function M.start(name, opts)
 		if closed or not api.nvim_buf_is_valid(buf) then
 			return
 		end
-		local text = spinner.frame() .. " " .. stage .. " · " .. spinner.elapsed(started)
+		local text = spinner.frame() .. " " .. stage .. " · " .. (detail or spinner.elapsed(started))
 		if bytes > 0 then
 			text = text .. (" · %.1f KiB received"):format(bytes / 1024)
 		end
@@ -40,8 +41,9 @@ function M.start(name, opts)
 	render()
 	timer:start(150, 150, vim.schedule_wrap(render))
 	return {
-		update = function(value, count)
+		update = function(value, count, status)
 			stage, bytes = value, count or bytes
+			detail = status
 			render()
 		end,
 		close = function()

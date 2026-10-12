@@ -56,18 +56,7 @@ end
 
 -- SystemObj:wait() only processes fast events, leaving scheduled UI timers blocked.
 -- Use vim.wait() so the progress window keeps refreshing during subprocesses.
-local function system_wait(cmd, timeout)
-	local result
-	local process = vim.system(cmd, { text = true }, function(value)
-		result = value
-	end)
-	if vim.wait(timeout, function()
-		return result ~= nil
-	end, 50) then
-		return result
-	end
-	return process:wait(0)
-end
+local system_wait = require("aero.install_progress").wait
 
 local function version_matches(path, version)
 	local result = system_wait({ path, "--version" }, 5000)
@@ -90,16 +79,9 @@ function M.resolve()
 	return ok and release.path or nil, err
 end
 
-local function download(url, path)
-	local result = system_wait({
-		"curl", "--fail", "--location", "--silent", "--show-error",
-		"--proto", "=https", "--proto-redir", "=https", "--max-time", "120",
-		"--output", path, url,
-	}, 125000)
-	if result.code ~= 0 then
-		return nil, "companion release download failed: " .. vim.trim(result.stderr or "")
-	end
-	return true
+local function download(url, path, progress, stage)
+	local ok, err = require("aero.install_progress").download(url, path, progress, stage)
+	return ok, err and "companion release download failed: " .. err
 end
 
 function M.install()
@@ -114,8 +96,7 @@ function M.install()
 	if vim.fn.executable("curl") ~= 1 then
 		return fail("companion installation requires curl")
 	end
-	local hasher = vim.fn.executable("sha256sum") == 1 and "sha256sum"
-		or vim.fn.executable("shasum") == 1 and "shasum"
+	local hasher = vim.fn.executable("sha256sum") == 1 and "sha256sum" or vim.fn.executable("shasum") == 1 and "shasum"
 	if not hasher then
 		return fail("companion installation requires sha256sum or shasum")
 	end
@@ -129,7 +110,8 @@ function M.install()
 	})
 	local ok, installed, install_err = pcall(function()
 		vim.fn.mkdir(vim.fs.dirname(release.path), "p")
-		local success, reason = download(release.base .. "SHA256SUMS", checksums)
+		local success, reason =
+			download(release.base .. "SHA256SUMS", checksums, progress, "Downloading release checksums")
 		if not success then
 			return nil, reason
 		end
@@ -148,7 +130,7 @@ function M.install()
 			return nil, "companion binary missing from release SHA256SUMS: " .. release.name
 		end
 		progress.update("Downloading companion binary")
-		success, reason = download(release.base .. release.name, temp)
+		success, reason = download(release.base .. release.name, temp, progress, "Downloading companion binary")
 		if not success then
 			return nil, reason
 		end
