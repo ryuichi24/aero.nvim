@@ -70,7 +70,18 @@ require("aero").setup({
     max_tool_lines = 20, -- truncate tool output in transcripts
     prompt_height = 25,
     decorations = true, -- native transcript cards, colors, and visual borders
+    image_previews = false, -- embedded image links for image.nvim
     show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
+  },
+  mermaid = {
+    enabled = false, -- inline diagrams in Markdown files and ACP transcripts via image.nvim
+    cmd = { "mmdc" }, -- Mermaid CLI executable and optional extra arguments
+    theme = "auto", -- follow Neovim's 'background'
+    background = "transparent",
+    scale = 2,
+    max_width = 80, -- terminal columns
+    max_height = 24, -- terminal rows
+    preview_key = "gM", -- expand the diagram under the cursor; false disables the shortcut
   },
   companion = {
     auto_start = false, -- launch the companion and show pairing after setup

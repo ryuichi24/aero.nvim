@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SourceCode } from './source-code';
+import { QuoteSelection, type Quote } from './quote';
 import type { FoldRange } from './source-folds';
 import { post } from './api';
 import { Markdown } from './markdown';
@@ -103,11 +104,13 @@ export function SourceBrowser({
   selectedWorktree,
   mode = 'source',
   contextControlled = false,
+  onQuote,
 }: {
   snapshot: Snapshot | null;
   selectedWorktree?: string;
   mode?: 'source' | 'reports';
   contextControlled?: boolean;
+  onQuote?: (quote: Quote, worktree: string) => void;
 }) {
   const [chosen, setChosen] = useState<string>();
   const [worktreeSearch, setWorktreeSearch] = useState('');
@@ -178,6 +181,10 @@ export function SourceBrowser({
     md: 'markdown',
   };
   const language = languages[extension] || extension;
+  function quoteToPrompt(quote: Quote) {
+    setFullscreen(false);
+    if (worktree) onQuote?.(quote, worktree);
+  }
 
   const reader = content !== undefined && (
     <>
@@ -206,32 +213,41 @@ export function SourceBrowser({
         </button>
         {fullscreen && <FullscreenAttention />}
       </div>
-      {markdown && preview ? (
-        <div className="source-preview" aria-label={`${path} preview`}>
-          <Markdown text={content} />
-        </div>
-      ) : (
-        <>
-          {folds?.key === foldKey && folds.error && (
-            <p role="status">Folding unavailable for this file.</p>
-          )}
-          <SourceCode
-            content={content}
-            path={path}
-            language={language}
-            ranges={ranges}
-            collapsed={collapsed}
-            onToggle={(line) =>
-              setCollapsed((current) => {
-                const next = new Set(current);
-                if (next.has(line)) next.delete(line);
-                else next.add(line);
-                return next;
-              })
-            }
-          />
-        </>
-      )}
+      <QuoteSelection
+        key={`${worktree}:${path}:${preview}`}
+        source={path}
+        language={language}
+        onQuote={onQuote ? quoteToPrompt : undefined}
+      >
+        {markdown && preview ? (
+          <div className="source-preview" aria-label={`${path} preview`}>
+            <Markdown text={content} />
+          </div>
+        ) : (
+          <>
+            {folds?.key === foldKey && folds.error && (
+              <p role="status">Folding unavailable for this file.</p>
+            )}
+            <SourceCode
+              key={`${worktree}:${path}:${content}`}
+              onQuote={onQuote ? quoteToPrompt : undefined}
+              content={content}
+              path={path}
+              language={language}
+              ranges={ranges}
+              collapsed={collapsed}
+              onToggle={(line) =>
+                setCollapsed((current) => {
+                  const next = new Set(current);
+                  if (next.has(line)) next.delete(line);
+                  else next.add(line);
+                  return next;
+                })
+              }
+            />
+          </>
+        )}
+      </QuoteSelection>
     </>
   );
 

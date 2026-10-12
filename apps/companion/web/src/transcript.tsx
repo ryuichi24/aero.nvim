@@ -1,6 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Markdown } from './markdown';
+import { QuoteSelection } from './quote';
 import { attachedReports, ReportPreview } from './report-preview';
 import { FullscreenAttention } from './fullscreen-attention';
 import type { Session, TranscriptBlock } from './types';
@@ -188,6 +189,7 @@ export const Transcript = memo(
     feedback,
     reportsDirectory,
     online = false,
+    onQuote,
   }: {
     session?: Session;
     active?: boolean;
@@ -195,6 +197,7 @@ export const Transcript = memo(
     feedback?: ReactNode;
     reportsDirectory?: string;
     online?: boolean;
+    onQuote?: (quote: import('./quote').Quote) => void;
   }) {
     const [fullscreen, setFullscreen] = useState(false);
     const [inputVisible, setInputVisible] = useState(true);
@@ -346,51 +349,63 @@ export const Transcript = memo(
                   ) && <p>No matching prompts.</p>}
               </nav>
             )}
-            <div
-              id="transcript"
-              role="region"
-              aria-label="Conversation transcript"
-              tabIndex={0}
-              ref={element}
-              onScroll={() => {
-                const node = element.current;
-                if (node)
-                  follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
-              }}
+            <QuoteSelection
+              source={`agent log: ${session?.name || 'Agent'}`}
+              onQuote={
+                onQuote
+                  ? (quote) => {
+                      setInputVisible(true);
+                      onQuote(quote);
+                    }
+                  : undefined
+              }
             >
-              {!session?.blocks?.length && (
-                <p className="navigation-empty">
-                  No logs yet. Send a prompt to start the conversation.
-                </p>
-              )}
-              {session?.blocks?.map((block, index) => (
-                <div
-                  key={`${block.kind}:${block.id || index}`}
-                  tabIndex={block.kind === 'user' ? -1 : undefined}
-                  ref={(node) => {
-                    if (node && block.kind === 'user') promptTargets.current.set(index, node);
-                    else promptTargets.current.delete(index);
-                  }}
-                >
-                  <BlockContent
-                    block={block}
-                    worktree={session?.worktree}
-                    reportsDirectory={reportsDirectory}
-                    online={online && active}
-                  />
-                </div>
-              ))}
-              {!!session?.queue?.length && (
-                <aside className="transcript-card queued-card" aria-label="Queued prompts">
-                  <div className="message-label">Queued prompts</div>
-                  {session.queue.map((text, index) => (
-                    <div className="queued-prompt" key={index}>
-                      <Markdown text={text} />
-                    </div>
-                  ))}
-                </aside>
-              )}
-            </div>
+              <div
+                id="transcript"
+                role="region"
+                aria-label="Conversation transcript"
+                tabIndex={0}
+                ref={element}
+                onScroll={() => {
+                  const node = element.current;
+                  if (node)
+                    follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
+                }}
+              >
+                {!session?.blocks?.length && (
+                  <p className="navigation-empty">
+                    No logs yet. Send a prompt to start the conversation.
+                  </p>
+                )}
+                {session?.blocks?.map((block, index) => (
+                  <div
+                    key={`${block.kind}:${block.id || index}`}
+                    tabIndex={block.kind === 'user' ? -1 : undefined}
+                    ref={(node) => {
+                      if (node && block.kind === 'user') promptTargets.current.set(index, node);
+                      else promptTargets.current.delete(index);
+                    }}
+                  >
+                    <BlockContent
+                      block={block}
+                      worktree={session?.worktree}
+                      reportsDirectory={reportsDirectory}
+                      online={online && active}
+                    />
+                  </div>
+                ))}
+                {!!session?.queue?.length && (
+                  <aside className="transcript-card queued-card" aria-label="Queued prompts">
+                    <div className="message-label">Queued prompts</div>
+                    {session.queue.map((text, index) => (
+                      <div className="queued-prompt" key={index}>
+                        <Markdown text={text} />
+                      </div>
+                    ))}
+                  </aside>
+                )}
+              </div>
+            </QuoteSelection>
             {composer && (
               <div id="log-composer" className="log-composer" hidden={!inputVisible}>
                 {composer}

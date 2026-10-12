@@ -173,6 +173,9 @@ the cache. Image previews are opt-in; unsupported or invalid payloads and export
 transcripts retain the `[image]` label. The agent's ACP adapter must forward image
 content: a screenshot filename alone does not provide an embedded image.
 
+For Mermaid diagrams in transcripts and Markdown files, see
+[Markdown diagram previews](markdown.md).
+
 ## Permissions and file access
 
 Requests display numbered choices. The transcript cursor moves to the options, but

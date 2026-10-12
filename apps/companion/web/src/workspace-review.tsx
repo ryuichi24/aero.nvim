@@ -2,16 +2,19 @@ import { useEffect, useState } from 'react';
 import type { Snapshot } from './types';
 import { SourceBrowser } from './source-browser';
 import { GitBrowser } from './git-browser';
+import type { Quote } from './quote';
 
 // Keep visited readers mounted so each context retains its tree, file, and scroll position.
 export function WorkspaceReview({
   snapshot,
   worktree,
   view,
+  onQuote,
 }: {
   snapshot: Snapshot | null;
   worktree: string;
   view: string;
+  onQuote?: (quote: Quote, worktree: string) => void;
 }) {
   const [visited, setVisited] = useState<Record<string, string[]>>({});
   useEffect(() => {
@@ -43,6 +46,7 @@ export function WorkspaceReview({
                   />
                 ) : (
                   <SourceBrowser
+                    onQuote={onQuote}
                     snapshot={{
                       ...context,
                       connected: context.connected && path === worktree && view === tool,

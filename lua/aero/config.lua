@@ -35,6 +35,16 @@ M.defaults = {
 		todo_notification_timeout = 15000, -- milliseconds after the last change; 0 keeps popups open
 		-- resize_keys may override the shared shortcuts for prompt buffers
 	},
+	mermaid = {
+		enabled = false, -- inline diagrams in Markdown files and ACP transcripts via image.nvim
+		cmd = { "mmdc" }, -- Mermaid CLI executable and optional extra arguments
+		theme = "auto", -- follow 'background'; or default, dark, forest, neutral
+		background = "transparent",
+		scale = 2,
+		max_width = 80, -- terminal columns
+		max_height = 24, -- terminal rows
+		preview_key = "gM", -- expand the diagram under the cursor; false disables the shortcut
+	},
 	companion = {
 		auto_start = false, -- launch the companion and show pairing after setup
 		ui = {

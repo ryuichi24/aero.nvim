@@ -12,6 +12,7 @@ function M.setup(opts)
 	require("aero.dashboard").set_keymaps()
 	require("aero.layout").setup()
 	require("aero.quote").setup()
+	require("aero.mermaid").setup()
 	if package.loaded["aero.tasks.view"] then
 		package.loaded["aero.tasks.view"].setup()
 	end

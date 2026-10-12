@@ -50,6 +50,7 @@ export type CompanionAction =
   | { type: 'device-name'; value: string }
   | { type: 'paired' }
   | { type: 'draft'; value: string }
+  | { type: 'append-quote'; selection: Selection; value: string }
   | { type: 'notice'; message: string }
   | { type: 'action-started'; action: PendingAction }
   | { type: 'action-uncertain'; message: string }
@@ -78,6 +79,14 @@ export function companionReducer(state: CompanionState, action: CompanionAction)
       return { ...state, pairCode: '', notice: 'Paired' };
     case 'draft':
       return { ...state, drafts: { ...state.drafts, [draftKey(state.selected)]: action.value } };
+    case 'append-quote': {
+      const key = draftKey(action.selection);
+      const draft = state.drafts[key] || '';
+      return {
+        ...state,
+        drafts: { ...state.drafts, [key]: draft + (draft ? '\n\n' : '') + action.value },
+      };
+    }
     case 'notice':
       return { ...state, notice: action.message };
     case 'action-started':

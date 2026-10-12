@@ -136,6 +136,8 @@ controls, and `:Aero usage` for reported tokens, context usage, and fees.
 
 [Agent setup and ACP controls](docs/agents.md)
 
+[Mermaid previews in session logs and Markdown files](docs/markdown.md)
+
 ### Quote code and agent logs
 
 Visually select code or agent output and press `<leader>aq`. Aero adds the text,

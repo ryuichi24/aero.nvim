@@ -26,6 +26,7 @@ import type { View } from './companion-state';
 import { readStored, store } from './browser-storage';
 import { AgentTodos, latestTodos } from './agent-todos';
 import { WorkspaceReview } from './workspace-review';
+import { formatQuote, type Quote } from './quote';
 import { LifecycleForm } from './lifecycle-controls';
 import { AssignmentStatus, BoardAssignment } from './task-assignment';
 import { groupSessions, sessionLocation } from './sessionGroups';
@@ -90,6 +91,12 @@ function Companion() {
   const pendingRef = useRef(pending);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const prompt = state.drafts[draftKey(selected)] || '';
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const [quoteRequest, setQuoteRequest] = useState<{ quote: Quote; worktree: string }>();
+  const [focusQuote, setFocusQuote] = useState(0);
+  useEffect(() => {
+    if (focusQuote) promptRef.current?.focus();
+  }, [focusQuote]);
   const submittingRef = useRef(false);
   const streamRef = useRef<EventSource | null>(null);
   const resumedRef = useRef<string | null>(null);
@@ -417,6 +424,22 @@ function Companion() {
       '',
       `#${encodeURIComponent(JSON.stringify({ view: 'conversation', selection, worktree: reviewWorktree }))}`,
     );
+  }
+
+  function appendQuote(quote: Quote, target: Selection, navigateToSession = true) {
+    dispatch({ type: 'append-quote', selection: target, value: formatQuote(quote) });
+    if (navigateToSession) openSession(target);
+    setQuoteRequest(undefined);
+    setFocusQuote((value) => value + 1);
+  }
+
+  function quoteFromSource(quote: Quote, worktree: string) {
+    const candidates = snapshot?.sessions.filter((item) => item.worktree === worktree) || [];
+    if (candidates.length === 1) {
+      appendQuote(quote, { id: candidates[0].id, conversation: candidates[0].conversation });
+    } else {
+      setQuoteRequest({ quote, worktree });
+    }
   }
 
   async function submitPending(action: PendingAction) {
@@ -1092,7 +1115,32 @@ function Companion() {
             snapshot={snapshot ? { ...snapshot, connected: online } : null}
             worktree={reviewTree?.path || ''}
             view={view}
+            onQuote={quoteFromSource}
           />
+        )}
+        {quoteRequest && (
+          <section className="quote-destination" aria-label="Quote destination">
+            <h2>Quote to agent session</h2>
+            {(snapshot?.sessions || [])
+              .filter((item) => item.worktree === quoteRequest.worktree)
+              .map((item) => (
+                <button
+                  key={`${item.id}:${item.conversation}`}
+                  onClick={() =>
+                    appendQuote(quoteRequest.quote, {
+                      id: item.id,
+                      conversation: item.conversation,
+                    })
+                  }
+                >
+                  {item.name} · {item.agent}
+                </button>
+              ))}
+            {!snapshot?.sessions.some((item) => item.worktree === quoteRequest.worktree) && (
+              <p>Start an agent session in this worktree before quoting text.</p>
+            )}
+            <button onClick={() => setQuoteRequest(undefined)}>Cancel quote</button>
+          </section>
         )}
         {selected && (
           <section id="conversation" hidden={view !== 'conversation'}>
@@ -1234,6 +1282,7 @@ function Companion() {
                 </button>
               )}
               <Transcript
+                onQuote={(quote) => appendQuote(quote, selected, false)}
                 key={`${selected.id}:${selected.conversation}`}
                 session={session}
                 reportsDirectory={
@@ -1254,6 +1303,7 @@ function Companion() {
                     <label>
                       <span className="sr-only">Follow-up prompt</span>
                       <textarea
+                        ref={promptRef}
                         rows={2}
                         placeholder="What should the agent do next? Type / for commands."
                         required

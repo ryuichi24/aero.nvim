@@ -74,6 +74,28 @@ afterEach(() => {
 });
 
 describe('mobile companion', () => {
+  it('quotes transcript text into an existing draft, reveals and focuses input without submitting', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect();
+    await open();
+    draft('Please explain');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide input' }));
+    const text = screen.getByText('Existing transcript');
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    fireEvent(document, new Event('selectionchange'));
+    fireEvent.click(screen.getByRole('button', { name: 'Quote to prompt' }));
+    const input = screen.getByRole('textbox', { name: 'Follow-up prompt' }) as HTMLTextAreaElement;
+    expect(input.value).toBe(
+      'Please explain\n\nQuoted from agent log: Test agent:\n\n```text\nExisting transcript\n```',
+    );
+    expect(document.activeElement).toBe(input);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('dismisses Attention and Device on outside clicks while keeping inside clicks and trigger toggles working', async () => {
     render(<App />);
     connect();

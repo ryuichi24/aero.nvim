@@ -553,7 +553,7 @@ textarea {
   }
 }
 .source-code {
-  @apply flex overflow-auto rounded-xl border border-slate-700 bg-slate-950 text-sm;
+  @apply flex flex-col overflow-auto rounded-xl border border-slate-700 bg-slate-950 text-sm;
   /* Keep the reading pane stable when folds remove rows. */
   height: 70vh;
   max-height: 70vh;
@@ -810,6 +810,35 @@ body:has(.transcript-inline[data-keyboard='open']) {
 }
 .transcript-content {
   @apply flex h-full min-h-0 min-w-0 flex-col;
+}
+.transcript-content > .quote-selection {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col;
+}
+.source-fullscreen > .quote-selection {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col;
+}
+.source-code > .quote-toolbar {
+  @apply sticky top-0 left-0 z-10;
+}
+.quote-toolbar {
+  @apply flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-700 bg-raised p-2 text-xs;
+  white-space: normal;
+}
+.quote-toolbar button {
+  @apply m-0 min-h-11;
+}
+.source-code-row[data-quote-selected] {
+  @apply bg-sky-900/40;
+}
+.source-gutter .source-line-select {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  width: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.quote-destination {
+  @apply fixed inset-x-3 bottom-3 z-50 max-h-[60dvh] overflow-auto rounded-xl border border-slate-700 bg-raised p-4 shadow-xl;
 }
 @media (max-height: 700px) and (max-width: 639px) {
   #conversation > .session-breadcrumb,
