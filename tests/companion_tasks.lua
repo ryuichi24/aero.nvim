@@ -59,7 +59,14 @@ local transport = s.task_transport
 assert(companion.dispatch("session_assign_board", params).status == "accepted" and s.task_transport == transport)
 assert(s.chat.session_id == id and vim.deep_equal(s.chat.blocks, blocks))
 assert(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "Preserve my editor draft")
+local original_list, list_calls = tasks.list, 0
+tasks.list = function(...)
+	list_calls = list_calls + 1
+	return original_list(...)
+end
 local assignment = companion.dispatch("snapshot").sessions[1].assignment
+tasks.list = original_list
+assert(list_calls == 1, "snapshot reread task boards to describe session assignments")
 assert(assignment.board_id == board.metadata.id and assignment.board_title == "Brainstorm" and not assignment.ticket_id)
 assert(store.find_session(root, s.name).task_assignment.board_id == board.metadata.id)
 assert(require("aero.tasks.status").label(s):find("none (board-only)", 1, true))

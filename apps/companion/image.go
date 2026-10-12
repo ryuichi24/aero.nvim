@@ -50,7 +50,7 @@ func (b *bridge) image(w http.ResponseWriter, r *http.Request) {
 }
 
 func (b *bridge) mediaLocation(w http.ResponseWriter, r *http.Request) (string, string, bool) {
-	snapshot := b.state.refresh(r.Context())
+	snapshot := b.state.cachedSnapshot(r.Context(), b.pollInterval)
 	if string(snapshot["connected"]) != "true" {
 		reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
 		return "", "", false

@@ -91,6 +91,9 @@ it('shows preservation errors and previews video links and resource attachments 
   fireEvent.error(document.querySelector('video')!);
   expect(screen.getByRole('alert').textContent).toContain('Unable to load this recording');
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  const tool = document.querySelector<HTMLDetailsElement>('details.tool-card')!;
+  tool.open = true;
+  fireEvent(tool, new Event('toggle'));
   fireEvent.click(screen.getByRole('link', { name: 'Tool recording', hidden: true }));
   expect(screen.getByRole('dialog', { name: 'Recording preview' })).toBeTruthy();
 });

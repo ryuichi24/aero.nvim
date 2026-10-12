@@ -164,7 +164,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "/api/video":
 			b.video(w, r)
 		case "/api/snapshot":
-			reply(w, http.StatusOK, b.state.refresh(r.Context()))
+			reply(w, http.StatusOK, b.state.cachedSnapshot(r.Context(), b.pollInterval))
 		case "/api/events":
 			b.events(w, r, token)
 		default:
@@ -238,6 +238,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response, err := b.state.host.Call(r.Context(), method, action)
+	defer b.state.invalidateSnapshot()
 	// ACP assignment finishes asynchronously; observe the same idempotent receipt.
 	if method == "session_assign_board" && err == nil {
 		deadline := time.Now().Add(5 * time.Second)
@@ -350,7 +351,7 @@ func (b *bridge) events(w http.ResponseWriter, r *http.Request, token string) {
 		if _, ok := b.state.authenticate(token); !ok {
 			return
 		}
-		snapshot := b.state.refresh(r.Context())
+		snapshot := b.state.cachedSnapshot(r.Context(), b.pollInterval)
 		// Revocation during a slow host read must also stop this stream.
 		if _, ok := b.state.authenticate(token); !ok || r.Context().Err() != nil {
 			return

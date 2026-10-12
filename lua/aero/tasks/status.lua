@@ -1,7 +1,7 @@
 -- Public assignment descriptions shared by editor and companion surfaces.
 local M = {}
 
-function M.describe(session)
+function M.describe(session, workspace_boards)
 	local saved = require("aero.store").find_session(session.worktree, session.name)
 	local binding = session.task_binding
 	local assignment = binding
@@ -17,7 +17,11 @@ function M.describe(session)
 	local result = vim.deepcopy(assignment)
 	result.pending = session.task_assignment_pending or session.chat and session.chat.task_pending or false
 	local tasks = require("aero.tasks")
-	local board, err = tasks.resolve_board({ root = assignment.workspace_root }, assignment.board_id)
+	local board, err = tasks.resolve_board(
+		{ root = assignment.workspace_root },
+		assignment.board_id,
+		workspace_boards and workspace_boards[assignment.workspace_root]
+	)
 	if not board then
 		result.error = type(err) == "table" and err.message or tostring(err)
 		return result

@@ -27,7 +27,7 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &input) {
 		return
 	}
-	snapshot := b.state.refresh(r.Context())
+	snapshot := b.state.cachedSnapshot(r.Context(), b.pollInterval)
 	if string(snapshot["connected"]) != "true" {
 		reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
 		return

@@ -281,6 +281,9 @@ it('opens local screenshot links and image attachments through the paired compan
       }}
     />,
   );
+  const tool = document.querySelector<HTMLDetailsElement>('details.tool-card')!;
+  tool.open = true;
+  fireEvent(tool, new Event('toggle'));
   for (const [label, path] of [
     ['Screenshot', '.playwright-mcp/mobile.png'],
     ['[Image: Preview]', '/api/image?session=one&path=file%3A%2F%2F%2Fworkspace%2Fpreview.png'],
@@ -337,6 +340,9 @@ it('renders markdown, highlighted code, tables, plans, tools, permissions, and q
   expect(document.querySelector('code.hljs')).toBeTruthy();
   expect(screen.getByRole('article', { name: 'Agent plan' })).toBeTruthy();
   expect(screen.getByText('Read file')).toBeTruthy();
+  const tool = screen.getByText('Read file').closest('details')!;
+  tool.open = true;
+  fireEvent(tool, new Event('toggle'));
   expect(screen.getByRole('group', { name: 'Input', hidden: true })).toBeTruthy();
   expect(screen.getByText('Awaiting your permission choice')).toBeTruthy();
   expect(screen.getByRole('article', { name: 'Error message' })).toBeTruthy();
@@ -381,4 +387,55 @@ it('follows new output only when the reader remains near the bottom', () => {
   fireEvent.scroll(region);
   view.rerender(<Transcript session={{ ...session, queue: ['Next'] }} />);
   expect(region.scrollTop).toBe(1000);
+});
+
+it('defers collapsed tool and thought content until opened', () => {
+  render(
+    <Transcript
+      session={{
+        ...session,
+        blocks: [
+          {
+            kind: 'tool',
+            title: 'Large result',
+            status: 'completed',
+            rawOutput: 'Expensive output',
+          },
+          { kind: 'thought', text: 'Hidden reasoning' },
+        ],
+      }}
+    />,
+  );
+  expect(screen.queryByText('Expensive output')).toBeNull();
+  expect(screen.queryByText('Hidden reasoning')).toBeNull();
+  const tool = screen.getByText('Large result').closest('details')!;
+  tool.open = true;
+  fireEvent(tool, new Event('toggle'));
+  expect(screen.getByText('Expensive output')).toBeTruthy();
+  tool.open = false;
+  fireEvent(tool, new Event('toggle'));
+  expect(screen.queryByText('Expensive output')).toBeNull();
+});
+
+it('pauses hidden transcript updates and catches up without losing reader state', () => {
+  const original = { ...session, blocks: [{ kind: 'agent', text: 'Original output' }] };
+  const view = render(<Transcript session={original} active />);
+  const region = screen.getByRole('region', { name: 'Conversation transcript' });
+  Object.defineProperties(region, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 200 },
+  });
+  region.scrollTop = 100;
+  fireEvent.scroll(region);
+  view.rerender(<Transcript session={original} active={false} />);
+  const updated = {
+    ...original,
+    blocks: [...original.blocks, { kind: 'agent', text: 'Background output' }],
+  };
+  view.rerender(<Transcript session={updated} active={false} />);
+  expect(screen.queryByText('Background output')).toBeNull();
+  view.rerender(<Transcript session={updated} active />);
+  expect(screen.getByText('Background output')).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Conversation transcript' })).toBe(region);
+  expect(region.scrollTop).toBe(100);
 });

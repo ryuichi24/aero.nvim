@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Markdown } from './markdown';
 import { attachedReports, ReportPreview } from './report-preview';
@@ -6,6 +6,7 @@ import { FullscreenAttention } from './fullscreen-attention';
 import type { Session, TranscriptBlock } from './types';
 import { ImageLink, ImageSession, useImageLink, useVideoLink } from './image-link';
 import { blockTodos, TodoList } from './agent-todos';
+import { useComposerViewport } from './composer-viewport';
 
 function readableStatus(status: string): string {
   return status.replaceAll('_', ' ');
@@ -77,12 +78,18 @@ function ToolContent({ block }: { block: TranscriptBlock }) {
     </div>
   );
 }
-function Block({ block }: { block: TranscriptBlock }) {
+const Block = memo(function Block({ block }: { block: TranscriptBlock }) {
+  const running = block.status === 'pending' || block.status === 'in_progress';
+  const [expanded, setExpanded] = useState(running);
+  useEffect(() => setExpanded(running), [running]);
   if (block.kind === 'tool')
     return (
       <details
         className="transcript-card tool-card"
-        open={block.status === 'pending' || block.status === 'in_progress'}
+        open={expanded}
+        onToggle={(event) => {
+          if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
+        }}
       >
         <summary>
           <span className="message-label">Tool</span>
@@ -94,16 +101,22 @@ function Block({ block }: { block: TranscriptBlock }) {
           )}
           <Timestamp block={block} />
         </summary>
-        <ToolContent block={block} />
+        {expanded && <ToolContent block={block} />}
       </details>
     );
   if (block.kind === 'thought')
     return (
-      <details className="transcript-card thought-card">
+      <details
+        className="transcript-card thought-card"
+        open={expanded}
+        onToggle={(event) => {
+          if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
+        }}
+      >
         <summary>
           Thinking <Timestamp block={block} />
         </summary>
-        <Markdown text={block.text || ''} />
+        {expanded && <Markdown text={block.text || ''} />}
       </details>
     );
   if (block.kind === 'plan')
@@ -142,276 +155,259 @@ function Block({ block }: { block: TranscriptBlock }) {
       {block.kind !== 'permission' && <ToolContent block={{ ...block, text: undefined }} />}
     </article>
   );
-}
-export function Transcript({
-  session,
-  active = true,
-  composer,
-  feedback,
+});
+
+const BlockContent = memo(function BlockContent({
+  block,
+  worktree,
   reportsDirectory,
-  online = false,
+  online,
 }: {
-  session?: Session;
-  active?: boolean;
-  composer?: ReactNode;
-  feedback?: ReactNode;
+  block: TranscriptBlock;
+  worktree?: string;
   reportsDirectory?: string;
-  online?: boolean;
+  online: boolean;
 }) {
-  const [fullscreen, setFullscreen] = useState(false);
-  const [inputVisible, setInputVisible] = useState(true);
-  const [promptsVisible, setPromptsVisible] = useState(false);
-  const [promptSearch, setPromptSearch] = useState('');
-  const promptTargets = useRef(new Map<number, HTMLDivElement>());
-  const prompts = (session?.blocks || []).flatMap((block, index) =>
-    block.kind === 'user' ? [{ text: block.text || '', index }] : [],
-  );
-  const [container] = useState(() => {
-    const node = document.createElement('div');
-    node.className = 'transcript-content';
-    return node;
-  });
-  const inline = useRef<HTMLDivElement>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-  const element = useRef<HTMLDivElement>(null);
-  const follow = useRef(true);
-  const wasFullscreen = useRef(false);
-  useLayoutEffect(() => {
-    if (!active || !inline.current) return;
-    const host = inline.current;
-    const viewport = window.visualViewport;
-    function resize() {
-      document.documentElement.dataset.composerKeyboard =
-        viewport && viewport.height < window.innerHeight * 0.8 ? 'open' : 'closed';
-      const bottom = (viewport?.height || window.innerHeight) + (viewport?.offsetTop || 0);
-      const navigation = document.querySelector<HTMLElement>('.primary-nav');
-      const navRect = navigation?.getBoundingClientRect();
-      const navTop = navRect?.height ? navRect.top : undefined;
-      const mobile = window.innerWidth < 1100;
-      const availableBottom = mobile && navTop !== undefined ? Math.min(bottom, navTop) : bottom;
-      const top = Math.max(host.getBoundingClientRect().top, viewport?.offsetTop || 0);
-      if (!fullscreen)
-        host.style.setProperty(
-          '--transcript-height',
-          `${Math.max(180, availableBottom - top - 12)}px`,
-        );
-      if (fullscreen && dialog.current) {
-        dialog.current.style.height = `${viewport?.height || window.innerHeight}px`;
-        dialog.current.style.top = `${viewport?.offsetTop || 0}px`;
-        dialog.current.style.bottom = 'auto';
-      }
-      document.documentElement.style.setProperty(
-        '--companion-composer-height',
-        `${container.querySelector<HTMLElement>('.log-composer')?.getBoundingClientRect().height || 0}px`,
-      );
-    }
-    resize();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
-    observer?.observe(document.querySelector('main') || host);
-    const composerElement = container.querySelector('.log-composer');
-    if (composerElement) observer?.observe(composerElement);
-    window.addEventListener('resize', resize);
-    window.addEventListener('scroll', resize, { passive: true });
-    viewport?.addEventListener('resize', resize);
-    viewport?.addEventListener('scroll', resize);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('scroll', resize);
-      viewport?.removeEventListener('resize', resize);
-      viewport?.removeEventListener('scroll', resize);
-      document.documentElement.style.removeProperty('--companion-composer-height');
-      delete document.documentElement.dataset.composerKeyboard;
-      dialog.current?.style.removeProperty('height');
-      dialog.current?.style.removeProperty('top');
-      dialog.current?.style.removeProperty('bottom');
-    };
-  }, [active, fullscreen]);
-  useLayoutEffect(() => {
-    setPromptsVisible(false);
-    setPromptSearch('');
-    follow.current = true;
-  }, [session?.id, session?.conversation]);
-  useLayoutEffect(() => {
-    const scrollTop = element.current?.scrollTop || 0;
-    const host = fullscreen ? dialog.current! : inline.current!;
-    host.appendChild(container);
-    if (element.current) element.current.scrollTop = scrollTop;
-    if (!fullscreen) {
-      if (wasFullscreen.current) {
-        setInputVisible(true);
-        button.current?.focus();
-      }
-      wasFullscreen.current = false;
-      return;
-    }
-    wasFullscreen.current = true;
-    const modal = dialog.current!;
-    const overflow = document.body.style.overflow;
-    modal.showModal();
-    document.body.style.overflow = 'hidden';
-    follow.current = true;
-    if (element.current) element.current.scrollTop = element.current.scrollHeight;
-    return () => {
-      modal.close();
-      document.body.style.overflow = overflow;
-    };
-  }, [container, fullscreen]);
-  useLayoutEffect(() => {
-    if (!active) setFullscreen(false);
-  }, [active]);
-  useLayoutEffect(() => {
-    if (active && element.current && follow.current)
-      element.current.scrollTop = element.current.scrollHeight;
-  }, [active, session?.blocks, session?.queue]);
   return (
-    <ImageSession.Provider value={session?.id || ''}>
-      <div ref={inline} className="transcript-inline" />
-      <dialog
-        ref={dialog}
-        className="transcript-fullscreen"
-        aria-label="Fullscreen agent logs"
-        onCancel={() => setFullscreen(false)}
-        onClose={() => setFullscreen(false)}
-      >
-        <header className="transcript-toolbar">
-          <strong>{session?.name || 'Agent'} · Logs</strong>
-          {fullscreen && <FullscreenAttention />}
-          <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
-        </header>
-      </dialog>
-      {createPortal(
-        <>
-          <div className="transcript-controls">
-            <strong className="sr-only">Agent logs</strong>
-            <button
-              aria-expanded={promptsVisible}
-              aria-controls="transcript-prompts"
-              onClick={() => setPromptsVisible((value) => !value)}
-            >
-              Prompts ({prompts.length})
-            </button>
-            <button
-              hidden={fullscreen}
-              ref={button}
-              aria-label="Fullscreen logs"
-              onClick={() => setFullscreen(true)}
-            >
-              Fullscreen
-            </button>
-            {composer && (
-              <button
-                aria-expanded={inputVisible}
-                aria-controls="log-composer"
-                onClick={() => setInputVisible((value) => !value)}
-              >
-                {inputVisible ? 'Hide input' : 'Show input'}
-              </button>
-            )}
-          </div>
-          {session?.activity && (
-            <div className="transcript-activity" role="status" aria-label="Current agent action">
-              <span className="status-badge status-in_progress">Working</span>
-              <span>{session.activity}</span>
-            </div>
-          )}
-          {promptsVisible && (
-            <nav id="transcript-prompts" className="transcript-prompts" aria-label="Prompt history">
-              <input
-                aria-label="Search prompts"
-                placeholder="Search prompts…"
-                value={promptSearch}
-                onChange={(event) => setPromptSearch(event.target.value)}
-              />
-              <ol>
-                {prompts.map((prompt, number) =>
-                  prompt.text.toLowerCase().includes(promptSearch.toLowerCase()) ? (
-                    <li key={prompt.index}>
-                      <button
-                        onClick={() => {
-                          const target = promptTargets.current.get(prompt.index);
-                          if (!target || !element.current) return;
-                          follow.current = false;
-                          setPromptsVisible(false);
-                          target.focus({ preventScroll: true });
-                          element.current.scrollTop +=
-                            target.getBoundingClientRect().top -
-                            element.current.getBoundingClientRect().top;
-                        }}
-                      >
-                        {number + 1}. {prompt.text.replace(/\s+/g, ' ').trim() || '(Empty prompt)'}
-                      </button>
-                    </li>
-                  ) : null,
-                )}
-              </ol>
-              {!prompts.length && <p>No prompts yet.</p>}
-              {!!prompts.length &&
-                !prompts.some((prompt) =>
-                  prompt.text.toLowerCase().includes(promptSearch.toLowerCase()),
-                ) && <p>No matching prompts.</p>}
-            </nav>
-          )}
-          <div
-            id="transcript"
-            role="region"
-            aria-label="Conversation transcript"
-            tabIndex={0}
-            ref={element}
-            onScroll={() => {
-              const node = element.current;
-              if (node)
-                follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
-            }}
-          >
-            {!session?.blocks?.length && (
-              <p className="navigation-empty">
-                No logs yet. Send a prompt to start the conversation.
-              </p>
-            )}
-            {session?.blocks?.map((block, index) => (
-              <div
-                key={`${block.kind}:${block.id || index}`}
-                tabIndex={block.kind === 'user' ? -1 : undefined}
-                ref={(node) => {
-                  if (node && block.kind === 'user') promptTargets.current.set(index, node);
-                  else promptTargets.current.delete(index);
-                }}
-              >
-                <Block block={block} />
-                {session &&
-                  reportsDirectory &&
-                  attachedReports(block, reportsDirectory).map((name) => (
-                    <ReportPreview
-                      key={name}
-                      worktree={session.worktree}
-                      name={name}
-                      online={online}
-                    />
-                  ))}
-              </div>
-            ))}
-            {!!session?.queue?.length && (
-              <aside className="transcript-card queued-card" aria-label="Queued prompts">
-                <div className="message-label">Queued prompts</div>
-                {session.queue.map((text, index) => (
-                  <div className="queued-prompt" key={index}>
-                    <Markdown text={text} />
-                  </div>
-                ))}
-              </aside>
-            )}
-          </div>
-          {composer && (
-            <div id="log-composer" className="log-composer" hidden={!inputVisible}>
-              {composer}
-              {fullscreen && feedback}
-            </div>
-          )}
-        </>,
-        container,
-      )}
-    </ImageSession.Provider>
+    <>
+      <Block block={block} />
+      {worktree &&
+        reportsDirectory &&
+        attachedReports(block, reportsDirectory).map((name) => (
+          <ReportPreview key={name} worktree={worktree} name={name} online={online} />
+        ))}
+    </>
   );
-}
+});
+
+export const Transcript = memo(
+  function Transcript({
+    session,
+    active = true,
+    composer,
+    feedback,
+    reportsDirectory,
+    online = false,
+  }: {
+    session?: Session;
+    active?: boolean;
+    composer?: ReactNode;
+    feedback?: ReactNode;
+    reportsDirectory?: string;
+    online?: boolean;
+  }) {
+    const [fullscreen, setFullscreen] = useState(false);
+    const [inputVisible, setInputVisible] = useState(true);
+    const [promptsVisible, setPromptsVisible] = useState(false);
+    const [promptSearch, setPromptSearch] = useState('');
+    const promptTargets = useRef(new Map<number, HTMLDivElement>());
+    const prompts = (session?.blocks || []).flatMap((block, index) =>
+      block.kind === 'user' ? [{ text: block.text || '', index }] : [],
+    );
+    const [container] = useState(() => {
+      const node = document.createElement('div');
+      node.className = 'transcript-content';
+      return node;
+    });
+    const inline = useRef<HTMLDivElement>(null);
+    const dialog = useRef<HTMLDialogElement>(null);
+    const button = useRef<HTMLButtonElement>(null);
+    const element = useRef<HTMLDivElement>(null);
+    const follow = useRef(true);
+    const wasFullscreen = useRef(false);
+    useComposerViewport({ active, fullscreen, inline, dialog, container });
+    useLayoutEffect(() => {
+      setPromptsVisible(false);
+      setPromptSearch('');
+      follow.current = true;
+    }, [session?.id, session?.conversation]);
+    useLayoutEffect(() => {
+      const scrollTop = element.current?.scrollTop || 0;
+      const host = fullscreen ? dialog.current! : inline.current!;
+      host.appendChild(container);
+      if (element.current) element.current.scrollTop = scrollTop;
+      if (!fullscreen) {
+        if (wasFullscreen.current) {
+          setInputVisible(true);
+          button.current?.focus();
+        }
+        wasFullscreen.current = false;
+        return;
+      }
+      wasFullscreen.current = true;
+      const modal = dialog.current!;
+      const overflow = document.body.style.overflow;
+      modal.showModal();
+      document.body.style.overflow = 'hidden';
+      follow.current = true;
+      if (element.current) element.current.scrollTop = element.current.scrollHeight;
+      return () => {
+        modal.close();
+        document.body.style.overflow = overflow;
+      };
+    }, [container, fullscreen]);
+    useLayoutEffect(() => {
+      if (!active) setFullscreen(false);
+    }, [active]);
+    useLayoutEffect(() => {
+      if (active && element.current && follow.current)
+        element.current.scrollTop = element.current.scrollHeight;
+    }, [active, session?.blocks, session?.queue]);
+    return (
+      <ImageSession.Provider value={session?.id || ''}>
+        <div ref={inline} className="transcript-inline" />
+        <dialog
+          ref={dialog}
+          className="transcript-fullscreen"
+          aria-label="Fullscreen agent logs"
+          onCancel={() => setFullscreen(false)}
+          onClose={() => setFullscreen(false)}
+        >
+          <header className="transcript-toolbar">
+            <strong>{session?.name || 'Agent'} · Logs</strong>
+            {fullscreen && <FullscreenAttention />}
+            <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
+          </header>
+        </dialog>
+        {createPortal(
+          <>
+            <div className="transcript-controls">
+              <strong className="sr-only">Agent logs</strong>
+              <button
+                aria-expanded={promptsVisible}
+                aria-controls="transcript-prompts"
+                onClick={() => setPromptsVisible((value) => !value)}
+              >
+                Prompts ({prompts.length})
+              </button>
+              <button
+                hidden={fullscreen}
+                ref={button}
+                aria-label="Fullscreen logs"
+                onClick={() => setFullscreen(true)}
+              >
+                Fullscreen
+              </button>
+              {composer && (
+                <button
+                  aria-expanded={inputVisible}
+                  aria-controls="log-composer"
+                  onClick={() => setInputVisible((value) => !value)}
+                >
+                  {inputVisible ? 'Hide input' : 'Show input'}
+                </button>
+              )}
+            </div>
+            {session?.activity && (
+              <div className="transcript-activity" role="status" aria-label="Current agent action">
+                <span className="status-badge status-in_progress">Working</span>
+                <span>{session.activity}</span>
+              </div>
+            )}
+            {promptsVisible && (
+              <nav
+                id="transcript-prompts"
+                className="transcript-prompts"
+                aria-label="Prompt history"
+              >
+                <input
+                  aria-label="Search prompts"
+                  placeholder="Search prompts…"
+                  value={promptSearch}
+                  onChange={(event) => setPromptSearch(event.target.value)}
+                />
+                <ol>
+                  {prompts.map((prompt, number) =>
+                    prompt.text.toLowerCase().includes(promptSearch.toLowerCase()) ? (
+                      <li key={prompt.index}>
+                        <button
+                          onClick={() => {
+                            const target = promptTargets.current.get(prompt.index);
+                            if (!target || !element.current) return;
+                            follow.current = false;
+                            setPromptsVisible(false);
+                            target.focus({ preventScroll: true });
+                            element.current.scrollTop +=
+                              target.getBoundingClientRect().top -
+                              element.current.getBoundingClientRect().top;
+                          }}
+                        >
+                          {number + 1}.{' '}
+                          {prompt.text.replace(/\s+/g, ' ').trim() || '(Empty prompt)'}
+                        </button>
+                      </li>
+                    ) : null,
+                  )}
+                </ol>
+                {!prompts.length && <p>No prompts yet.</p>}
+                {!!prompts.length &&
+                  !prompts.some((prompt) =>
+                    prompt.text.toLowerCase().includes(promptSearch.toLowerCase()),
+                  ) && <p>No matching prompts.</p>}
+              </nav>
+            )}
+            <div
+              id="transcript"
+              role="region"
+              aria-label="Conversation transcript"
+              tabIndex={0}
+              ref={element}
+              onScroll={() => {
+                const node = element.current;
+                if (node)
+                  follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
+              }}
+            >
+              {!session?.blocks?.length && (
+                <p className="navigation-empty">
+                  No logs yet. Send a prompt to start the conversation.
+                </p>
+              )}
+              {session?.blocks?.map((block, index) => (
+                <div
+                  key={`${block.kind}:${block.id || index}`}
+                  tabIndex={block.kind === 'user' ? -1 : undefined}
+                  ref={(node) => {
+                    if (node && block.kind === 'user') promptTargets.current.set(index, node);
+                    else promptTargets.current.delete(index);
+                  }}
+                >
+                  <BlockContent
+                    block={block}
+                    worktree={session?.worktree}
+                    reportsDirectory={reportsDirectory}
+                    online={online && active}
+                  />
+                </div>
+              ))}
+              {!!session?.queue?.length && (
+                <aside className="transcript-card queued-card" aria-label="Queued prompts">
+                  <div className="message-label">Queued prompts</div>
+                  {session.queue.map((text, index) => (
+                    <div className="queued-prompt" key={index}>
+                      <Markdown text={text} />
+                    </div>
+                  ))}
+                </aside>
+              )}
+            </div>
+            {composer && (
+              <div id="log-composer" className="log-composer" hidden={!inputVisible}>
+                {composer}
+                {fullscreen && feedback}
+              </div>
+            )}
+          </>,
+          container,
+        )}
+      </ImageSession.Provider>
+    );
+  },
+  (previous, next) =>
+    previous.active === false &&
+    next.active === false &&
+    previous.session?.id === next.session?.id &&
+    previous.session?.conversation === next.session?.conversation &&
+    previous.online === next.online &&
+    previous.reportsDirectory === next.reportsDirectory,
+);

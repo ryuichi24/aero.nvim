@@ -10,24 +10,39 @@ export class RequestError extends Error {
 }
 
 export async function post<T>(path: string, data: unknown): Promise<T> {
-  const response = await fetch(`/api/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  let body: T & { error?: string };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
-    body = await response.json();
-  } catch {
-    throw new RequestError('Invalid or interrupted server response', true);
+    const response = await fetch(`/api/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
+    let body: T & { error?: string };
+    try {
+      body = await response.json();
+    } catch {
+      throw new RequestError('Invalid or interrupted server response', true);
+    }
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || 'Request rejected',
+        response.status >= 500 || response.status === 401,
+      );
+    }
+    return body;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new RequestError(
+        'Request timed out. Check the host or retry the identical action.',
+        true,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  if (!response.ok) {
-    throw new RequestError(
-      body.error || 'Request rejected',
-      response.status >= 500 || response.status === 401,
-    );
-  }
-  return body;
 }
 
 const pendingKey = 'aero_pending';

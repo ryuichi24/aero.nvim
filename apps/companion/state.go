@@ -38,6 +38,12 @@ type state struct {
 	epoch     string
 	revision  uint64
 	digest    [32]byte
+
+	snapshotMu         sync.Mutex
+	snapshot           map[string]json.RawMessage
+	snapshotAt         time.Time
+	snapshotPending    chan struct{}
+	snapshotGeneration uint64
 }
 
 func randomToken(size int) string {
@@ -171,6 +177,55 @@ func (s *state) listDevices() []device {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result
+}
+
+// cachedSnapshot coalesces reads across streams and reader endpoints. A client
+// disconnect cancels only its wait, not the refresh shared by other clients.
+// Published snapshots are immutable; callers must not modify them.
+func (s *state) cachedSnapshot(ctx context.Context, maxAge time.Duration) map[string]json.RawMessage {
+	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+		s.snapshotMu.Lock()
+		if s.snapshot != nil && time.Since(s.snapshotAt) < maxAge {
+			value := s.snapshot
+			s.snapshotMu.Unlock()
+			return value
+		}
+		if s.snapshotPending == nil {
+			done := make(chan struct{})
+			s.snapshotPending = done
+			generation := s.snapshotGeneration
+			go func() {
+				refreshCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				value := s.refresh(refreshCtx)
+				s.snapshotMu.Lock()
+				if generation == s.snapshotGeneration {
+					s.snapshot = value
+					s.snapshotAt = time.Now()
+				}
+				s.snapshotPending = nil
+				close(done)
+				s.snapshotMu.Unlock()
+			}()
+		}
+		done := s.snapshotPending
+		s.snapshotMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-done:
+		}
+	}
+}
+
+func (s *state) invalidateSnapshot() {
+	s.snapshotMu.Lock()
+	defer s.snapshotMu.Unlock()
+	s.snapshotAt = time.Time{}
+	s.snapshotGeneration++
 }
 
 func (s *state) refresh(ctx context.Context) map[string]json.RawMessage {

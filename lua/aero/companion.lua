@@ -55,7 +55,7 @@ local function identity(object, registry)
 	return registry[object]
 end
 
-local function describe(s)
+local function describe(s, boards)
 	local chat = s.chat
 	local result = {
 		id = s.key,
@@ -64,7 +64,7 @@ local function describe(s)
 		worktree = s.worktree,
 		status = chat and chat.state == "starting" and "starting" or require("aero.session").status(s),
 		target = identity(s, identities),
-		assignment = require("aero.tasks.status").describe(s),
+		assignment = require("aero.tasks.status").describe(s, boards),
 	}
 	if chat then
 		if conversation_ids[chat] ~= (chat.session_id or chat.saved_session_id or false) then
@@ -124,8 +124,10 @@ function M.dispatch(method, params)
 			end
 		end
 		table.sort(result.agents)
+		local boards = {}
 		for _, workspace in ipairs(result.workspaces) do
-			for _, board in ipairs(require("aero.tasks").list(workspace)) do
+			boards[workspace.root] = require("aero.tasks").list(workspace)
+			for _, board in ipairs(boards[workspace.root]) do
 				if board.valid then
 					table.insert(
 						result.boards,
@@ -137,7 +139,7 @@ function M.dispatch(method, params)
 		for _, s in ipairs(sessions) do
 			local agent = require("aero.config").options.agents[s.agent]
 			if s.chat or agent and agent.type == "acp" then
-				table.insert(result.sessions, describe(s))
+				table.insert(result.sessions, describe(s, boards))
 			end
 		end
 		for _, e in ipairs(require("aero.inbox").items()) do

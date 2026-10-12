@@ -223,9 +223,9 @@ function M.revision(text)
 	return "sha256:" .. vim.fn.sha256(text)
 end
 
-function M.resolve_board(ws, id)
+function M.resolve_board(ws, id, boards)
 	local matches = {}
-	for _, board in ipairs(M.list(ws)) do
+	for _, board in ipairs(boards or M.list(ws)) do
 		if board.metadata and board.metadata.id == id then
 			table.insert(matches, board)
 		end
