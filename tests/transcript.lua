@@ -113,17 +113,61 @@ chat:enter_key()
 assert(outcome and outcome.optionId == "reject", "rendered permission options selected the wrong action")
 wait(function() return text():find("→ Reject", 1, true) end)
 
+-- Concurrent requests retain their callbacks, and each card selects its own option.
+local answers, requests = {}, {}
+local function request_permission(id)
+	chat:on_request("session/request_permission", {
+		toolCall = { toolCallId = id, title = id },
+		options = {
+			{ optionId = id .. "-allow", name = "Allow", kind = "allow_once" },
+			{ optionId = id .. "-reject", name = "Reject", kind = "reject_once" },
+		},
+	}, function(response)
+		assert(not answers[id], "permission callback invoked twice")
+		answers[id] = response.outcome
+	end)
+	requests[id] = chat.blocks[#chat.blocks]
+end
+request_permission("first")
+request_permission("second")
+chat:render()
+wait(function() return chat:option_range(requests.second) ~= nil end)
+local second_first, second_last = chat:option_range(requests.second)
+assert(second_first and second_last == second_first + 1)
+assert(chat.permission.block == requests.first, "concurrent request replaced the active permission")
+local pending_inbox = {}
+for _, entry in ipairs(require("aero.inbox").items()) do
+	pending_inbox[entry.block] = true
+end
+assert(pending_inbox[requests.first] and pending_inbox[requests.second], "inbox dropped a concurrent permission")
+api.nvim_win_set_cursor(0, { second_last, 0 })
+chat:enter_key()
+assert(answers.second.optionId == "second-reject" and not answers.first, "option answered the wrong request")
+assert(chat.permission.block == requests.first)
+chat:render()
+wait(function() return chat:option_range(requests.second) == nil end)
+api.nvim_win_set_cursor(0, { chat:option_range(requests.first), 0 })
+vim.fn.maparg("1", "n", false, true).callback()
+assert(answers.first.optionId == "first-allow" and not chat.permission and #chat.permissions == 0)
+request_permission("cancel-first")
+request_permission("cancel-second")
+chat:cancel()
+assert(answers["cancel-first"].outcome == "cancelled" and answers["cancel-second"].outcome == "cancelled")
+assert(not chat.permission and #chat.permissions == 0)
+wait(function() return text():find("→ cancelled", 1, true) end)
+
 -- Render caches must not be serialized, but command data and metadata must survive.
 history.flush(s)
 local saved = history.load(s)
-local saved_command
+local saved_command, saved_error
 for _, block in ipairs(saved.blocks) do
 	assert(block.cache == nil and block.cache_src == nil and block.shown == nil, "render caches leaked into history")
 	if block.id == "command" then saved_command = block end
+	if block.meta_kind == "error" then saved_error = block end
 end
 assert(saved_command.rawInput.command == "printf 'hello'\nprintf 'world'" and saved_command.rawOutput == "hello\nworld\nextra output")
 assert(saved_command.timestamp == command_timestamp, "event timestamp was not persisted")
-assert(saved.blocks[#saved.blocks - 1].meta_kind == "error", "typed metadata was not saved")
+assert(saved_error, "typed metadata was not saved")
 
 -- Structured execution results have readable stdout/stderr and exit metadata.
 chat:on_update({

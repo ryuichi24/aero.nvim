@@ -31,4 +31,39 @@ assert(not table.concat(renderer.build(chat, { export = true }), "\n"):find("![i
 config.options.acp.image_previews = false
 assert(images.markdown(content) == "[image]")
 vim.fn.delete(path)
+
+-- A shortened transcript must not leave registered images beyond its new EOF.
+local api = vim.api
+local buf = api.nvim_create_buf(false, true)
+api.nvim_buf_set_lines(buf, 0, -1, false, { "header", "unchanged image", "body", "removed image" })
+local previous_buf = api.nvim_get_current_buf()
+api.nvim_set_current_buf(buf)
+local registered = {}
+local function preview(id, row)
+	local item = { geometry = { y = row } }
+	function item:clear()
+		assert(api.nvim_buf_line_count(buf) == 4, "preview cleared after the buffer edit")
+		registered[id] = nil
+	end
+	registered[id] = item
+end
+preview("prefix", 1)
+preview("tail", 3)
+local original_image = package.loaded.image
+package.loaded.image = { get_images = function(filter)
+	assert(filter.buffer == buf, "cleanup targeted another buffer")
+	return vim.tbl_values(registered)
+end }
+images.before_edit(buf, 3)
+assert(registered.prefix and not registered.tail, "cleanup did not preserve the unchanged prefix")
+api.nvim_buf_set_lines(buf, 2, -1, false, {})
+for _, item in pairs(registered) do
+	vim.fn.screenpos(api.nvim_get_current_win(), item.geometry.y + 1, 1)
+end
+package.loaded.image = nil
+images.before_edit(buf, 1)
+assert(package.loaded.image == nil, "cleanup loaded the optional image plugin")
+package.loaded.image = original_image
+api.nvim_set_current_buf(previous_buf)
+api.nvim_buf_delete(buf, { force = true })
 print("image transcript tests passed")

@@ -44,7 +44,7 @@ function M.items()
 	entries = vim.tbl_filter(function(e)
 		return vim.tbl_contains(sessions, e.session)
 			and e.session.chat == e.chat
-			and (e.kind ~= "permission" or e.chat.permission and e.chat.permission.block == e.block)
+			and (e.kind ~= "permission" or e.chat.permission and not e.block.answer)
 	end, entries)
 	return vim.tbl_filter(function(e)
 		return not e.read and not e.dismissed
@@ -65,7 +65,7 @@ function M.select(entry)
 		not vim.tbl_contains(require("aero.session").all(), s)
 		or s.chat ~= chat
 		or not api.nvim_buf_is_valid(chat.buf)
-		or entry.kind == "permission" and (not chat.permission or chat.permission.block ~= entry.block)
+		or entry.kind == "permission" and (not chat.permission or entry.block.answer)
 	then
 		vim.notify("Aero: inbox event is no longer available", vim.log.levels.INFO)
 		return

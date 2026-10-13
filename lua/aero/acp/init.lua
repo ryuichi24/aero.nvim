@@ -26,6 +26,7 @@ local api = vim.api
 ---@field blocks table[]
 ---@field tools table<string, table>
 ---@field permission? {params: table, respond: fun(result: any), block: table}
+---@field permissions? {params: table, respond: fun(result: any), block: table}[]
 ---@field queue string[] prompts typed before the session was ready
 local Chat = {}
 Chat.__index = Chat
@@ -234,6 +235,7 @@ function Chat:render()
 		while old_last >= first and new_last >= first and old[old_last] == new[new_last] do
 			old_last, new_last = old_last - 1, new_last - 1
 		end
+		require("aero.acp.images").before_edit(buf, first)
 		vim.bo[buf].modifiable = true
 		local ok, err =
 			pcall(api.nvim_buf_set_lines, buf, first - 1, old_last, false, vim.list_slice(new, first, new_last))
@@ -305,11 +307,13 @@ function Chat:mark_selected()
 end
 
 --- First and last line of the pending permission's options, if any.
-function Chat:option_range()
+function Chat:option_range(block)
 	local first, last
-	for lnum in pairs(self.option_lines or {}) do
-		first = (not first or lnum < first) and lnum or first
-		last = (not last or lnum > last) and lnum or last
+	for lnum, option in pairs(self.option_lines or {}) do
+		if option.block == (block or self.permission and self.permission.block) then
+			first = (not first or lnum < first) and lnum or first
+			last = (not last or lnum > last) and lnum or last
+		end
 	end
 	return first, last
 end
@@ -327,8 +331,8 @@ end
 
 --- Move the transcript's cursor to the pending permission's options. With `focus`, also put
 --- the cursor in the transcript window (opening it if needed is the caller's job).
-function Chat:goto_permission(focus)
-	local first, last = self:option_range()
+function Chat:goto_permission(focus, block)
+	local first, last = self:option_range(block)
 	if not first then
 		return false
 	end
@@ -355,8 +359,8 @@ function Chat:goto_block(block, permission)
 			return
 		end
 		if permission then
-			if self.permission and self.permission.block == block then
-				self:goto_permission(true)
+			if self.permission and not block.answer then
+				self:goto_permission(true, block)
 			end
 			return
 		end
@@ -594,7 +598,10 @@ function Chat:on_request(method, params, respond)
 			options = params.options or {},
 		}
 		table.insert(self.blocks, block)
-		self.permission = { params = params, respond = respond, block = block }
+		self.permissions = self.permissions or {}
+		local request = { params = params, respond = respond, block = block }
+		table.insert(self.permissions, request)
+		self.permission = self.permission or request
 		require("aero.inbox").add(self, "permission", block)
 		self:set_option_keys(true)
 		-- the agent is blocked on this: show the text still being revealed at once, so nothing moves
@@ -628,14 +635,30 @@ function Chat:answer_permission()
 end
 
 --- Answer the pending permission request with option `index`.
-function Chat:choose(index)
+function Chat:choose(index, block)
 	local p = self.permission
+	if block then
+		p = nil
+		for _, request in ipairs(self.permissions or {}) do
+			if request.block == block then
+				p = request
+				break
+			end
+		end
+	end
 	local choice = p and p.block.options[index]
 	if not choice then
 		return
 	end
-	self.permission = nil
-	self:set_option_keys(false)
+	for i, request in ipairs(self.permissions or {}) do
+		if request == p then
+			table.remove(self.permissions, i)
+			break
+		end
+	end
+	self.permission = self.permissions and self.permissions[1]
+	self:set_option_keys(self.permission ~= nil)
+	self.pending_focus = self.permission ~= nil
 	p.block.answer = choice.name or choice.optionId
 	p.respond({ outcome = { outcome = "selected", optionId = choice.optionId } })
 	-- back to following the output
@@ -649,7 +672,7 @@ end
 function Chat:enter_key()
 	local o = self.permission and (self.option_lines or {})[api.nvim_win_get_cursor(0)[1]]
 	if o then
-		return self:choose(o.index)
+		return self:choose(o.index, o.block)
 	end
 	self:compose()
 end
@@ -659,9 +682,14 @@ function Chat:set_option_keys(on)
 	local buf = self.buf
 	for i = 1, 9 do
 		local lhs = tostring(i)
-		if on and self.permission and self.permission.block.options[i] then
+		local available = false
+		for _, request in ipairs(self.permissions or {}) do
+			available = available or request.block.options[i] ~= nil
+		end
+		if on and available then
 			vim.keymap.set("n", lhs, function()
-				self:choose(i)
+				local o = (self.option_lines or {})[api.nvim_win_get_cursor(0)[1]]
+				self:choose(i, o and o.block)
 			end, { buffer = buf, nowait = true, desc = "Aero: choose permission option " .. i })
 		else
 			pcall(vim.keymap.del, "n", lhs, { buffer = buf })
@@ -899,11 +927,14 @@ function Chat:cancel()
 	self.queue = {}
 	self.pending_focus = false
 	if self.permission then
-		local p = self.permission
+		local pending = self.permissions or { self.permission }
+		self.permissions = {}
 		self.permission = nil
 		self:set_option_keys(false)
-		p.block.answer = "cancelled"
-		p.respond({ outcome = { outcome = "cancelled" } })
+		for _, p in ipairs(pending) do
+			p.block.answer = "cancelled"
+			p.respond({ outcome = { outcome = "cancelled" } })
+		end
 	end
 	if self.busy and self.session_id then
 		self.client:notify("session/cancel", { sessionId = self.session_id })
@@ -1195,6 +1226,7 @@ function M.start(s, buf, agent, resume, session_id, opts)
 		end,
 		on_exit = function(code, stderr)
 			chat.state, chat.busy, chat.permission = "exited", false, nil
+			chat.permissions = {}
 			chat.model_pending = nil
 			chat.mode_pending = nil
 			chat:set_option_keys(false)

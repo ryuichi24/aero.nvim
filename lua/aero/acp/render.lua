@@ -304,7 +304,7 @@ function M.build(chat, opts)
 						push("")
 						for i, option in ipairs(block.options) do
 							push(("  %d. %s"):format(i, one_line(option.name or option.optionId)), nil, "body")
-							options[#lines] = { index = i, kind = option.kind }
+							options[#lines] = { index = i, kind = option.kind, block = block }
 						end
 						push("")
 						push(("<CR> or 1-%d to choose, <C-c> to cancel"):format(#block.options), "AeroChatMeta", "body")

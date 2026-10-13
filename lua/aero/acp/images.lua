@@ -3,6 +3,28 @@ local M = {}
 local extensions = { ["image/png"] = "png", ["image/jpeg"] = "jpg", ["image/gif"] = "gif", ["image/webp"] = "webp", ["image/avif"] = "avif" }
 local paths = {}
 
+--- Remove previews whose cached positions may become stale during a transcript edit.
+--- image.nvim's TextChanged and scheduled renders can run before Markdown reparsing,
+--- and screenpos() rejects cached rows beyond the new end of the buffer.
+function M.before_edit(buf, first)
+	local image = package.loaded.image
+	if type(image) ~= "table" or type(image.get_images) ~= "function" then
+		return
+	end
+	local ok, previews = pcall(image.get_images, { buffer = buf })
+	if not ok then
+		return
+	end
+	for _, preview in ipairs(previews) do
+		local row = preview.geometry and preview.geometry.y
+		if not row or row >= first - 1 then
+			-- A full clear removes the preview from image.nvim's render registry.
+			-- Its Markdown integration recreates it at the updated position.
+			preview:clear()
+		end
+	end
+end
+
 function M.markdown(content, export)
 	if export or require("aero.config").options.acp.image_previews ~= true then
 		return "[image]"
