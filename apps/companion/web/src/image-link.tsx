@@ -3,6 +3,27 @@ import { createPortal } from 'react-dom';
 import { FullscreenAttention } from './fullscreen-attention';
 
 export const ImageSession = createContext('');
+export const ImageDirectory = createContext('');
+
+export function InlineImage({ href, alt, title }: { href: string; alt?: string; title?: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <ImageLink href={href} title={title}>
+      {failed ? (
+        <span className="markdown-image">[Image unavailable: {alt || 'attachment'}]</span>
+      ) : (
+        <img
+          className="markdown-image-preview"
+          src={href}
+          alt={alt || 'Screenshot'}
+          title={title}
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      )}
+    </ImageLink>
+  );
+}
 
 export function ImageLink({
   href,
@@ -114,7 +135,17 @@ export function ImageLink({
 
 export function useImageLink() {
   const session = useContext(ImageSession);
-  return (href?: string) => imageURL(session, href);
+  const directory = useContext(ImageDirectory);
+  return (href?: string) => {
+    if (href && directory && !href.startsWith('/') && !/^[a-z][a-z\d+.-]*:/i.test(href)) {
+      try {
+        href = new URL(href, `file://${directory.replace(/\/$/, '')}/`).href;
+      } catch {
+        return undefined;
+      }
+    }
+    return imageURL(session, href);
+  };
 }
 
 export function useVideoLink() {

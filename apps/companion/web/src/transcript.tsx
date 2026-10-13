@@ -175,7 +175,13 @@ const BlockContent = memo(function BlockContent({
       {worktree &&
         reportsDirectory &&
         attachedReports(block, reportsDirectory).map((name) => (
-          <ReportPreview key={name} worktree={worktree} name={name} online={online} />
+          <ReportPreview
+            key={name}
+            worktree={worktree}
+            name={name}
+            online={online}
+            directory={reportsDirectory}
+          />
         ))}
     </>
   );
@@ -257,165 +263,171 @@ export const Transcript = memo(
         element.current.scrollTop = element.current.scrollHeight;
     }, [active, session?.blocks, session?.queue]);
     return (
-      <ImageSession.Provider value={session?.id || ''}>
-        <div ref={inline} className="transcript-inline" />
-        <dialog
-          ref={dialog}
-          className="transcript-fullscreen"
-          aria-label="Fullscreen agent logs"
-          onCancel={() => setFullscreen(false)}
-          onClose={() => setFullscreen(false)}
-        >
-          <header className="transcript-toolbar">
-            <strong>{session?.name || 'Agent'} · Logs</strong>
-            {fullscreen && <FullscreenAttention />}
-            <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
-          </header>
-        </dialog>
-        {createPortal(
-          <>
-            <div className="transcript-controls">
-              <strong className="sr-only">Agent logs</strong>
-              <button
-                aria-expanded={promptsVisible}
-                aria-controls="transcript-prompts"
-                onClick={() => setPromptsVisible((value) => !value)}
-              >
-                Prompts ({prompts.length})
-              </button>
-              <button
-                hidden={fullscreen}
-                ref={button}
-                aria-label="Fullscreen logs"
-                onClick={() => setFullscreen(true)}
-              >
-                Fullscreen
-              </button>
-              {composer && (
+      <FileContext.Provider value={{ worktree: session?.worktree || '', online }}>
+        <ImageSession.Provider value={session?.id || ''}>
+          <div ref={inline} className="transcript-inline" />
+          <dialog
+            ref={dialog}
+            className="transcript-fullscreen"
+            aria-label="Fullscreen agent logs"
+            onCancel={() => setFullscreen(false)}
+            onClose={() => setFullscreen(false)}
+          >
+            <header className="transcript-toolbar">
+              <strong>{session?.name || 'Agent'} · Logs</strong>
+              {fullscreen && <FullscreenAttention />}
+              <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
+            </header>
+          </dialog>
+          {createPortal(
+            <>
+              <div className="transcript-controls">
+                <strong className="sr-only">Agent logs</strong>
                 <button
-                  aria-expanded={inputVisible}
-                  aria-controls="log-composer"
-                  onClick={() => setInputVisible((value) => !value)}
+                  aria-expanded={promptsVisible}
+                  aria-controls="transcript-prompts"
+                  onClick={() => setPromptsVisible((value) => !value)}
                 >
-                  {inputVisible ? 'Hide input' : 'Show input'}
+                  Prompts ({prompts.length})
                 </button>
-              )}
-            </div>
-            {session?.activity && (
-              <div className="transcript-activity" role="status" aria-label="Current agent action">
-                <span className="status-badge status-in_progress">Working</span>
-                <span>{session.activity}</span>
-              </div>
-            )}
-            {promptsVisible && (
-              <nav
-                id="transcript-prompts"
-                className="transcript-prompts"
-                aria-label="Prompt history"
-              >
-                <input
-                  aria-label="Search prompts"
-                  placeholder="Search prompts…"
-                  value={promptSearch}
-                  onChange={(event) => setPromptSearch(event.target.value)}
-                />
-                <ol>
-                  {prompts.map((prompt, number) =>
-                    prompt.text.toLowerCase().includes(promptSearch.toLowerCase()) ? (
-                      <li key={prompt.index}>
-                        <button
-                          onClick={() => {
-                            const target = promptTargets.current.get(prompt.index);
-                            if (!target || !element.current) return;
-                            follow.current = false;
-                            setPromptsVisible(false);
-                            target.focus({ preventScroll: true });
-                            element.current.scrollTop +=
-                              target.getBoundingClientRect().top -
-                              element.current.getBoundingClientRect().top;
-                          }}
-                        >
-                          {number + 1}.{' '}
-                          {prompt.text.replace(/\s+/g, ' ').trim() || '(Empty prompt)'}
-                        </button>
-                      </li>
-                    ) : null,
-                  )}
-                </ol>
-                {!prompts.length && <p>No prompts yet.</p>}
-                {!!prompts.length &&
-                  !prompts.some((prompt) =>
-                    prompt.text.toLowerCase().includes(promptSearch.toLowerCase()),
-                  ) && <p>No matching prompts.</p>}
-              </nav>
-            )}
-            <QuoteSelection
-              source={`agent log: ${session?.name || 'Agent'}`}
-              onQuote={
-                onQuote
-                  ? (quote) => {
-                      setInputVisible(true);
-                      onQuote(quote);
-                    }
-                  : undefined
-              }
-            >
-              <div
-                id="transcript"
-                role="region"
-                aria-label="Conversation transcript"
-                tabIndex={0}
-                ref={element}
-                onScroll={() => {
-                  const node = element.current;
-                  if (node)
-                    follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
-                }}
-              >
-                {!session?.blocks?.length && (
-                  <p className="navigation-empty">
-                    No logs yet. Send a prompt to start the conversation.
-                  </p>
-                )}
-                {session?.blocks?.map((block, index) => (
-                  <div
-                    key={`${block.kind}:${block.id || index}`}
-                    tabIndex={block.kind === 'user' ? -1 : undefined}
-                    ref={(node) => {
-                      if (node && block.kind === 'user') promptTargets.current.set(index, node);
-                      else promptTargets.current.delete(index);
-                    }}
+                <button
+                  hidden={fullscreen}
+                  ref={button}
+                  aria-label="Fullscreen logs"
+                  onClick={() => setFullscreen(true)}
+                >
+                  Fullscreen
+                </button>
+                {composer && (
+                  <button
+                    aria-expanded={inputVisible}
+                    aria-controls="log-composer"
+                    onClick={() => setInputVisible((value) => !value)}
                   >
-                    <BlockContent
-                      block={block}
-                      worktree={session?.worktree}
-                      reportsDirectory={reportsDirectory}
-                      online={online && active}
-                    />
-                  </div>
-                ))}
-                {!!session?.queue?.length && (
-                  <aside className="transcript-card queued-card" aria-label="Queued prompts">
-                    <div className="message-label">Queued prompts</div>
-                    {session.queue.map((text, index) => (
-                      <div className="queued-prompt" key={index}>
-                        <Markdown text={text} />
-                      </div>
-                    ))}
-                  </aside>
+                    {inputVisible ? 'Hide input' : 'Show input'}
+                  </button>
                 )}
               </div>
-            </QuoteSelection>
-            {composer && (
-              <div id="log-composer" className="log-composer" hidden={!inputVisible}>
-                {composer}
-                {fullscreen && feedback}
-              </div>
-            )}
-          </>,
-          container,
-        )}
-      </ImageSession.Provider>
+              {session?.activity && (
+                <div
+                  className="transcript-activity"
+                  role="status"
+                  aria-label="Current agent action"
+                >
+                  <span className="status-badge status-in_progress">Working</span>
+                  <span>{session.activity}</span>
+                </div>
+              )}
+              {promptsVisible && (
+                <nav
+                  id="transcript-prompts"
+                  className="transcript-prompts"
+                  aria-label="Prompt history"
+                >
+                  <input
+                    aria-label="Search prompts"
+                    placeholder="Search prompts…"
+                    value={promptSearch}
+                    onChange={(event) => setPromptSearch(event.target.value)}
+                  />
+                  <ol>
+                    {prompts.map((prompt, number) =>
+                      prompt.text.toLowerCase().includes(promptSearch.toLowerCase()) ? (
+                        <li key={prompt.index}>
+                          <button
+                            onClick={() => {
+                              const target = promptTargets.current.get(prompt.index);
+                              if (!target || !element.current) return;
+                              follow.current = false;
+                              setPromptsVisible(false);
+                              target.focus({ preventScroll: true });
+                              element.current.scrollTop +=
+                                target.getBoundingClientRect().top -
+                                element.current.getBoundingClientRect().top;
+                            }}
+                          >
+                            {number + 1}.{' '}
+                            {prompt.text.replace(/\s+/g, ' ').trim() || '(Empty prompt)'}
+                          </button>
+                        </li>
+                      ) : null,
+                    )}
+                  </ol>
+                  {!prompts.length && <p>No prompts yet.</p>}
+                  {!!prompts.length &&
+                    !prompts.some((prompt) =>
+                      prompt.text.toLowerCase().includes(promptSearch.toLowerCase()),
+                    ) && <p>No matching prompts.</p>}
+                </nav>
+              )}
+              <QuoteSelection
+                source={`agent log: ${session?.name || 'Agent'}`}
+                onQuote={
+                  onQuote
+                    ? (quote) => {
+                        setInputVisible(true);
+                        onQuote(quote);
+                      }
+                    : undefined
+                }
+              >
+                <div
+                  id="transcript"
+                  role="region"
+                  aria-label="Conversation transcript"
+                  tabIndex={0}
+                  ref={element}
+                  onScroll={() => {
+                    const node = element.current;
+                    if (node)
+                      follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40;
+                  }}
+                >
+                  {!session?.blocks?.length && (
+                    <p className="navigation-empty">
+                      No logs yet. Send a prompt to start the conversation.
+                    </p>
+                  )}
+                  {session?.blocks?.map((block, index) => (
+                    <div
+                      key={`${block.kind}:${block.id || index}`}
+                      tabIndex={block.kind === 'user' ? -1 : undefined}
+                      ref={(node) => {
+                        if (node && block.kind === 'user') promptTargets.current.set(index, node);
+                        else promptTargets.current.delete(index);
+                      }}
+                    >
+                      <BlockContent
+                        block={block}
+                        worktree={session?.worktree}
+                        reportsDirectory={reportsDirectory}
+                        online={online && active}
+                      />
+                    </div>
+                  ))}
+                  {!!session?.queue?.length && (
+                    <aside className="transcript-card queued-card" aria-label="Queued prompts">
+                      <div className="message-label">Queued prompts</div>
+                      {session.queue.map((text, index) => (
+                        <div className="queued-prompt" key={index}>
+                          <Markdown text={text} />
+                        </div>
+                      ))}
+                    </aside>
+                  )}
+                </div>
+              </QuoteSelection>
+              {composer && (
+                <div id="log-composer" className="log-composer" hidden={!inputVisible}>
+                  {composer}
+                  {fullscreen && feedback}
+                </div>
+              )}
+            </>,
+            container,
+          )}
+        </ImageSession.Provider>
+      </FileContext.Provider>
     );
   },
   (previous, next) =>
@@ -426,3 +438,4 @@ export const Transcript = memo(
     previous.online === next.online &&
     previous.reportsDirectory === next.reportsDirectory,
 );
+import { FileContext } from './file-preview';

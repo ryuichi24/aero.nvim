@@ -61,6 +61,11 @@ func (b *bridge) mediaLocation(w http.ResponseWriter, r *http.Request) (string, 
 		Blocks   any    `json:"blocks"`
 	}
 	_ = json.Unmarshal(snapshot["sessions"], &sessions)
+	var trees []struct {
+		Path             string `json:"path"`
+		ReportsDirectory string `json:"reports_directory"`
+	}
+	_ = json.Unmarshal(snapshot["worktrees"], &trees)
 	name := r.URL.Query().Get("path")
 	if strings.HasPrefix(name, "file://") {
 		u, err := url.Parse(name)
@@ -78,6 +83,17 @@ func (b *bridge) mediaLocation(w http.ResponseWriter, r *http.Request) (string, 
 		rootName, relative = session.Worktree, name
 		if filepath.IsAbs(name) {
 			relative, _ = filepath.Rel(rootName, name)
+			if !filepath.IsLocal(relative) {
+				for _, tree := range trees {
+					if tree.Path == session.Worktree && tree.ReportsDirectory != "" {
+						reportRelative, err := filepath.Rel(tree.ReportsDirectory, name)
+						if err == nil && filepath.IsLocal(reportRelative) {
+							rootName, relative = tree.ReportsDirectory, reportRelative
+							break
+						}
+					}
+				}
+			}
 			if !filepath.IsLocal(relative) && imageReferenced(session.Blocks, name) {
 				rootName, relative = filepath.Dir(name), filepath.Base(name)
 			}

@@ -279,6 +279,7 @@ function Companion() {
   }, [fullscreenAttention]);
   const [confirmUnpair, setConfirmUnpair] = useState(false);
   const deviceMenu = useRef<HTMLDetailsElement>(null);
+  const reviewMenu = useRef<HTMLDetailsElement>(null);
   const unpairDialog = useRef<HTMLDialogElement>(null);
 
   function dismissUnpair() {
@@ -302,6 +303,8 @@ function Companion() {
       if (!(target instanceof Node)) return;
       if (deviceMenu.current?.open && !deviceMenu.current.contains(target))
         deviceMenu.current.open = false;
+      if (reviewMenu.current?.open && !reviewMenu.current.contains(target))
+        reviewMenu.current.open = false;
       if (
         attentionOpen &&
         !attentionPanel.current?.contains(target) &&
@@ -1192,7 +1195,7 @@ function Companion() {
                 ))}
               </nav>
               {session && (
-                <details className="session-review-links">
+                <details ref={reviewMenu} className="session-review-links">
                   <summary aria-label="Review this worktree">Review</summary>
                   <div className="session-review-menu">
                     {(

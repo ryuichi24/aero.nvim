@@ -5,6 +5,7 @@ import { QuoteSelection, type Quote } from './quote';
 import type { FoldRange } from './source-folds';
 import { post } from './api';
 import { Markdown } from './markdown';
+import { ImageDirectory, ImageSession } from './image-link';
 import { FullscreenAttention } from './fullscreen-attention';
 import type { Snapshot } from './types';
 
@@ -221,7 +222,19 @@ export function SourceBrowser({
       >
         {markdown && preview ? (
           <div className="source-preview" aria-label={`${path} preview`}>
-            <Markdown text={content} />
+            <ImageSession.Provider
+              value={snapshot?.sessions.find((session) => session.worktree === worktree)?.id || ''}
+            >
+              <ImageDirectory.Provider
+                value={
+                  mode === 'reports'
+                    ? trees.find((tree) => tree.path === worktree)?.reports_directory || ''
+                    : `${worktree}/${parts.slice(0, -1).join('/')}`
+                }
+              >
+                <Markdown text={content} />
+              </ImageDirectory.Provider>
+            </ImageSession.Provider>
           </div>
         ) : (
           <>

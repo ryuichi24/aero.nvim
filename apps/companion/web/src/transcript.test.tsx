@@ -286,13 +286,13 @@ it('opens local screenshot links and image attachments through the paired compan
   fireEvent(tool, new Event('toggle'));
   for (const [label, path] of [
     ['Screenshot', '.playwright-mcp/mobile.png'],
-    ['[Image: Preview]', '/api/image?session=one&path=file%3A%2F%2F%2Fworkspace%2Fpreview.png'],
+    ['Preview', '/api/image?session=one&path=file%3A%2F%2F%2Fworkspace%2Fpreview.png'],
     ['Browser image', 'file:///tmp/browser/result.png'],
   ]) {
     const link = screen.getByRole('link', { name: label, hidden: true });
     const href = link.getAttribute('href')!;
     expect(href.startsWith('/api/image?')).toBe(true);
-    if (label === '[Image: Preview]') expect(href).toBe(path);
+    if (label === 'Preview') expect(href).toBe(path);
     else expect(new URL(href, 'http://localhost').searchParams.get('path')).toBe(path);
   }
 });

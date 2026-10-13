@@ -1,11 +1,12 @@
-import { memo } from 'react';
+import { memo, useContext, useState } from 'react';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import 'highlight.js/styles/github-dark.css';
-import { ImageLink, useImageLink, useVideoLink } from './image-link';
+import { ImageLink, InlineImage, useImageLink, useVideoLink } from './image-link';
 import { Mermaid } from './mermaid';
 import { MarkdownMermaidPreview } from './markdown-mermaid-preview';
+import { FileContext, FilePreview, fileReference, remarkFileReferences } from './file-preview';
 
 interface CodeNode {
   value?: string;
@@ -19,18 +20,22 @@ function codeText(node: CodeNode): string {
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   const imageLink = useImageLink();
   const videoLink = useVideoLink();
+  const { worktree } = useContext(FileContext);
+  const [reference, setReference] = useState<ReturnType<typeof fileReference>>();
   return (
     <div className="markdown-body">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={worktree ? [remarkGfm, remarkFileReferences] : [remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: false }]]}
         skipHtml
         urlTransform={(url) =>
-          url.startsWith('file://')
-            ? imageLink(url) || videoLink(url)
-              ? url
-              : ''
-            : defaultUrlTransform(url)
+          fileReference(url, worktree)
+            ? url
+            : url.startsWith('file://')
+              ? imageLink(url) || videoLink(url)
+                ? url
+                : ''
+              : defaultUrlTransform(url)
         }
         components={{
           pre: ({ node, children }) => {
@@ -67,6 +72,17 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
               <ImageLink href={videoLink(href)!} title={title} media="video">
                 {children}
               </ImageLink>
+            ) : href && fileReference(href, worktree) ? (
+              <a
+                href={href}
+                title="Preview source code"
+                onClick={(event) => {
+                  event.preventDefault();
+                  setReference(fileReference(href, worktree));
+                }}
+              >
+                {children}
+              </a>
             ) : href ? (
               <a
                 href={imageLink(href) || href}
@@ -79,10 +95,9 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
             ) : (
               <span>{children}</span>
             ),
-          // Describe images without fetching external content while browsing.
-          img: ({ alt, src }) =>
+          img: ({ alt, src, title }) =>
             imageLink(src) ? (
-              <ImageLink href={imageLink(src)!}>[Image: {alt || 'attachment'}]</ImageLink>
+              <InlineImage key={imageLink(src)} href={imageLink(src)!} alt={alt} title={title} />
             ) : (
               <span className="markdown-image">[Image: {alt || 'attachment'}]</span>
             ),
@@ -95,6 +110,13 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
       >
         {text}
       </ReactMarkdown>
+      {reference && (
+        <FilePreview
+          key={`${reference.path}:${reference.line}`}
+          reference={reference}
+          onClose={() => setReference(undefined)}
+        />
+      )}
     </div>
   );
 });

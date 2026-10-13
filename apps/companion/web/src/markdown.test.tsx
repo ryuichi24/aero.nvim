@@ -1,6 +1,37 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Markdown } from './markdown';
+import { ImageDirectory, ImageSession } from './image-link';
+
+it('renders report-relative screenshots inline and opens a fullscreen preview', () => {
+  render(
+    <ImageSession.Provider value="one">
+      <ImageDirectory.Provider value="/reports">
+        <Markdown text={'![Mobile](screenshots/mobile.png "Mobile layout")'} />
+      </ImageDirectory.Provider>
+    </ImageSession.Provider>,
+  );
+  const image = screen.getByRole('img', { name: 'Mobile' });
+  expect(image.getAttribute('src')).toBe(
+    '/api/image?session=one&path=file%3A%2F%2F%2Freports%2Fscreenshots%2Fmobile.png',
+  );
+  fireEvent.click(image);
+  const dialog = screen.getByRole('dialog', { name: 'Screenshot preview' });
+  expect(within(dialog).getByRole('img').getAttribute('src')).toBe(image.getAttribute('src'));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+  fireEvent.error(image);
+  expect(screen.getByText('[Image unavailable: Mobile]')).toBeTruthy();
+});
+
+it('does not fetch remote Markdown images', () => {
+  render(
+    <ImageSession.Provider value="one">
+      <Markdown text="![Remote](https://example.com/image.png)" />
+    </ImageSession.Provider>,
+  );
+  expect(screen.queryByRole('img')).toBeNull();
+  expect(screen.getByText('[Image: Remote]')).toBeTruthy();
+});
 
 const { renderDiagram, initialize } = vi.hoisted(() => ({
   renderDiagram: vi.fn(),

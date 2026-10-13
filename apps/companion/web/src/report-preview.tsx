@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { post } from './api';
 import { Markdown } from './markdown';
+import { ImageDirectory } from './image-link';
 import type { TranscriptBlock } from './types';
 
 export function attachedReports(block: TranscriptBlock, directory: string): string[] {
@@ -42,10 +43,12 @@ export function ReportPreview({
   worktree,
   name,
   online,
+  directory,
 }: {
   worktree: string;
   name: string;
   online: boolean;
+  directory?: string;
 }) {
   const [source, setSource] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -82,7 +85,9 @@ export function ReportPreview({
                 <code>{query.data.content}</code>
               </pre>
             ) : query.data.content ? (
-              <Markdown text={query.data.content} />
+              <ImageDirectory.Provider value={directory || ''}>
+                <Markdown text={query.data.content} />
+              </ImageDirectory.Provider>
             ) : (
               <p>This report is empty. Its contents will appear here when the agent updates it.</p>
             ))}

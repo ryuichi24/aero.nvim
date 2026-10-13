@@ -11,10 +11,10 @@ import (
 )
 
 func TestScreenshotImages(t *testing.T) {
-	root, outside := t.TempDir(), t.TempDir()
+	root, outside, reports := t.TempDir(), t.TempDir(), t.TempDir()
 	png := []byte("\x89PNG\r\n\x1a\nimage fixture")
 	external := filepath.Join(outside, "shot.png")
-	for _, name := range []string{filepath.Join(root, "shot.png"), external} {
+	for _, name := range []string{filepath.Join(root, "shot.png"), external, filepath.Join(reports, "report.png")} {
 		if err := os.WriteFile(name, png, 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -22,7 +22,7 @@ func TestScreenshotImages(t *testing.T) {
 	if err := os.Symlink(external, filepath.Join(root, "escape.png")); err != nil {
 		t.Fatal(err)
 	}
-	data, _ := json.Marshal(map[string]any{"sessions": []any{map[string]any{"id": "one", "worktree": root, "blocks": []any{map[string]string{"text": "[Screenshot](" + external + ")"}}}}})
+	data, _ := json.Marshal(map[string]any{"worktrees": []any{map[string]string{"path": root, "reports_directory": reports}}, "sessions": []any{map[string]any{"id": "one", "worktree": root, "blocks": []any{map[string]string{"text": "[Screenshot](" + external + ")"}}}}})
 	c := newClient(t, hostFunc(func(context.Context, string, any) (hostResponse, error) { return hostResponse{Result: data}, nil }))
 	check := func(name string, status int) {
 		t.Helper()
@@ -42,6 +42,8 @@ func TestScreenshotImages(t *testing.T) {
 	c.pair()
 	check("shot.png", 200)
 	check("file://"+external, 200)
+	check("file://"+filepath.Join(reports, "report.png"), 200)
+	check(filepath.Join(reports, "..", "unlinked.png"), 403)
 	check(filepath.Join(outside, "unlinked.png"), 403)
 	check("../shot.png", 403)
 	check("escape.png", 404)
