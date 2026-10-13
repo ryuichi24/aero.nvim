@@ -62,6 +62,12 @@ require("aero").setup({
   persist_sessions = true,
   prompt_session_name = true, -- ask for a name with `a` or agent shortcuts; false uses automatic names
   input = { adapter = "auto", select_default = true }, -- auto | dressing | snacks | vim_ui | function
+  picker = {
+    initial_mode = "insert", -- insert | normal; shared fallback
+    workspaces = {}, -- optional initial_mode override
+    sessions = {},
+    worktrees = {},
+  },
   persist_buffers = true,
   state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
   events = {}, -- event name -> function or list of functions; "*" observes all events
@@ -141,6 +147,31 @@ require("aero").setup({
 
 See [layout](layout.md), [agents](agents.md), [reports](reports.md), [Kanban](kanban.md),
 and [persistence](persistence.md) for behavior and storage options.
+
+### Search popup mode
+
+Search popups, including `aero.workspaces()`, `aero.sessions()`, and
+`aero.worktrees()`, start in insert mode so you can type a query immediately.
+To start in normal mode instead:
+
+```lua
+require("aero").setup({
+  picker = {
+    initial_mode = "normal", -- fallback for pickers without an override
+    workspaces = { initial_mode = "insert" },
+    sessions = { initial_mode = "normal" },
+    worktrees = { initial_mode = "insert" },
+  },
+})
+```
+
+Each picker can override the shared `picker.initial_mode` independently through
+`picker.workspaces.initial_mode`, `picker.sessions.initial_mode`, or
+`picker.worktrees.initial_mode`. Omitted overrides use the shared setting.
+
+In insert mode, use Ctrl-n/Ctrl-p or the arrow keys to select a result and Enter
+to open it. Escape switches to normal mode, where `j`/`k` navigate, `i` resumes
+filtering, and `q` closes the popup.
 
 ### Task options
 

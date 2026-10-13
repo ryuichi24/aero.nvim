@@ -130,7 +130,7 @@ M.defaults = {
 	},
 	-- the per-worktree shell opened with :Aero term / `t`, below the code window
 	terminal = {
-		height = 24,
+		height = 30,
 		cmd = nil, -- default: { vim.o.shell }
 	},
 	-- give each worktree its own tab, :tcd'd to the worktree; opening a session or pressing `e`
@@ -159,6 +159,12 @@ M.defaults = {
 	input = {
 		adapter = "auto", -- "auto" | "dressing" | "snacks" | "vim_ui" | function(opts, callback)
 		select_default = true, -- select session names in supported input UIs
+	},
+	picker = {
+		initial_mode = "insert", -- "insert" | "normal" for searchable popups
+		workspaces = {}, -- initial_mode overrides the shared default
+		sessions = {},
+		worktrees = {},
 	},
 	-- remember the last code file/directory in each worktree across restarts
 	persist_buffers = true,

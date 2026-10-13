@@ -20,6 +20,7 @@ M.close = picker.close
 function M.open()
 	picker.open({
 		title = "active sessions",
+		config_key = "sessions",
 		filetype = "aero_sessions",
 		live = true,
 		items = function()

@@ -1,8 +1,19 @@
--- Shared searchable popup with normal-mode navigation and optional group headings.
+-- Shared searchable popup with configurable startup mode and optional group headings.
 local M = {}
 local api = vim.api
 local popup
 local namespace = api.nvim_create_namespace("aero.picker")
+
+local function initial_mode(opts)
+	local config = require("aero.config").options.picker
+	local override = opts.config_key and config[opts.config_key]
+	local mode = override and override.initial_mode or config.initial_mode
+	if mode == "insert" then
+		vim.cmd.startinsert()
+	else
+		vim.cmd.stopinsert()
+	end
+end
 
 local function clean(text)
 	return (text:gsub("[%c]", " "))
@@ -103,6 +114,7 @@ end
 function M.open(opts)
 	if popup and popup.opts.title == opts.title then
 		api.nvim_set_current_win(popup.search_win)
+		initial_mode(popup.opts)
 		return
 	end
 	M.close()
@@ -240,7 +252,7 @@ function M.open(opts)
 		)
 	end
 	render()
-	vim.cmd.stopinsert()
+	initial_mode(opts)
 end
 
 return M

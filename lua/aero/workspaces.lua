@@ -11,6 +11,7 @@ function M.open()
 	store.load()
 	picker.open({
 		title = "workspaces",
+		config_key = "workspaces",
 		items = function()
 			local items = {}
 			for _, ws in ipairs(store.data.workspaces) do
@@ -60,6 +61,7 @@ function M.worktrees(opts)
 	end
 	picker.open({
 		title = opts.title or "worktrees",
+		config_key = "worktrees",
 		items = function()
 			return items
 		end,
