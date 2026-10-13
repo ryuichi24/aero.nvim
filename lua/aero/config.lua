@@ -130,7 +130,7 @@ M.defaults = {
 	},
 	-- the per-worktree shell opened with :Aero term / `t`, below the code window
 	terminal = {
-		height = 12,
+		height = 24,
 		cmd = nil, -- default: { vim.o.shell }
 	},
 	-- give each worktree its own tab, :tcd'd to the worktree; opening a session or pressing `e`
