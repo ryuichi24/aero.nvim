@@ -124,6 +124,8 @@ end
 -- Rendering
 ---------------------------------------------------------------------------
 
+local animation_snapshot
+
 local function build()
 	local snapshot = { icons = config.options.icons, add_key = config.options.keymaps.add_workspace, workspaces = {} }
 	for _, ws in ipairs(store.data.workspaces) do
@@ -182,7 +184,28 @@ local function build()
 			end
 		end
 	end
+	animation_snapshot = snapshot
 	return require("aero.dashboard.model").build(snapshot)
+end
+
+-- Animation must not rescan the filesystem or invoke task metadata subprocesses.
+local function animate()
+	if not animation_snapshot then
+		return
+	end
+	for _, workspace in ipairs(animation_snapshot.workspaces) do
+		for _, tree in ipairs(workspace.worktrees) do
+			tree.summary = summary(session.list(tree.wt.path))
+			for _, item in ipairs(tree.sessions) do
+				item.status = session.status(item.session)
+				item.icon = session.icon(item.session)
+				item.activity = session.activity(item.session)
+				item.usage = require("aero.acp.usage").summary(item.session.chat)
+			end
+		end
+	end
+	local lines, items, marks = require("aero.dashboard.model").build(animation_snapshot)
+	require("aero.dashboard.view").render(state, lines, items, marks)
 end
 
 --- Collapse all existing sidebar nodes of a type, including hidden descendants.
@@ -1359,7 +1382,7 @@ spinner.on_frame(function()
 		return session.status(s) == "busy"
 	end)
 	if busy and state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
-		M.render()
+		animate()
 	end
 	return busy
 end)

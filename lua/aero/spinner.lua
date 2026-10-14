@@ -10,6 +10,7 @@ local interval = 80
 ---@type (fun(): boolean)[] each redraws its part and returns whether it still wants frames
 local listeners = {}
 local timer
+local pending = false
 
 --- The current spinner frame (the static busy icon when animation is off).
 function M.frame()
@@ -49,7 +50,16 @@ function M.ensure()
 		return
 	end
 	timer = vim.uv.new_timer()
-	timer:start(interval, interval, vim.schedule_wrap(tick))
+	timer:start(interval, interval, function()
+		if pending then
+			return
+		end
+		pending = true
+		vim.schedule(function()
+			tick()
+			pending = false
+		end)
+	end)
 end
 
 --- "12s", "3m 05s"

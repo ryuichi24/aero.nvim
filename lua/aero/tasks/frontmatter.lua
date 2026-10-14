@@ -3,11 +3,10 @@ local cache = {}
 local versions = {}
 
 local function execute(argv, opts)
-	local ok, process = pcall(vim.system, argv, opts or { text = true })
+	local ok, output = pcall(require("aero.install_progress").wait, argv, 10000, opts or { text = true })
 	if not ok then
-		return nil, "cannot run tasks.yq: " .. tostring(process)
+		return nil, "cannot run tasks.yq: " .. tostring(output)
 	end
-	local output = process:wait(10000)
 	if output.code ~= 0 then
 		return nil, "yq failed: " .. vim.trim(output.stderr or "")
 	end

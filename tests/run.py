@@ -47,8 +47,8 @@ def main():
     for test in tests:
         relative = test.relative_to(root).as_posix()
         command = ["nvim", "--headless", "-u", "NONE", "-i", "NONE"]
-        # This test needs Neovim's normal input loop for inline completion.
-        command += ["-c", f"luafile {relative}"] if test.stem == "prompt_paths_inline" else ["-l", relative]
+        # These tests need Neovim's normal input loop for completion/command windows.
+        command += ["-c", f"luafile {relative}"] if test.stem in {"prompt_paths_inline", "tasks_cmdwin"} else ["-l", relative]
         print(f"RUN {relative}", flush=True)
         try:
             result = subprocess.run(command, cwd=root, env=env, timeout=args.timeout)

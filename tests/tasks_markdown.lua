@@ -123,8 +123,9 @@ config.options.tasks.yq = "__aero_missing_yq__"
 local version, version_err = fm.check_yq()
 assert(not version and version_err:find("tasks.yq", 1, true))
 local system = vim.system
-vim.system = function(argv)
+vim.system = function(argv, _, callback)
 	assert(argv[1] == "__aero_incompatible_yq__" and argv[2] == "--version")
+	callback({ code = 0, stdout = "yq 3.4.3\n", stderr = "" })
 	return {
 		wait = function()
 			return { code = 0, stdout = "yq 3.4.3\n", stderr = "" }

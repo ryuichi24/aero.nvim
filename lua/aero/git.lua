@@ -2,7 +2,7 @@ local M = {}
 local events = require("aero.events")
 
 local function run(args)
-	local r = vim.system(args, { text = true }):wait()
+	local r = require("aero.install_progress").wait(args, 10000, { text = true })
 	return r.code == 0, vim.trim(r.stdout or ""), vim.trim(r.stderr or "")
 end
 
