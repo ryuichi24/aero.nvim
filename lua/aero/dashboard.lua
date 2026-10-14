@@ -331,6 +331,40 @@ local function build()
 	return lines, items, marks
 end
 
+--- Collapse all existing sidebar nodes of a type, including hidden descendants.
+function M.collapse(kind)
+	kind = kind or "all"
+	local valid = { all = true, workspaces = true, worktrees = true, reports = true, exports = true, boards = true }
+	if not valid[kind] then
+		notify("use :Aero collapse [all|workspaces|worktrees|reports|exports|boards]", vim.log.levels.WARN)
+		return
+	end
+	for _, ws in ipairs(store.data.workspaces) do
+		if kind == "all" or kind == "boards" then
+			state.boards_expanded[ws.root] = false
+		end
+		if kind == "all" or kind == "worktrees" or kind == "reports" or kind == "exports" then
+			local cache = state.worktrees[ws.root]
+			local list = cache and cache.list or git.list(ws.root)
+			for _, wt in ipairs(list or {}) do
+				if kind == "all" or kind == "worktrees" then
+					state.expanded[wt.path] = false
+				end
+				if kind == "all" or kind == "reports" then
+					state.reports_expanded[wt.path] = false
+				end
+				if kind == "all" or kind == "exports" then
+					state.exports_expanded[wt.path] = false
+				end
+			end
+		end
+		if kind == "all" or kind == "workspaces" then
+			store.set_expanded(ws.root, false)
+		end
+	end
+	M.render()
+end
+
 function M.render()
 	local buf = state.buf
 	if not (buf and api.nvim_buf_is_valid(buf)) then

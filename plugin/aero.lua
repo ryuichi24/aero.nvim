@@ -16,6 +16,13 @@ local subcommands = {
 	refresh = function()
 		require("aero").refresh()
 	end,
+	collapse = function(args)
+		if #args > 1 then
+			vim.notify("Aero: use :Aero collapse [all|workspaces|worktrees|reports|exports|boards]", vim.log.levels.WARN)
+			return
+		end
+		require("aero").collapse(args[1])
+	end,
 	pull = function()
 		require("aero").pull()
 	end,
@@ -108,6 +115,11 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "collapse" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(s)
+				return vim.startswith(s, arglead)
+			end, { "all", "workspaces", "worktrees", "reports", "exports", "boards" })
+		end
 		if words[2] == "companion" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)

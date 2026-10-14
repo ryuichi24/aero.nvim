@@ -63,6 +63,11 @@ function M.refresh()
 	ensure().refresh()
 end
 
+--- Collapse sidebar nodes: all (default), workspaces, worktrees, reports, exports, or boards.
+function M.collapse(kind)
+	ensure().collapse(kind)
+end
+
 --- Pull the selected worktree, current checkout, or an explicit path asynchronously.
 function M.pull(path)
 	return ensure().pull(path)

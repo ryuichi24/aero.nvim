@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Snapshot } from './types';
 import { SourceBrowser } from './source-browser';
 import { GitBrowser } from './git-browser';
@@ -17,6 +17,23 @@ export function WorkspaceReview({
   onQuote?: (quote: Quote, worktree: string) => void;
 }) {
   const [visited, setVisited] = useState<Record<string, string[]>>({});
+  const positions = useRef(new Map<string, { top: number; left: number }>());
+  const active = !!worktree && ['reports', 'source', 'git'].includes(view);
+  const mounted = visited[worktree]?.includes(view) === true;
+  useLayoutEffect(() => {
+    if (!active || !mounted) return;
+    const key = JSON.stringify([worktree, view]);
+    const position = positions.current.get(key) || { top: 0, left: 0 };
+    // These readers scroll with the page, whose position is otherwise shared by all tabs.
+    if (window.scrollY !== position.top || window.scrollX !== position.left) {
+      window.scrollTo({ ...position, behavior: 'instant' });
+    }
+    const remember = () => {
+      positions.current.set(key, { top: window.scrollY, left: window.scrollX });
+    };
+    window.addEventListener('scroll', remember, { passive: true });
+    return () => window.removeEventListener('scroll', remember);
+  }, [active, mounted, worktree, view]);
   useEffect(() => {
     if (!worktree || !['reports', 'source', 'git'].includes(view)) return;
     setVisited((previous) =>

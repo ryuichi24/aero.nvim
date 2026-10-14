@@ -21,8 +21,18 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero worktrees` | Search worktrees grouped by workspace and open the selected checkout |
 | `:Aero workspaces` | Search registered workspaces and open the selected root checkout |
 | `:Aero refresh` | Re-read worktrees |
+| `:Aero collapse` / `:Aero collapse all` | Collapse every sidebar section |
+| `:Aero collapse workspaces` | Collapse all workspace nodes |
+| `:Aero collapse worktrees` | Collapse all worktree nodes |
+| `:Aero collapse reports` | Collapse all Reports sections |
+| `:Aero collapse exports` | Collapse all Exported logs sections |
+| `:Aero collapse boards` | Collapse all Boards sections |
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero term` | Toggle the current worktree's shell |
+
+Collapse commands apply across registered workspaces, including sections hidden
+under collapsed parents, and preserve your current window focus. The matching Lua
+API is `require("aero").collapse(kind)`, where `kind` defaults to `"all"`.
 
 The session, worktree, and workspace popups open in normal mode. Use `j`/`k` to
 select, `i` to filter, and `Enter` to open the selected item. `Esc` returns to

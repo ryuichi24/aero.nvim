@@ -350,6 +350,47 @@ describe('mobile companion', () => {
     ).toBe(true);
   });
 
+  it('returns to the last agent subtab and reading position through Sessions navigation', async () => {
+    let top = 0;
+    vi.spyOn(window, 'scrollY', 'get').mockImplementation(() => top);
+    vi.spyOn(window, 'scrollTo').mockImplementation((options) => {
+      top = (options as ScrollToOptions).top || 0;
+    });
+    render(<App />);
+    connect();
+    await open();
+    draft('Keep my session');
+    const transcript = screen.getByRole('region', { name: 'Conversation transcript' });
+    Object.defineProperty(transcript, 'scrollHeight', { configurable: true, value: 2000 });
+    transcript.scrollTop = 500;
+    fireEvent.scroll(transcript);
+    top = 250;
+    fireEvent.scroll(window);
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
+    top = 0;
+    fireEvent.scroll(window);
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(screen.getByRole('region', { name: 'Conversation transcript' })).toBe(transcript);
+    expect(transcript.scrollTop).toBe(500);
+    expect(top).toBe(250);
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' }).value,
+    ).toBe('Keep my session');
+    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
+    top = 700;
+    fireEvent.scroll(window);
+    await userEvent.click(screen.getByRole('button', { name: 'Inbox' }));
+    top = 0;
+    fireEvent.scroll(window);
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(screen.getByRole('region', { name: 'Session metadata' })).toBeTruthy();
+    expect(top).toBe(700);
+    await userEvent.click(screen.getByRole('button', { name: '← All sessions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(screen.getByRole('heading', { name: 'Agent sessions' })).toBeTruthy();
+  });
+
   it('restores drafts and Details after reload and browser Back returns to Home', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({})));
     const first = render(<App />);

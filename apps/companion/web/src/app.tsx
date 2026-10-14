@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   QueryClient,
   QueryClientProvider,
@@ -103,6 +103,25 @@ function Companion() {
   const [sessionTab, setSessionTab] = useState<'conversation' | 'artifacts' | 'details'>(
     'conversation',
   );
+  const lastSessionsView = useRef<'sessions' | 'conversation'>('sessions');
+  useEffect(() => {
+    if (view === 'sessions' || view === 'conversation') lastSessionsView.current = view;
+  }, [view]);
+  const sessionPositions = useRef(new Map<string, { top: number; left: number }>());
+  useLayoutEffect(() => {
+    if (view !== 'conversation') return;
+    const key = JSON.stringify([selected?.id, selected?.conversation, sessionTab]);
+    const position = sessionPositions.current.get(key) || { top: 0, left: 0 };
+    titleRef.current?.focus({ preventScroll: true });
+    if (window.scrollY !== position.top || window.scrollX !== position.left) {
+      window.scrollTo({ ...position, behavior: 'instant' });
+    }
+    const remember = () => {
+      sessionPositions.current.set(key, { top: window.scrollY, left: window.scrollX });
+    };
+    window.addEventListener('scroll', remember, { passive: true });
+    return () => window.removeEventListener('scroll', remember);
+  }, [view, selected?.id, selected?.conversation, sessionTab]);
   const [routeReady, setRouteReady] = useState(false);
   const [creationRequest, setCreationRequest] = useState(0);
   const [lightTheme, setLightTheme] = useState(() => {
@@ -408,12 +427,6 @@ function Companion() {
       streamRef.current = null;
     };
   }, [connect]);
-
-  useEffect(() => {
-    if (view !== 'conversation') return;
-    titleRef.current?.focus({ preventScroll: true });
-    if (window.scrollY > 0) window.scrollTo({ top: 0 });
-  }, [view, selected?.id, selected?.conversation]);
 
   function openSession(selection: Selection) {
     if (attentionHost instanceof HTMLDialogElement) attentionHost.close();
@@ -740,7 +753,9 @@ function Companion() {
         </button>
         <button
           aria-current={view === 'sessions' || view === 'conversation' ? 'page' : undefined}
-          onClick={() => navigate('sessions')}
+          onClick={() =>
+            navigate(view === 'conversation' || !selected ? 'sessions' : lastSessionsView.current)
+          }
         >
           <NavigationIcon name="sessions" />
           Sessions
