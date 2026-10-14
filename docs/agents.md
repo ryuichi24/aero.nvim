@@ -96,17 +96,27 @@ The prompt is a regular Markdown buffer; closing it retains the draft.
 | `:w` / `<C-s>` | Send (Ctrl-s works in normal and insert mode) |
 | `<CR>` | Send in normal mode |
 | `<C-x><C-o>` | Complete slash commands |
-| `<Tab>` / `<S-Tab>` | Next / previous suggestion in the automatic slash-command menu |
+| `<C-n>` / `<C-p>` | Next / previous suggestion |
+| `<Tab>` / `<S-Tab>` | Next / previous suggestion when `acp.tab_completion = true` |
 | `@` (insert mode) | Show inline fuzzy suggestions for worktree files and folders |
 | `q` | Close in normal mode |
 | `<C-g>` | Toggle the input panel in normal or insert mode, keeping the draft |
 | `<C-c>` | Cancel the turn |
 
 Slash-command suggestions appear automatically as you type `/`, including agent-provided
-commands and descriptions. `/model ` and `/mode ` suggest available IDs. Use Tab/Shift-Tab,
-Ctrl-n/Ctrl-p, or the arrow keys to navigate; Enter accepts a suggestion (the first
+commands and descriptions. `/model ` and `/mode ` suggest available IDs. Use
+Ctrl-n/Ctrl-p or the arrow keys to navigate; Enter accepts a suggestion (the first
 one if none is selected). Ctrl-e dismisses the menu. Accepting a suggestion does not
 send the prompt; press Enter again to run `/report`, `/export`, or `/cancel`.
+
+Tab and Shift-Tab navigate Aero suggestions by default. To leave them available for
+your own mappings (for example, accepting Supermaven suggestions), disable them:
+
+```lua
+require("aero").setup({
+  acp = { tab_completion = false },
+})
+```
 
 Type `@` anywhere after whitespace in your draft to suggest worktree paths inline.
 Keep typing to fuzzy-filter the list (for example, `@sne` can match

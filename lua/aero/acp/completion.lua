@@ -145,8 +145,12 @@ function M.setup(buf, root)
 		end)
 	end })
 	bind = function()
-		for key, completion in pairs({ ["<Tab>"] = "<C-n>", ["<S-Tab>"] = "<C-p>",
-			["<C-n>"] = "<C-n>", ["<C-p>"] = "<C-p>", ["<Down>"] = "<C-n>", ["<Up>"] = "<C-p>" }) do
+		local mappings = { ["<C-n>"] = "<C-n>", ["<C-p>"] = "<C-p>",
+			["<Down>"] = "<C-n>", ["<Up>"] = "<C-p>" }
+		if require("aero.config").options.acp.tab_completion then
+			mappings["<Tab>"], mappings["<S-Tab>"] = "<C-n>", "<C-p>"
+		end
+		for key, completion in pairs(mappings) do
 			vim.keymap.set("i", key, function()
 				if path_menu.visible(buf) then
 					path_menu.move(buf, completion == "<C-n>" and 1 or -1)

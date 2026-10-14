@@ -8,6 +8,16 @@ vim.fn.writefile({ "hello" }, root .. "/space name.txt")
 vim.o.columns = 120
 vim.cmd("botright 35vnew")
 local win, buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
+local config = require("aero.config")
+assert(config.options.acp.tab_completion == true)
+config.setup({ acp = { tab_completion = false } })
+local default_buf = api.nvim_create_buf(false, true)
+require("aero.acp.completion").setup(default_buf, root)
+for _, mapping in ipairs(api.nvim_buf_get_keymap(default_buf, "i")) do
+	assert(mapping.lhs ~= "<Tab>" and mapping.lhs ~= "<S-Tab>", "disabled Tab navigation should leave mappings available")
+end
+api.nvim_buf_delete(default_buf, { force = true })
+config.setup({ acp = { tab_completion = true } })
 require("aero.acp.completion").setup(buf, root)
 local path_menu = require("aero.acp.path_menu")
 vim.keymap.set("i", "<CR>", function() path_menu.accept(buf) end, { buffer = buf })

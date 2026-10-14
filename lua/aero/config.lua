@@ -28,6 +28,7 @@ M.defaults = {
 		max_tool_lines = 20,
 		-- prompt window height
 		prompt_height = 25,
+		tab_completion = true, -- map Tab/Shift-Tab to navigate prompt suggestions
 		decorations = true, -- native transcript cards, colors, and visual borders
 		image_previews = false, -- expose ACP images to Markdown image renderers (e.g. image.nvim)
 		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
