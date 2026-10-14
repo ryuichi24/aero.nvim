@@ -1,0 +1,20 @@
+{
+  "connected": true,
+  "cursor": "bridge-example:1",
+  "epoch": "host-example",
+  "agents": ["fixture"],
+  "workspaces": [{ "root": "/repo", "name": "Example" }],
+  "worktrees": [{ "path": "/repo", "workspace": "/repo", "branch": "main", "target": "tree-example" }],
+  "sessions": [{
+    "id": "/repo::fixture", "name": "fixture", "agent": "fixture", "worktree": "/repo",
+    "status": "waiting", "target": "session-example", "conversation": "conversation-example",
+    "blocks": [
+      { "kind": "agent", "text": "Ready to review.", "timestamp": 1 },
+      { "kind": "permission", "title": "Read example.txt", "options": [{ "optionId": "allow", "name": "Allow once", "kind": "allow_once" }] }
+    ],
+    "queue": [],
+    "permission": { "id": "permission-example", "title": "Read example.txt", "options": [{ "optionId": "allow", "name": "Allow once", "kind": "allow_once" }] }
+  }],
+  "inbox": [{ "id": "attention-example", "session": "/repo::fixture", "conversation": "conversation-example", "kind": "permission", "text": "Read example.txt" }],
+  "boards": []
+}

@@ -14,7 +14,7 @@ end
 
 function M.open(chat)
 	if not chat then
-		local s = require("aero.dashboard").viewed_session()
+		local s = require("aero.session_target").resolve("viewed")
 		chat = s and s.chat
 	end
 	if not chat then
@@ -25,9 +25,15 @@ function M.open(chat)
 	require("aero.picker").close()
 	require("aero.picker").open({
 		title = "prompts for " .. chat.s.name,
-		items = function() return M.items(chat) end,
-		label = function(item) return "  " .. item.text:gsub("%s+", " ") end,
-		preview = function(item) return item.text end,
+		items = function()
+			return M.items(chat)
+		end,
+		label = function(item)
+			return "  " .. item.text:gsub("%s+", " ")
+		end,
+		preview = function(item)
+			return item.text
+		end,
 		select = function(item)
 			if chat.s.chat ~= chat or not api.nvim_buf_is_valid(chat.buf) then
 				vim.notify("Aero: conversation is no longer available", vim.log.levels.INFO)

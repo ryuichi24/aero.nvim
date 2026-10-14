@@ -5,8 +5,8 @@ local storage = require("aero.tasks.storage")
 local edit = require("aero.tasks.edit")
 local config = require("aero.config")
 local M = {}
-local sessions, active = {}, {}
-local ns = api.nvim_create_namespace("Aero.tasks")
+local drafts = require("aero.tasks.drafts")
+local sessions, active = drafts.sessions(), {}
 local diagnostics = api.nvim_create_namespace("Aero.tasks.edit")
 local bind, layout, decorate
 
@@ -19,29 +19,12 @@ function M.current()
 end
 
 function M.dirty(view)
-	for _, column in ipairs(view.columns or {}) do
-		if not api.nvim_buf_is_valid(column.buf) or vim.bo[column.buf].modified then
-			return true
-		end
-	end
-	return false
+	return drafts.dirty(view)
 end
 
 -- Inspect retained buffers, including columns in hidden or closed tabs.
 function M.status(board_path)
-	local view = sessions[require("aero.storage").canonical(board_path)]
-	local status = { dirty = false, stale = false, missing_column = false }
-	if not view then
-		return status
-	end
-	status.dirty = M.dirty(view)
-	status.stale = storage.read(view.board.path) ~= view.baseline_text
-	for _, column in ipairs(view.columns or {}) do
-		if not api.nvim_buf_is_valid(column.buf) then
-			status.missing_column = true
-		end
-	end
-	return status
+	return drafts.status(board_path)
 end
 
 local function clean(view)
@@ -82,72 +65,8 @@ function M.selection()
 	}
 end
 
-local function detail(item, state)
-	if item.error then
-		return "! " .. edit.title(item.error)
-	end
-	local data = item.ticket and item.ticket.metadata or {}
-	local parts = {}
-	if item.error then
-		table.insert(parts, "! " .. item.error)
-	end
-	if data.priority then
-		table.insert(parts, data.priority)
-	end
-	for _, name in ipairs(data.assignees or {}) do
-		table.insert(parts, "@" .. name)
-	end
-	if data.due_date then
-		local overdue = not vim.tbl_contains(config.options.tasks.terminal_states, state)
-			and data.due_date < os.date("!%Y-%m-%d")
-		table.insert(parts, (overdue and "OVERDUE " or "due ") .. data.due_date)
-	end
-	if data.estimate then
-		table.insert(parts, data.estimate .. " " .. config.options.tasks.estimate_unit)
-	end
-	for _, tag in ipairs(data.tags or {}) do
-		table.insert(parts, "#" .. tag)
-	end
-	return edit.title(table.concat(parts, " · "))
-end
-
 decorate = function(view, only)
-	for _, column in ipairs(view.columns) do
-		if api.nvim_buf_is_valid(column.buf) and (not only or only == column.buf) then
-			api.nvim_buf_clear_namespace(column.buf, ns, 0, -1)
-			local count = 0
-			for row, line in ipairs(api.nvim_buf_get_lines(column.buf, 0, -1, false)) do
-				if vim.trim(line) ~= "" then
-					count = count + 1
-				end
-				local id = line:match("^(%S+)  ")
-				local item = view.registry[id]
-				if item then
-					api.nvim_buf_set_extmark(column.buf, ns, row - 1, 0, {
-						virt_text = { { detail(item.entry, column.name), "Comment" } },
-						virt_text_pos = "eol",
-					})
-				end
-			end
-			for _, win in ipairs(vim.fn.win_findbuf(column.buf)) do
-				vim.wo[win].conceallevel, vim.wo[win].concealcursor = 2, "nvic"
-				local title = edit.title((view.board.metadata or {}).title or "Board")
-				local archived = (view.board.metadata or {}).archived and " [archived]" or ""
-				local errors = #view.board.diagnostics > 0 and " [diagnostics: g?]" or ""
-				vim.wo[win].winbar = (
-					title
-					.. archived
-					.. " · "
-					.. column.name
-					.. " ("
-					.. count
-					.. ")"
-					.. (view.stale and " [stale]" or "")
-					.. errors
-				):gsub("%%", "%%%%")
-			end
-		end
-	end
+	return require("aero.tasks.view.columns").decorate(view, only)
 end
 
 function M.save(view)
@@ -236,7 +155,7 @@ function M.save(view)
 		end
 	end
 	decorate(view)
-	require("aero.dashboard").render()
+	require("aero.events").emit("tasks_view_changed", { board_path = view.path })
 	return true
 end
 
@@ -387,105 +306,12 @@ function M.render(view, discard, metadata_refresh)
 end
 
 local function geometry(view)
-	local dimensions = { vim.o.columns, vim.o.lines }
-	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
-		for _, column in ipairs(view.columns) do
-			if api.nvim_win_get_buf(win) == column.buf then
-				vim.list_extend(dimensions, { win, api.nvim_win_get_width(win), api.nvim_win_get_height(win) })
-				break
-			end
-		end
-	end
-	return table.concat(dimensions, ":")
+	return require("aero.tasks.view.layout").geometry(view)
 end
 
 -- Only manipulate windows owned by this board in the current tab.
 layout = function(view, focus, resized)
-	if vim.fn.getcmdwintype() ~= "" then
-		return
-	end
-	if #view.columns == 0 then
-		notify("board has no states; edit its source")
-		return
-	end
-	local wins, width = {}, 0
-	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
-		local buf = api.nvim_win_get_buf(win)
-		for _, column in ipairs(view.columns) do
-			if column.buf == buf then
-				table.insert(wins, win)
-				width = width + api.nvim_win_get_width(win) + 1
-				break
-			end
-		end
-	end
-	if #wins == 0 then
-		local win = api.nvim_get_current_win()
-		api.nvim_win_set_buf(win, view.columns[1].buf)
-		wins, width = { win }, api.nvim_win_get_width(win)
-	end
-	-- Dedicated board-only tabs own the full editor width, even before Neovim has
-	-- redistributed the existing splits following an external screen resize.
-	local normal_windows = 0
-	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
-		if api.nvim_win_get_config(win).relative == "" then
-			normal_windows = normal_windows + 1
-		end
-	end
-	if #wins == normal_windows then
-		width = vim.o.columns
-	end
-	local count =
-		math.max(1, math.min(#view.columns, math.floor(width / math.max(12, config.options.tasks.column_width))))
-	focus = math.max(1, math.min(focus or 1, #view.columns))
-	local tab = api.nvim_get_current_tabpage()
-	local target
-	for _, column in ipairs(view.columns) do
-		column.cursors = column.cursors or {}
-		for _, win in ipairs(wins) do
-			if api.nvim_win_get_buf(win) == column.buf then
-				column.cursors[tab] = api.nvim_win_get_cursor(win)
-				if column == view.columns[focus] then
-					target = win
-				end
-			end
-		end
-	end
-	if target and #wins == count then
-		for _, win in ipairs(wins) do
-			vim.wo[win].wrap, vim.wo[win].number, vim.wo[win].relativenumber = false, false, false
-			if resized then
-				pcall(api.nvim_win_set_width, win, math.max(1, math.floor(width / count) - 1))
-			end
-		end
-		api.nvim_set_current_win(target)
-		decorate(view)
-		view.geometry = geometry(view)
-		return
-	end
-	local first = math.max(1, math.min(focus, #view.columns - count + 1))
-	local anchor = wins[1]
-	for i = #wins, 2, -1 do
-		api.nvim_win_close(wins[i], true)
-	end
-	api.nvim_win_set_buf(anchor, view.columns[first].buf)
-	local displayed = { anchor }
-	for offset = 1, count - 1 do
-		local win =
-			api.nvim_open_win(view.columns[first + offset].buf, false, { split = "right", win = displayed[#displayed] })
-		table.insert(displayed, win)
-	end
-	for index, win in ipairs(displayed) do
-		vim.wo[win].wrap, vim.wo[win].number, vim.wo[win].relativenumber = false, false, false
-		pcall(api.nvim_win_set_width, win, math.max(1, math.floor(width / count) - 1))
-		local cursor = view.columns[first + index - 1].cursors[tab]
-		if cursor then
-			pcall(api.nvim_win_set_cursor, win, cursor)
-		end
-	end
-	api.nvim_set_current_win(displayed[focus - first + 1])
-	decorate(view)
-	view.geometry = geometry(view)
+	return require("aero.tasks.view.layout").reflow(view, focus, resized, decorate)
 end
 
 local function ticket_float_config(title)
@@ -602,7 +428,7 @@ function M.new_ticket(view)
 		end
 		M.render(view)
 		decorate(view)
-		require("aero.dashboard").render()
+		require("aero.events").emit("tasks_view_changed", { board_path = view.path })
 	end)
 end
 
@@ -670,7 +496,7 @@ function M.actions(view)
 		end
 		M.render(view)
 		layout(view, view.state_index)
-		require("aero.dashboard").render()
+		require("aero.events").emit("tasks_view_changed", { board_path = view.path })
 	end
 	local function navigation(ds, dt)
 		selected(view)
@@ -740,72 +566,14 @@ function M.actions(view)
 				return
 			end
 			local item = selected(view)
-			local fields = item and { "title", "task_type", "priority", "assignees", "tags", "due_date", "estimate" }
-				or { "title", "description", "tags", "archived" }
-			local data = item and item.ticket and item.ticket.metadata or view.board.metadata or {}
-			vim.ui.select(fields, { prompt = "Edit metadata" }, function(field)
-				if not field then
-					return
-				end
-				vim.ui.input({
-					prompt = field .. " (JSON value): ",
-					default = data[field] ~= nil and vim.json.encode(data[field]) or "",
-				}, function(value)
-					if not value or value == "" then
-						return
-					end
-					local ok, decoded = pcall(vim.json.decode, value)
-					if not ok then
-						notify("enter a JSON value")
-						return
-					end
-					apply(tasks.update_metadata, item and item.path, { [field] = decoded })
-				end)
-			end)
+			return require("aero.tasks.view.actions").metadata(view, item, apply, notify)
 		end,
 		states = function()
 			if not clean(view) then
 				return
 			end
 			local _, state = selected(view)
-			vim.ui.select({ "Add", "Rename", "Reorder", "Remove" }, { prompt = "Manage states" }, function(action)
-				if action == "Add" or action == "Rename" and state then
-					vim.ui.input(
-						{ prompt = action .. " state: ", default = action == "Rename" and state.name or "" },
-						function(name)
-							if name and name ~= "" then
-								if action == "Add" then
-									apply(tasks.add_state, name)
-								else
-									apply(tasks.rename_state, state.name, name)
-								end
-							end
-						end
-					)
-				elseif action == "Reorder" and state then
-					vim.ui.input({ prompt = "State position: " }, function(value)
-						if tonumber(value) then
-							apply(tasks.reorder_state, state.name, tonumber(value))
-						end
-					end)
-				elseif action == "Remove" and state then
-					if #state.entries == 0 then
-						apply(tasks.remove_state, state.name)
-					else
-						local names = {}
-						for _, s in ipairs(view.board.states) do
-							if s.name ~= state.name then
-								table.insert(names, s.name)
-							end
-						end
-						vim.ui.select(names, { prompt = "Move tickets before removing state" }, function(name)
-							if name then
-								apply(tasks.remove_state, state.name, name)
-							end
-						end)
-					end
-				end
-			end)
+			return require("aero.tasks.view.actions").states(view, state, apply)
 		end,
 		recover = function()
 			if not clean(view) then
@@ -866,58 +634,13 @@ function M.actions(view)
 			if not clean(view) then
 				return
 			end
-			if view.tab and api.nvim_tabpage_is_valid(view.tab) then
-				api.nvim_set_current_tabpage(view.tab)
-				-- No force: modified ticket/source buffers retain normal tab-close protection.
-				vim.cmd.tabclose()
-				view.tab = nil
-				if view.origin_tab and api.nvim_tabpage_is_valid(view.origin_tab) then
-					api.nvim_set_current_tabpage(view.origin_tab)
-				end
-				return
-			end
-			local windows = {}
-			for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
-				for _, column in ipairs(view.columns) do
-					if api.nvim_win_get_buf(win) == column.buf then
-						table.insert(windows, win)
-						break
-					end
-				end
-			end
-			if #windows > 0 then
-				api.nvim_set_current_win(windows[1])
-				vim.cmd.edit(vim.fn.fnameescape(view.path))
-				vim.wo.conceallevel, vim.wo.concealcursor = vim.o.conceallevel, vim.o.concealcursor
-				for i = 2, #windows do
-					api.nvim_win_close(windows[i], true)
-				end
-			end
+			return require("aero.tasks.view.actions").close(view)
 		end,
 	}
 end
 
 bind = function(view, column)
-	for _, binding in ipairs(column.bindings or {}) do
-		api.nvim_buf_call(column.buf, function()
-			if vim.fn.maparg(binding.key, "n", false, true).callback == binding.fn then
-				vim.keymap.del("n", binding.key, { buffer = column.buf })
-			end
-		end)
-	end
-	column.bindings = {}
-	for name, fn in pairs(M.actions(view)) do
-		local key = config.options.tasks.keymaps[name]
-		if key then
-			vim.keymap.set(
-				"n",
-				key,
-				fn,
-				{ buffer = column.buf, silent = true, nowait = true, desc = "Aero tasks: " .. name }
-			)
-			table.insert(column.bindings, { key = key, fn = fn })
-		end
-	end
+	return require("aero.tasks.view.columns").bind(column, M.actions(view))
 end
 
 function M.setup()
@@ -971,7 +694,6 @@ api.nvim_create_autocmd("User", {
 		if view then
 			M.render(view, false, true)
 		end
-		require("aero.dashboard").render()
 	end,
 })
 local pending, metadata_refresh = false, false
@@ -993,7 +715,7 @@ api.nvim_create_autocmd({ "BufWritePost", "FocusGained", "CmdwinLeave" }, {
 			for _, view in pairs(sessions) do
 				M.render(view, false, reload)
 			end
-			require("aero.dashboard").render()
+			require("aero.events").emit("tasks_view_changed", {})
 		end)
 	end,
 })

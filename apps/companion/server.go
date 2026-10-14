@@ -2,12 +2,8 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
-	"embed"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -15,59 +11,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"strings"
 	"time"
 )
-
-// Build the React UI with pnpm run build before compiling the Go bridge.
-//
-//go:embed web/dist
-var bundledUI embed.FS
-
-type config struct {
-	Socket       string `json:"socket"`
-	Bind         string `json:"bind"`
-	Origin       string `json:"origin"`
-	Cert         string `json:"cert,omitempty"`
-	Key          string `json:"key,omitempty"`
-	Port         int    `json:"port"`
-	AllowHTTP    bool   `json:"allow_http"`
-	DevicesFile  string `json:"devices_file,omitempty"`
-	StdioControl bool   `json:"-"`
-}
-
-func loopback(host string) bool {
-	return host == "localhost" || net.ParseIP(host).IsLoopback()
-}
-
-func (c config) validate() error {
-	if c.Socket == "" {
-		return errors.New("--socket is required")
-	}
-	if c.Port < 1 || c.Port > 65535 {
-		return errors.New("--port must be between 1 and 65535")
-	}
-	if (c.Cert == "") != (c.Key == "") {
-		return errors.New("HTTPS requires both --cert and --key")
-	}
-	if !loopback(c.Bind) && c.Cert == "" && !c.AllowHTTP {
-		return errors.New("non-loopback binding requires HTTPS or explicit --allow-http")
-	}
-	u, err := url.Parse(c.Origin)
-	scheme := "http"
-	if c.Cert != "" {
-		scheme = "https"
-	}
-	if err != nil || u.Scheme != scheme || u.Hostname() == "" || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil {
-		return errors.New("--origin must be the exact HTTP(S) origin without a path")
-	}
-	if c.Cert == "" && !loopback(u.Hostname()) && !c.AllowHTTP {
-		return errors.New("HTTP origins must be loopback unless --allow-http is explicitly enabled")
-	}
-	return nil
-}
 
 type bridge struct {
 	state         *state
@@ -298,110 +245,6 @@ func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 		return false
 	}
 	return true
-}
-
-const deviceCookieAge = 365 * 24 * 60 * 60
-
-func (b *bridge) cookie(token string, maxAge int) *http.Cookie {
-	hash := sha256.Sum256([]byte(b.state.origin))
-	cookie := &http.Cookie{Name: fmt.Sprintf("aero_device_%x", hash[:8]), Value: token, Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteStrictMode, Secure: strings.HasPrefix(b.state.origin, "https://"), MaxAge: maxAge}
-	if maxAge > 0 {
-		cookie.Expires = time.Now().Add(time.Duration(maxAge) * time.Second)
-	}
-	return cookie
-}
-
-func (b *bridge) pair(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Code string  `json:"code"`
-		Name *string `json:"name"`
-	}
-	if !decodeBody(w, r, &input) {
-		return
-	}
-	name := "Phone"
-	if input.Name != nil {
-		name = *input.Name
-	}
-	token, d, err := b.state.pair(input.Code, name)
-	if err != nil {
-		if errors.Is(err, errPairingDenied) {
-			reject(w, http.StatusUnauthorized, errPairingDenied.Error())
-		} else {
-			reject(w, http.StatusServiceUnavailable, "could not remember this device; pairing was not completed")
-		}
-		return
-	}
-	http.SetCookie(w, b.cookie(token, deviceCookieAge))
-	reply(w, http.StatusOK, map[string]string{"device": d.ID})
-	if b.onChange != nil {
-		b.onChange("paired")
-	}
-}
-
-func (b *bridge) events(w http.ResponseWriter, r *http.Request, token string) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("X-Accel-Buffering", "no")
-	controller := http.NewResponseController(w)
-	cursor := ""
-	ticker := time.NewTicker(b.pollInterval)
-	defer ticker.Stop()
-	for {
-		if _, ok := b.state.authenticate(token); !ok {
-			return
-		}
-		snapshot := b.state.cachedSnapshot(r.Context(), b.pollInterval)
-		// Revocation during a slow host read must also stop this stream.
-		if _, ok := b.state.authenticate(token); !ok || r.Context().Err() != nil {
-			return
-		}
-		_ = controller.SetWriteDeadline(time.Now().Add(10 * time.Second))
-		current := string(snapshot["cursor"])
-		if current != cursor {
-			cursor = current
-			var id string
-			_ = json.Unmarshal(snapshot["cursor"], &id)
-			encoded, _ := json.Marshal(snapshot)
-			if _, err := io.WriteString(w, "id: "+id+"\ndata: "+string(encoded)+"\n\n"); err != nil {
-				return
-			}
-		} else if _, err := io.WriteString(w, ": heartbeat\n\n"); err != nil {
-			return
-		}
-		if err := controller.Flush(); err != nil {
-			return
-		}
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-func (b *bridge) static(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimPrefix(r.URL.Path, "/")
-	if name == "" {
-		name = "index.html"
-	}
-	if !fs.ValidPath(name) || (name != "index.html" && name != "manifest.webmanifest" && !strings.HasPrefix(name, "assets/")) {
-		reject(w, http.StatusNotFound, "unknown route")
-		return
-	}
-	data, err := fs.ReadFile(b.ui, name)
-	if err != nil {
-		reject(w, http.StatusNotFound, "unknown route")
-		return
-	}
-	typeName := mime.TypeByExtension(path.Ext(name))
-	if name == "manifest.webmanifest" {
-		typeName = "application/manifest+json"
-	}
-	w.Header().Set("Content-Type", typeName)
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
 }
 
 func httpServer(c config, handler http.Handler, ctx context.Context) *http.Server {

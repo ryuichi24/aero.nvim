@@ -23,7 +23,7 @@ vim.fn.mkdir(dir .. "/one/repo", "p")
 vim.fn.mkdir(dir .. "/two/repo", "p")
 dir = shared.canonical(dir)
 local ws, other = { root = dir .. "/one/repo" }, { root = dir .. "/two/repo" }
-config.setup({ state_file = dir .. "/state.json", tasks = { directory = "data" } })
+config.setup({ state_file = dir .. "/state.json", tasks = { directory = "data", states = { "todo", "done" } } })
 assert(storage.directory(ws) ~= storage.directory(other))
 config.options.tasks.directory = dir .. "/custom root"
 assert(storage.directory(ws) ~= storage.directory(other))

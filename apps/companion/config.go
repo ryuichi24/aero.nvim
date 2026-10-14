@@ -5,8 +5,53 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"net"
+	"net/url"
 	"os"
 )
+
+type config struct {
+	Socket       string `json:"socket"`
+	Bind         string `json:"bind"`
+	Origin       string `json:"origin"`
+	Cert         string `json:"cert,omitempty"`
+	Key          string `json:"key,omitempty"`
+	Port         int    `json:"port"`
+	AllowHTTP    bool   `json:"allow_http"`
+	DevicesFile  string `json:"devices_file,omitempty"`
+	StdioControl bool   `json:"-"`
+}
+
+func loopback(host string) bool {
+	return host == "localhost" || net.ParseIP(host).IsLoopback()
+}
+
+func (c config) validate() error {
+	if c.Socket == "" {
+		return errors.New("--socket is required")
+	}
+	if c.Port < 1 || c.Port > 65535 {
+		return errors.New("--port must be between 1 and 65535")
+	}
+	if (c.Cert == "") != (c.Key == "") {
+		return errors.New("HTTPS requires both --cert and --key")
+	}
+	if !loopback(c.Bind) && c.Cert == "" && !c.AllowHTTP {
+		return errors.New("non-loopback binding requires HTTPS or explicit --allow-http")
+	}
+	u, err := url.Parse(c.Origin)
+	scheme := "http"
+	if c.Cert != "" {
+		scheme = "https"
+	}
+	if err != nil || u.Scheme != scheme || u.Hostname() == "" || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil {
+		return errors.New("--origin must be the exact HTTP(S) origin without a path")
+	}
+	if c.Cert == "" && !loopback(u.Hostname()) && !c.AllowHTTP {
+		return errors.New("HTTP origins must be loopback unless --allow-http is explicitly enabled")
+	}
+	return nil
+}
 
 func parseConfig(args []string) (config, error) {
 	defaults := config{Bind: "127.0.0.1", Port: 8765, Origin: "http://localhost:8765"}

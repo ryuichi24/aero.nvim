@@ -245,6 +245,10 @@ remain running.
 
 ## Development and releases
 
+See the [architecture and reading guide](docs/architecture.md) for state ownership,
+feature walkthroughs, and focused test commands. `make test-lua` runs the full
+fixture-based Neovim suite; task tests require Mike Farah's `yq` v4 and Python 3.
+
 The MCP and companion projects live under `apps/`, sharing `apps/go.work` and
 the root `release.json` version. Use `make build-all` to build both tools, `make check-all`
 to verify them, and `make release` to package both binary families.

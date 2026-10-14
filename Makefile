@@ -2,7 +2,7 @@ GO ?= go
 PNPM ?= pnpm
 VERSION ?= $(shell python3 -c 'import json; print(json.load(open("release.json"))["version"])')
 
-.PHONY: build build-mcp build-all build-companion build-companion-ui test test-companion vet check check-all release clean
+.PHONY: build build-mcp build-all build-companion build-companion-ui test test-lua test-companion vet check check-all release clean
 
 build: build-mcp
 
@@ -13,6 +13,9 @@ build-all: build-mcp build-companion
 
 test:
 	$(GO) -C apps/mcp test ./...
+
+test-lua: build-all
+	python3 tests/run.py
 
 build-companion-ui:
 	$(PNPM) --dir apps/companion/web install --frozen-lockfile
@@ -36,7 +39,7 @@ vet:
 
 check: test vet
 
-check-all: check test-companion
+check-all: check test-companion test-lua
 
 release: build-companion-ui
 	GO="$(GO)" python3 apps/scripts/build-release.py $(if $(TAG),--tag "$(TAG)")

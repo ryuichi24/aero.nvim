@@ -18,6 +18,7 @@ require("aero").setup({
 	agents = agents,
 	tasks = {
 		directory = "worktree",
+		states = { "backlog", "done" },
 		agent = { enabled = true, executable = executable, adapters = vim.tbl_keys(agents) },
 	},
 })

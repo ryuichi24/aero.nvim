@@ -1,4 +1,5 @@
-import type { PendingAction, Snapshot } from './types';
+import type { PendingAction } from './types';
+export { parseSnapshot } from './connection/snapshot';
 
 export class RequestError extends Error {
   constructor(
@@ -101,19 +102,4 @@ export function readPending(): PendingAction | null {
 export function savePending(action: PendingAction | null): void {
   if (action) sessionStorage.setItem(pendingKey, JSON.stringify(action));
   else sessionStorage.removeItem(pendingKey);
-}
-
-export function parseSnapshot(text: string): Snapshot {
-  const value = JSON.parse(text) as Snapshot;
-  if (
-    typeof value.connected !== 'boolean' ||
-    typeof value.cursor !== 'string' ||
-    !Array.isArray(value.sessions) ||
-    !Array.isArray(value.inbox) ||
-    !Array.isArray(value.workspaces) ||
-    !Array.isArray(value.worktrees)
-  ) {
-    throw new Error('Invalid stream snapshot');
-  }
-  return value;
 }

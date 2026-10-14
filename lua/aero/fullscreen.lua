@@ -39,6 +39,11 @@ function M.close(kind)
 		if api.nvim_win_is_valid(view.focus) then
 			api.nvim_set_current_win(view.focus)
 		end
+		-- Focusing a short shell can apply 'winheight' on return to the source tab.
+		-- Restore the original split geometry after focus-related resizing.
+		if vim.deep_equal(vim.fn.winlayout(), view.layout_tree) then
+			vim.cmd(view.restore_layout)
+		end
 	end
 	require("aero.events").emit(
 		"fullscreen_exited",
@@ -111,11 +116,21 @@ function M.toggle()
 	local focus = api.nvim_get_current_win()
 	local cwd = vim.fn.getcwd()
 	local worktree = vim.t.aero_worktree
+	local restore_layout = vim.fn.winrestcmd()
+	local layout_tree = vim.fn.winlayout()
 	vim.cmd("tabnew")
 	local zoom = api.nvim_get_current_tabpage()
 	local win = api.nvim_get_current_win()
 	vim.bo[api.nvim_win_get_buf(win)].bufhidden = "wipe"
-	views[zoom] = { tab = tab, source = source, focus = focus, kind = kind, buf = api.nvim_win_get_buf(source) }
+	views[zoom] = {
+		tab = tab,
+		source = source,
+		focus = focus,
+		kind = kind,
+		buf = api.nvim_win_get_buf(source),
+		restore_layout = restore_layout,
+		layout_tree = layout_tree,
+	}
 	vim.t.aero_fullscreen = true
 	vim.t.aero_worktree = worktree
 	vim.cmd.tcd(vim.fn.fnameescape(cwd))

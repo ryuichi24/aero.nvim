@@ -4,11 +4,11 @@ local uv = vim.uv
 local server, directory, endpoint, settings_path
 local process, leaving
 local plugin_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(debug.getinfo(1, "S").source:sub(2))))
-local clients = {}
+local stop_clients
 local identities = setmetatable({}, { __mode = "k" })
 local permissions = setmetatable({}, { __mode = "k" })
 local conversation_ids = setmetatable({}, { __mode = "k" })
-local operations, operation_count = {}, 0
+local receipts = require("aero.companion.receipts").new()
 local worktree_cache, worktree_cache_at, worktree_roots = {}, -5000, ""
 local epoch = (assert(uv.random(24)):gsub(".", function(c)
 	return ("%02x"):format(c:byte())
@@ -56,104 +56,16 @@ local function identity(object, registry)
 end
 
 local function describe(s, boards)
-	local chat = s.chat
-	local result = {
-		id = s.key,
-		name = s.name,
-		agent = s.agent,
-		worktree = s.worktree,
-		status = chat and chat.state == "starting" and "starting" or require("aero.session").status(s),
-		target = identity(s, identities),
-		assignment = require("aero.tasks.status").describe(s, boards),
-	}
-	if chat then
-		if conversation_ids[chat] ~= (chat.session_id or chat.saved_session_id or false) then
-			identities[chat] = nil
-			conversation_ids[chat] = chat.session_id or chat.saved_session_id or false
-		end
-		result.conversation = identity(chat, identities)
-		result.acp_session_id = chat.session_id or chat.saved_session_id
-		result.activity = chat:activity()
-		result.blocks = vim.deepcopy(chat.blocks)
-		for _, b in ipairs(result.blocks) do
-			b.cache, b.cache_src, b.shown = nil, nil, nil
-		end
-		result.queue = vim.deepcopy(chat.queue)
-		result.usage = vim.deepcopy(chat.usage)
-		result.commands = vim.deepcopy(chat.commands or {})
-		result.models = require("aero.acp.models").options(chat)
-		result.modes = require("aero.acp.modes").options(chat)
-		if chat.permission then
-			result.permission = {
-				id = identity(chat.permission, permissions),
-				title = chat.permission.block.title,
-				options = chat.permission.block.options,
-			}
-		end
-	end
-	return result
+	return require("aero.companion.snapshot").describe(s, boards, identity, identities, permissions, conversation_ids)
 end
 
 function M.dispatch(method, params)
 	params = params or {}
 	local sessions = require("aero.session").all()
 	if method == "snapshot" then
-		local result = {
-			epoch = epoch,
-			companion = {
-				ui = {
-					source_collapsed_by_default = require("aero.config").options.companion.ui.source_collapsed_by_default,
-					todo_notifications = require("aero.config").options.acp.todo_notifications,
-					todo_notification_timeout = require("aero.config").options.acp.todo_notification_timeout,
-				},
-			},
-			agents = {},
-			workspaces = require("aero.store").data.workspaces,
-			worktrees = worktrees(),
-			sessions = {},
-			inbox = {},
-			boards = {},
-		}
-		for _, wt in ipairs(result.worktrees) do
-			wt.target = require("aero.companion_lifecycle").target(epoch, wt)
-			wt.reports_directory = require("aero.reports").directory(wt.path, wt.workspace and { root = wt.workspace })
-		end
-		for id, agent in pairs(require("aero.config").options.agents) do
-			if agent.type == "acp" then
-				table.insert(result.agents, id)
-			end
-		end
-		table.sort(result.agents)
-		local boards = {}
-		for _, workspace in ipairs(result.workspaces) do
-			boards[workspace.root] = require("aero.tasks").list(workspace)
-			for _, board in ipairs(boards[workspace.root]) do
-				if board.valid then
-					table.insert(
-						result.boards,
-						{ workspace = workspace.root, id = board.metadata.id, title = board.metadata.title }
-					)
-				end
-			end
-		end
-		for _, s in ipairs(sessions) do
-			local agent = require("aero.config").options.agents[s.agent]
-			if s.chat or agent and agent.type == "acp" then
-				table.insert(result.sessions, describe(s, boards))
-			end
-		end
-		for _, e in ipairs(require("aero.inbox").items()) do
-			table.insert(result.inbox, {
-				id = e.key,
-				session = e.session.key,
-				conversation = identity(e.chat, identities),
-				kind = e.kind,
-				text = e.text,
-				workspace = e.workspace,
-				ticket = e.ticket,
-			})
-		end
-		return result
+		return require("aero.companion.snapshot").build(epoch, worktrees(), sessions, describe, function(chat)
+			return identity(chat, identities)
+		end)
 	end
 	if
 		not lifecycle[method]
@@ -164,43 +76,15 @@ function M.dispatch(method, params)
 	then
 		return nil, "unknown method"
 	end
-	if type(params.operation_id) ~= "string" or #params.operation_id < 16 or #params.operation_id > 128 then
-		return nil, "operation_id required (16-128 characters)"
+	local fingerprint, receipt_err, previous = receipts.check(method, params)
+	if not fingerprint then
+		return nil, receipt_err
 	end
-	local fingerprint = vim.json.encode({
-		method,
-		params.session,
-		params.conversation,
-		params.text or false,
-		params.permission or false,
-		params.option or false,
-		params.epoch or false,
-		params.target or false,
-		params.workspace or false,
-		params.worktree or false,
-		params.agent or false,
-		params.name or false,
-		params.branch or false,
-		params.force or false,
-		params.board_id or false,
-		params.replace or false,
-	})
-	local previous = operations[params.operation_id]
 	if previous then
-		if previous.fingerprint ~= fingerprint then
-			return nil, "operation_id reused with different arguments"
-		end
 		return previous.result, previous.error
 	end
-	-- Refuse new operations rather than evicting receipts and risking duplicate retries.
-	if operation_count >= 10000 then
-		return nil, "operation receipt capacity reached"
-	end
 	local function finish(result, err)
-		if not operations[params.operation_id] then
-			operation_count = operation_count + 1
-		end
-		operations[params.operation_id] = { fingerprint = fingerprint, result = result, error = err }
+		receipts.finish(params.operation_id, fingerprint, result, err)
 		if lifecycle[method] then
 			worktree_cache_at = -5000
 		end
@@ -240,7 +124,8 @@ function M.dispatch(method, params)
 				)
 			end
 		)
-		return operations[params.operation_id].result, operations[params.operation_id].error
+		local receipt = receipts.get(params.operation_id)
+		return receipt.result, receipt.error
 	end
 	if lifecycle[method] then
 		if params.epoch ~= epoch then
@@ -254,7 +139,8 @@ function M.dispatch(method, params)
 		finish({ status = "unknown" })
 		require("aero.companion_lifecycle").run(method, params, sessions, finish)
 		worktree_cache_at = -5000
-		return operations[params.operation_id].result, operations[params.operation_id].error
+		local receipt = receipts.get(params.operation_id)
+		return receipt.result, receipt.error
 	end
 	if not chat then
 		return finish(nil, "session unavailable")
@@ -383,11 +269,11 @@ function M.dispatch(method, params)
 			}, "\n")
 		end
 		chat:prompt(text)
-		operations[params.operation_id].result = { status = queued and "queued" or "accepted" }
+		finish({ status = queued and "queued" or "accepted" })
 	elseif method == "cancel" then
 		finish({ status = "unknown" })
 		chat:cancel()
-		operations[params.operation_id].result = { status = "accepted" }
+		finish({ status = "accepted" })
 	else
 		local p = chat.permission
 		if not p or identity(p, permissions) ~= params.permission then
@@ -404,9 +290,9 @@ function M.dispatch(method, params)
 		end
 		finish({ status = "unknown" })
 		chat:choose(index)
-		operations[params.operation_id].result = { status = "accepted" }
+		finish({ status = "accepted" })
 	end
-	return operations[params.operation_id].result
+	return receipts.get(params.operation_id).result
 end
 
 function M.stop()
@@ -418,12 +304,10 @@ function M.stop()
 		end
 	end
 	require("aero.companion_ui").close()
-	for client in pairs(clients) do
-		if not client:is_closing() then
-			client:close()
-		end
+	if stop_clients then
+		stop_clients()
+		stop_clients = nil
 	end
-	clients = {}
 	if server and not server:is_closing() then
 		server:close()
 	end
@@ -478,51 +362,7 @@ function M.start()
 	local written, write_error = uv.fs_write(fd, encoded, 0)
 	uv.fs_close(fd)
 	assert(written, write_error)
-	server:listen(16, function(err)
-		if err then
-			return
-		end
-		local client, buffer, pending = uv.new_pipe(false), "", false
-		server:accept(client)
-		clients[client] = true
-		local function close()
-			clients[client] = nil
-			if not client:is_closing() then
-				client:close()
-			end
-		end
-		client:read_start(function(read_err, chunk)
-			if read_err or not chunk then
-				close()
-				return
-			end
-			buffer = buffer .. chunk
-			if #buffer > 131072 or pending then
-				close()
-				return
-			end
-			if not buffer:find("\n", 1, true) then
-				return
-			end
-			pending = true
-			vim.schedule(function()
-				local ok, request = pcall(vim.json.decode, buffer)
-				local result, failure
-				if ok and type(request) == "table" then
-					local success
-					success, result, failure = pcall(M.dispatch, request.method, request.params)
-					if not success then
-						result, failure = nil, "host action failed; outcome unknown"
-					end
-				else
-					failure = "invalid request"
-				end
-				if not client:is_closing() then
-					client:write(vim.json.encode({ result = result, error = failure }) .. "\n", close)
-				end
-			end)
-		end)
-	end)
+	stop_clients = require("aero.companion.transport").listen(server, M.dispatch)
 	vim.api.nvim_create_autocmd("VimLeavePre", {
 		once = true,
 		callback = function()

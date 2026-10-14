@@ -13,11 +13,15 @@ function M.setup(opts)
 	require("aero.layout").setup()
 	require("aero.quote").setup()
 	require("aero.mermaid").setup()
+
 	if package.loaded["aero.tasks.view"] then
 		package.loaded["aero.tasks.view"].setup()
 	end
+
 	did_setup = true
+
 	require("aero.events").emit("setup", {})
+
 	if require("aero.config").options.companion.auto_start then
 		vim.schedule(function()
 			if require("aero.config").options.companion.auto_start then
@@ -103,7 +107,8 @@ end
 
 --- Reconnect the selected ACP session to an existing adapter conversation ID.
 function M.resume(session_id)
-	return ensure().resume(session_id)
+	ensure()
+	return require("aero.commands").resume(session_id)
 end
 
 --- Toggle the agent panel.
@@ -137,12 +142,14 @@ end
 
 --- Show usage for the selected agent and return its latest reported metrics, if any.
 function M.usage()
-	return ensure().usage()
+	ensure()
+	return require("aero.commands").usage()
 end
 
 --- Cancel the selected ACP agent's turn and discard queued prompts.
 function M.cancel()
-	return ensure().cancel()
+	ensure()
+	return require("aero.commands").cancel()
 end
 
 --- Pick a worktree report and append its path to an agent's draft.

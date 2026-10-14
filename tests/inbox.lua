@@ -115,7 +115,7 @@ assert(#inbox.items() == 1, "resolved unread permission remained actionable")
 vim.cmd("Aero inbox")
 key("<CR>")()
 wait(function()
-	return api.nvim_get_current_buf() == one.chat.buf and api.nvim_get_current_line() == "## You"
+	return api.nvim_get_current_buf() == one.chat.buf and api.nvim_get_current_line():match("^## You") ~= nil
 end)
 assert(completed.read and #inbox.items() == 0)
 assert(not one.chat.busy, "opening completion submitted prompt")

@@ -15,6 +15,7 @@ for _, s in ipairs({ one, another, two }) do
 	s.buf = api.nvim_create_buf(false, true)
 	vim.b[s.buf].aero_session = s.key
 	s.chat = {
+		blocks = {},
 		alive = function()
 			return true
 		end,

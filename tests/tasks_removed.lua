@@ -44,7 +44,7 @@ local original_ticket, source_text, target_text =
 	storage.read(ticket.path), storage.read(source.path), storage.read(target.path)
 local viewmod = require("aero.tasks.view")
 local view = assert(viewmod.open(ws, source.path))
-assert(vim.wo.winbar:find("Removed tickets: 1 (go)", 1, true))
+assert(vim.wo.winbar:find("Original · todo (0)", 1, true), "removed ticket still appears in the column count")
 
 -- Cancelling any picker stage leaves both boards and the ticket untouched.
 local function choose(items, opts)

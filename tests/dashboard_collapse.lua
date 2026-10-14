@@ -15,22 +15,37 @@ require("aero.git").list = function(root)
 	return { { path = root, branch = "main" } }
 end
 require("aero.git").remote_status = function() end
-require("aero.session").list = function() return {} end
-require("aero.exports").list = function() return { { name = "Saved log", path = dir .. "/log" } } end
-require("aero.reports").list = function() return { { name = "Saved report", path = dir .. "/report" } } end
-require("aero.tasks").list = function() return {}, {} end
-require("aero.tasks").list_removed = function() return {} end
+require("aero.session").list = function()
+	return {}
+end
+require("aero.exports").list = function()
+	return { { name = "Saved log", path = dir .. "/log" } }
+end
+require("aero.reports").list = function()
+	return { { name = "Saved report", path = dir .. "/report" } }
+end
+require("aero.tasks").list = function()
+	return {}, {}
+end
+require("aero.tasks").list_removed = function()
+	return {}
+end
 aero.open()
 local win, buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
 local function line(text)
 	for i, value in ipairs(api.nvim_buf_get_lines(buf, 0, -1, false)) do
-		if value:find(text, 1, true) then return i, value end
+		if value:find(text, 1, true) then
+			return i, value
+		end
 	end
 end
 local function expand(text)
 	api.nvim_win_set_cursor(win, { assert(line(text)), 0 })
 	for _, map in ipairs(api.nvim_buf_get_keymap(buf, "n")) do
-		if map.lhs == "l" then map.callback(); return end
+		if map.lhs == "l" then
+			map.callback()
+			return
+		end
 	end
 	error("missing expand mapping")
 end
@@ -58,15 +73,29 @@ assert(select(2, line("Boards")):find("▸", 1, true))
 expand("Two")
 api.nvim_win_set_cursor(win, { assert(line("Two")) + 1, 0 })
 for _, map in ipairs(api.nvim_buf_get_keymap(buf, "n")) do
-	if map.lhs == "l" then map.callback() end
+	if map.lhs == "l" then
+		map.callback()
+	end
 end
 local lines = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-assert(not lines:find("Saved log", 1, true) and not lines:find("Saved report", 1, true),
-	"hidden descendants were not collapsed")
+assert(
+	not lines:find("Saved log", 1, true) and not lines:find("Saved report", 1, true),
+	"hidden descendants were not collapsed"
+)
 vim.cmd("Aero collapse workspaces")
 assert(not line("main"))
 local completions = vim.fn.getcompletion("Aero collapse ", "cmdline")
 assert(#completions == 6 and vim.tbl_contains(completions, "exports"))
+expand("One")
+api.nvim_win_set_cursor(win, { assert(line("main")), 0 })
+require("aero.git").list = function()
+	error("render must not list Git worktrees")
+end
+require("aero.git").remote_status = function()
+	error("render must not fetch remote status")
+end
+require("aero.dashboard").render()
+assert(api.nvim_get_current_line():find("main", 1, true), "render lost the selected worktree")
 aero.close()
 require("aero.buffers").flush()
 vim.fn.delete(dir, "rf")

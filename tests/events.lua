@@ -3,6 +3,7 @@ vim.opt.rtp:prepend(vim.fn.getcwd())
 local aero = require("aero")
 local events = require("aero.events")
 local api = vim.api
+local original_cwd = vim.fn.getcwd()
 
 local order = {}
 local unsubscribe = aero.on("probe", function(ev)
@@ -224,7 +225,7 @@ end, 10))
 sessions.delete(running)
 off_stopped()
 
-vim.cmd.tcd(vim.fn.fnameescape(vim.fn.getcwd(-1, 0)))
+vim.cmd.tcd(vim.fn.fnameescape(original_cwd))
 api.nvim_create_autocmd("VimLeavePre", {
 	once = true,
 	callback = function()

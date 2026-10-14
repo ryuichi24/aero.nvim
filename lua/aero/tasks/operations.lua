@@ -45,7 +45,7 @@ local function snapshot(context)
 			board_path = board.path,
 			board_revision = tasks.revision(board.text),
 			dirty = {
-				board_projection = require("aero.tasks.view").status(board.path),
+				board_projection = require("aero.tasks.drafts").status(board.path),
 				board_source = dirty(board.path),
 				ticket = false,
 			},
@@ -69,7 +69,7 @@ local function snapshot(context)
 		board_revision = tasks.revision(board.text),
 		ticket_revision = tasks.revision(ticket.text),
 		dirty = {
-			board_projection = require("aero.tasks.view").status(board.path),
+			board_projection = require("aero.tasks.drafts").status(board.path),
 			board_source = dirty(board.path),
 			ticket = dirty(ticket.path),
 		},
@@ -160,7 +160,13 @@ local function mutate(binding, method, request)
 		return unpack(vim.deepcopy(cache[key].result), 1, 2)
 	end
 	if method == "create_report" then
-		if type(request.name) ~= "string" or vim.trim(request.name) == "" or request.name:find("[/\\%c]") or vim.trim(request.name) == ".md" or type(request.body) ~= "string" then
+		if
+			type(request.name) ~= "string"
+			or vim.trim(request.name) == ""
+			or request.name:find("[/\\%c]")
+			or vim.trim(request.name) == ".md"
+			or type(request.body) ~= "string"
+		then
 			return failure("INVALID_ARGUMENT", "a report filename without separators and a Markdown body are required")
 		end
 		if type(binding.worktree) ~= "string" or binding.worktree == "" then
@@ -184,7 +190,7 @@ local function mutate(binding, method, request)
 		if #order > limit then
 			cache[table.remove(order, 1)] = nil
 		end
-		require("aero.dashboard").render()
+		require("aero.events").emit("reports_changed", { worktree = binding.worktree })
 		return result
 	end
 	local creating = method == "create_ticket"
@@ -233,7 +239,10 @@ local function mutate(binding, method, request)
 	}
 	local ok
 	if creating then
-		if request.task_type ~= nil and not vim.tbl_contains({ "general", "implementation", "report" }, request.task_type) then
+		if
+			request.task_type ~= nil
+			and not vim.tbl_contains({ "general", "implementation", "report" }, request.task_type)
+		then
 			return failure("INVALID_ARGUMENT", "task_type must be general, implementation, or report")
 		end
 		options.task_type = request.task_type
@@ -297,7 +306,8 @@ local function mutate(binding, method, request)
 	elseif method == "update_ticket_body" then
 		ok, err = tasks.update_body(binding.workspace, context.board.path, context.ticket.path, request.body, options)
 	else
-		local allowed = { task_type = true, priority = true, tags = true, assignees = true, due_date = true, estimate = true }
+		local allowed =
+			{ task_type = true, priority = true, tags = true, assignees = true, due_date = true, estimate = true }
 		if type(request.changes) ~= "table" then
 			return failure("INVALID_ARGUMENT", "changes must be an object")
 		end
@@ -364,7 +374,13 @@ local function mutate(binding, method, request)
 	return result, err
 end
 
-for _, method in ipairs({ "create_report", "create_ticket", "move_ticket", "update_ticket_body", "update_ticket_metadata" }) do
+for _, method in ipairs({
+	"create_report",
+	"create_ticket",
+	"move_ticket",
+	"update_ticket_body",
+	"update_ticket_metadata",
+}) do
 	M[method] = function(binding, request)
 		return mutate(binding, method, request)
 	end

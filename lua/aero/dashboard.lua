@@ -8,11 +8,11 @@ local tabs = require("aero.tabs")
 local terminal = require("aero.terminal")
 local spinner = require("aero.spinner")
 local reports = require("aero.reports")
+local navigation = require("aero.navigation")
 
 local M = {}
 
 local api = vim.api
-local ns = api.nvim_create_namespace("Aero")
 
 local state = {
 	buf = nil, ---@type integer?
@@ -80,6 +80,15 @@ local function worktrees(ws, force)
 	return cache
 end
 
+-- Loading is explicit: rendering never initiates Git listing or remote requests.
+local function load_worktrees()
+	for _, workspace in ipairs(store.data.workspaces) do
+		if workspace.expanded ~= false then
+			worktrees(workspace)
+		end
+	end
+end
+
 local function wt_expanded(wt, sessions)
 	local e = state.expanded[wt.path]
 	if e == nil then
@@ -116,219 +125,64 @@ end
 ---------------------------------------------------------------------------
 
 local function build()
-	local icons = config.options.icons
-	local lines, items, marks = {}, {}, {}
-
-	local function add(segments, item, virt)
-		local text, col, hls = "", 0, {}
-		for _, seg in ipairs(segments) do
-			if seg[2] then
-				table.insert(hls, { col, col + #seg[1], seg[2] })
-			end
-			text, col = text .. seg[1], col + #seg[1]
-		end
-		table.insert(lines, text)
-		items[#lines] = item
-		marks[#lines] = { hls = hls, virt = virt }
-	end
-
-	add({ { " Aero", "AeroTitle" }, { "  g? for help", "AeroDim" } })
-	add({})
-	if #store.data.workspaces == 0 then
-		add({
-			{ "  No workspaces yet. Press ", "AeroDim" },
-			{ config.options.keymaps.add_workspace or "A" },
-			{ " to add one.", "AeroDim" },
-		})
-	end
-
+	local snapshot = { icons = config.options.icons, add_key = config.options.keymaps.add_workspace, workspaces = {} }
 	for _, ws in ipairs(store.data.workspaces) do
-		local open = ws.expanded ~= false
-		add(
-			{
-				{ " " .. (open and icons.expanded or icons.collapsed) .. " " },
-				{ ws.name, "AeroWorkspace" },
-			},
-			{ kind = "workspace", id = "ws:" .. ws.root, ws = ws },
-			{ { " " .. vim.fn.fnamemodify(ws.root, ":~"), "AeroDim" } }
-		)
-
-		if open then
-			local cache = worktrees(ws)
-			if cache.err then
-				add(
-					{ { "     ! " .. cache.err, "AeroExited" } },
-					{ kind = "workspace", id = "ws-err:" .. ws.root, ws = ws }
-				)
-			end
-			for _, wt in ipairs(cache.list or {}) do
+		local workspace =
+			{ ws = ws, display_path = " " .. vim.fn.fnamemodify(ws.root, ":~"), worktrees = {}, boards = {} }
+		table.insert(snapshot.workspaces, workspace)
+		if ws.expanded ~= false then
+			workspace.cache = state.worktrees[ws.root] or { list = {} }
+			for _, wt in ipairs(workspace.cache.list or {}) do
 				local sessions = session.list(wt.path)
-				local wopen = wt_expanded(wt, sessions)
-				local segs = {
-					{ "   " .. (wopen and icons.expanded or icons.collapsed) .. " " },
-					{ wt_label(wt), "AeroWorktree" },
+				local tree = {
+					wt = wt,
+					basename = vim.fs.basename(wt.path),
+					expanded = wt_expanded(wt, sessions),
+					summary = summary(sessions),
+					sessions = {},
+					exports = {},
+					reports = {},
 				}
-				if wt.path == ws.root then
-					table.insert(segs, { " (main)", "AeroMain" })
-				end
-				if wt.branch then
-					local tracking = cache.statuses and cache.statuses[wt.branch]
-					if cache.checking then
-						table.insert(segs, { " [checking remote…]", "AeroDim" })
-					elseif cache.fetch_err then
-						table.insert(segs, { " [fetch failed]", "AeroExited" })
-					elseif tracking then
-						local label, hl = " [up to date]", "AeroIdle"
-						if not tracking.upstream then
-							label, hl = " [no upstream]", "AeroDim"
-						elseif tracking.gone then
-							label, hl = " [upstream gone]", "AeroExited"
-						elseif tracking.ahead > 0 and tracking.behind > 0 then
-							label, hl =
-								string.format(" [diverged ↑%d ↓%d]", tracking.ahead, tracking.behind), "AeroExited"
-						elseif tracking.behind > 0 then
-							label, hl = string.format(" [pull ↓%d]", tracking.behind), "AeroWaiting"
-						elseif tracking.ahead > 0 then
-							label = string.format(" [ahead ↑%d]", tracking.ahead)
-						end
-						table.insert(segs, { label, hl })
-					end
-				end
-				local virt = wopen and {} or summary(sessions)
-				if wt.path ~= ws.root then
-					table.insert(virt, 1, { " " .. vim.fs.basename(wt.path), "AeroDim" })
-				end
-				local item = { kind = "worktree", id = "wt:" .. wt.path, ws = ws, wt = wt }
-				add(segs, item, virt)
-
-				if wopen then
-					if #sessions == 0 then
-						add(
-							{ { "       no agents — press a to start one", "AeroDim" } },
-							vim.tbl_extend("force", item, { id = "wt-empty:" .. wt.path })
+				table.insert(workspace.worktrees, tree)
+				if tree.expanded then
+					for _, selected in ipairs(sessions) do
+						table.insert(
+							tree.sessions,
+							{
+								session = selected,
+								status = session.status(selected),
+								icon = session.icon(selected),
+								activity = session.activity(selected),
+								usage = require("aero.acp.usage").summary(selected.chat),
+								assignment = require("aero.tasks.status").label(selected),
+							}
 						)
 					end
-					for _, s in ipairs(sessions) do
-						local st = session.status(s)
-						-- what a busy ACP agent is doing, else its status
-						local virt_s = { { " " .. (session.activity(s) or st), status_hl[st] } }
-						local usage = require("aero.acp.usage").summary(s.chat)
-						if usage then
-							table.insert(virt_s, { " · " .. usage, "AeroDim" })
-						end
-						if s.name ~= s.agent then
-							table.insert(virt_s, { " " .. s.agent, "AeroDim" })
-						end
-						add({
-							{ "     " },
-							{ session.icon(s), status_hl[st] },
-							{ " " .. s.name, "AeroSession" },
-						}, { kind = "session", id = "s:" .. s.key, ws = ws, wt = wt, session = s }, virt_s)
-						add({ { "       " .. require("aero.tasks.status").label(s), "AeroDim" } }, {
-							kind = "session",
-							id = "assignment:" .. s.key,
-							ws = ws,
-							wt = wt,
-							session = s,
-						})
-					end
-					local exports = require("aero.exports").list(wt.path)
-					local eopen = state.exports_expanded[wt.path] ~= false
-					add(
-						{
-							{ "     " .. (eopen and icons.expanded or icons.collapsed) .. " " },
-							{ "Exported logs", "AeroWorkspace" },
-						},
-						{ kind = "exports", id = "exports:" .. wt.path, ws = ws, wt = wt },
-						{ { " " .. #exports, "AeroDim" } }
-					)
-					if eopen then
-						for _, log in ipairs(exports) do
-							add({ { "       " }, { log.name, "AeroSession" } }, {
-								kind = "export",
-								id = "export:" .. log.path,
-								ws = ws,
-								wt = wt,
-								report = log,
-							})
-						end
-					end
-					local report_list, report_err = reports.list(wt.path, ws)
-					local ropen = state.reports_expanded[wt.path] ~= false
-					add(
-						{
-							{ "     " .. (ropen and icons.expanded or icons.collapsed) .. " " },
-							{ "Reports", "AeroWorkspace" },
-						},
-						{ kind = "reports", id = "reports:" .. wt.path, ws = ws, wt = wt },
-						{ { " " .. #report_list, "AeroDim" } }
-					)
-					if ropen then
-						if report_err then
-							add({ { "       ! " .. report_err:gsub("[\r\n]", " "), "AeroExited" } })
-						end
-						for _, report in ipairs(report_list) do
-							add({ { "       " }, { report.name:gsub("[\r\n]", " "), "AeroSession" } }, {
-								kind = "report",
-								id = "report:" .. report.path,
-								ws = ws,
-								wt = wt,
-								report = report,
-							})
-						end
-						add({ { "       New +", "AeroDim" } }, {
-							kind = "report_new",
-							id = "report-new:" .. wt.path,
-							ws = ws,
-							wt = wt,
-						})
-					end
+					tree.exports = require("aero.exports").list(wt.path)
+					tree.exports_open = state.exports_expanded[wt.path] ~= false
+					tree.reports, tree.report_err = reports.list(wt.path, ws)
+					tree.reports_open = state.reports_expanded[wt.path] ~= false
 				end
 			end
-			local boards, board_errors = require("aero.tasks").list(ws)
-			local bopen = state.boards_expanded[ws.root] ~= false
-			add(
-				{ { "   " .. (bopen and icons.expanded or icons.collapsed) .. " " }, { "Boards", "AeroWorkspace" } },
-				{ kind = "boards", id = "boards:" .. ws.root, ws = ws },
-				{ { " " .. #boards, "AeroDim" } }
-			)
-			if bopen then
-				local removed_count = #require("aero.tasks").list_removed(ws)
-				for _, board in ipairs(boards) do
-					local data = board.metadata or {}
-					local label = tostring(data.title or vim.fs.basename(vim.fs.dirname(board.path))):gsub("[%c]", " ")
-					local summary_text = " " .. board.count .. " tickets" .. (data.archived and " · archived" or "")
-					if #board.orphans > 0 then
-						summary_text = summary_text .. " · " .. #board.orphans .. " removed"
-					end
-					if type(data.description) == "string" then
-						summary_text = summary_text .. " · " .. data.description:gsub("[%c]", " ")
-					end
-					if type(data.tags) == "table" then
-						summary_text = summary_text .. " · " .. table.concat(vim.tbl_map(tostring, data.tags), ", ")
-					end
-					if #board.diagnostics > 0 then
-						summary_text = summary_text .. " · ! " .. #board.diagnostics
-					end
-					add(
-						{ { "     " }, { label, "AeroSession" } },
-						{ kind = "board", id = "board:" .. board.path, ws = ws, board = board },
-						{ { summary_text, "AeroDim" } }
-					)
-				end
-				add(
-					{ { "     Removed tickets", "AeroSession" } },
-					{ kind = "tickets_removed", id = "tickets-removed:" .. ws.root, ws = ws },
-					{ { " " .. removed_count, "AeroDim" } }
+			local boards
+			boards, workspace.board_errors = require("aero.tasks").list(ws)
+			workspace.boards_open = state.boards_expanded[ws.root] ~= false
+			workspace.removed_count = workspace.boards_open and #require("aero.tasks").list_removed(ws) or 0
+			for _, board in ipairs(boards) do
+				table.insert(
+					workspace.boards,
+					{
+						board = board,
+						label = tostring((board.metadata or {}).title or vim.fs.basename(vim.fs.dirname(board.path))):gsub(
+							"[%c]",
+							" "
+						),
+					}
 				)
-				for _, err in ipairs(board_errors) do
-					add({ { "     ! " .. tostring(err):gsub("[%c]", " "), "AeroExited" } })
-				end
-				add({ { "     New +", "AeroDim" } }, { kind = "board_new", id = "board-new:" .. ws.root, ws = ws })
 			end
 		end
 	end
-	return lines, items, marks
+	return require("aero.dashboard.model").build(snapshot)
 end
 
 --- Collapse all existing sidebar nodes of a type, including hidden descendants.
@@ -370,41 +224,8 @@ function M.render()
 	if not (buf and api.nvim_buf_is_valid(buf)) then
 		return
 	end
-	local win = state.win and api.nvim_win_is_valid(state.win) and api.nvim_win_get_buf(state.win) == buf and state.win
-	local cur_id, cur_line
-	if win then
-		cur_line = api.nvim_win_get_cursor(win)[1]
-		cur_id = state.items[cur_line] and state.items[cur_line].id
-	end
-
 	local lines, items, marks = build()
-	state.items = items
-	vim.bo[buf].modifiable = true
-	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.bo[buf].modifiable = false
-	vim.bo[buf].modified = false
-	api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-	for lnum, m in pairs(marks) do
-		for _, hl in ipairs(m.hls) do
-			api.nvim_buf_set_extmark(buf, ns, lnum - 1, hl[1], { end_col = hl[2], hl_group = hl[3] })
-		end
-		if m.virt and #m.virt > 0 then
-			api.nvim_buf_set_extmark(buf, ns, lnum - 1, 0, { virt_text = m.virt, virt_text_pos = "eol" })
-		end
-	end
-
-	if win then
-		local target = math.min(cur_line, #lines)
-		if cur_id then
-			for lnum, item in pairs(items) do
-				if item.id == cur_id then
-					target = lnum
-					break
-				end
-			end
-		end
-		api.nvim_win_set_cursor(win, { target, 0 })
-	end
+	require("aero.dashboard.view").render(state, lines, items, marks)
 end
 
 ---------------------------------------------------------------------------
@@ -458,41 +279,7 @@ end
 --- The window files (and, without the panel, sessions) open into: the last used window that is
 --- neither the dashboard nor part of the agent panel, creating one if needed.
 local function target_win()
-	if config.options.dashboard.position == "current" then
-		return state.win
-	end
-	local function usable(w)
-		return w ~= state.win
-			and api.nvim_win_get_config(w).relative == ""
-			and not (panel.enabled() and panel.owns(w))
-			and not terminal.is_term_win(w)
-	end
-	local tab_wins = api.nvim_tabpage_list_wins(0)
-	local t = require("aero.buffers").code_win() or state.target
-	if t and api.nvim_win_is_valid(t) and vim.tbl_contains(tab_wins, t) and usable(t) then
-		require("aero.layout").rebalance()
-		return t
-	end
-	for _, w in ipairs(tab_wins) do
-		if usable(w) then
-			require("aero.layout").rebalance()
-			return w
-		end
-	end
-	-- only the dashboard (and maybe the panel) are open: add a window between them
-	local pw = panel.win()
-	local dashboard_open = state.win and api.nvim_win_is_valid(state.win)
-	local panel_position = panel.enabled() and config.options.panel.position or "right"
-	local side = dashboard_open and (config.options.dashboard.position == "right" and "left" or "right")
-		or (panel_position == "left" and "right" or "left")
-	local w = api.nvim_open_win(
-		api.nvim_create_buf(false, true),
-		false,
-		{ split = side, win = dashboard_open and state.win or pw }
-	)
-	vim.wo[w].winfixwidth = false
-	require("aero.layout").rebalance()
-	return w
+	return navigation.code_window()
 end
 
 local function get_buf()
@@ -543,6 +330,7 @@ function M.open()
 	-- git state (and other nvim instances' changes) may have changed while the dashboard was hidden
 	store.load()
 	state.worktrees = {}
+	load_worktrees()
 	M.render()
 	require("aero.events").emit(
 		"dashboard_opened",
@@ -597,6 +385,7 @@ end
 function M.refresh()
 	store.load()
 	state.worktrees = {}
+	load_worktrees()
 	M.render()
 end
 
@@ -606,6 +395,7 @@ api.nvim_create_autocmd("FocusGained", {
 	callback = function()
 		if state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
 			store.load()
+			load_worktrees()
 			M.render()
 		end
 	end,
@@ -636,6 +426,12 @@ api.nvim_create_autocmd("BufWritePost", {
 local function current_item()
 	return state.items[api.nvim_win_get_cursor(0)[1]]
 end
+
+require("aero.session_target").set_dashboard_selection(function()
+	local selected = api.nvim_get_current_buf() == state.buf
+	return selected, selected and current_item() or nil
+end)
+navigation.set_dashboard({ state = state, is_open = is_open, open = M.open })
 
 function M.selected_workspace()
 	local item = api.nvim_get_current_buf() == state.buf and current_item()
@@ -671,161 +467,31 @@ end
 
 --- Cancel the focused ACP session, dashboard selection, or this tab's panel session.
 function M.cancel()
-	local s = session.from_buf(0)
-	local key = vim.b.aero_chat_key
-	if not s and key then
-		for _, candidate in ipairs(session.all()) do
-			if candidate.key == key then
-				s = candidate
-				break
-			end
-		end
-	end
-	if not s and api.nvim_get_current_buf() == state.buf then
-		local item = current_item()
-		s = item and item.session
-	elseif not s then
-		s = panel.current_session()
-	end
-	if not s or not s.chat or not s.chat:alive() then
-		notify("select a running ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
-		return
-	end
-	s.chat:cancel()
-	return s
+	return require("aero.commands").cancel()
 end
 
 function M.resume(session_id)
-	if type(session_id) ~= "string" or vim.trim(session_id) == "" then
-		notify("use :Aero resume <session-id>", vim.log.levels.WARN)
-		return
-	end
-	local s = session.from_buf(0)
-	if not s then
-		local key = vim.b.aero_chat_key
-		for _, candidate in ipairs(session.all()) do
-			if candidate.key == key then
-				s = candidate
-				break
-			end
-		end
-	end
-	if not s and state.buf == api.nvim_get_current_buf() then
-		local item = current_item()
-		s = item and item.session
-	end
-	if not s then
-		local win = panel.win()
-		s = win and session.from_buf(api.nvim_win_get_buf(win))
-	end
-	local agent = s and config.options.agents[s.agent]
-	if not agent or agent.type ~= "acp" then
-		notify("select an ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
-		return
-	end
-	local win = session.prepare_win(panel.win() or target_win())
-	if session.start(s, win, true, vim.trim(session_id)) then
-		panel.shown(s)
-		api.nvim_set_current_win(win)
-	end
-	return s
+	return require("aero.commands").resume(session_id)
 end
 
 --- Resolve the focused or dashboard-selected session without starting it.
 function M.viewed_session()
-	local s = session.from_buf(0)
-	local key = vim.b.aero_chat_key
-	if not s and key then
-		for _, candidate in ipairs(session.all()) do
-			if candidate.key == key then
-				s = candidate
-				break
-			end
-		end
-	end
-	if not s and api.nvim_get_current_buf() == state.buf then
-		local item = current_item()
-		s = item and item.session
-		if not s and item and item.wt then
-			local selected = panel.current_session()
-			local candidates = session.list(item.wt.path)
-			if selected and selected.worktree == item.wt.path then
-				s = selected
-			elseif #candidates == 1 then
-				s = candidates[1]
-			end
-		end
-	elseif not s then
-		s = panel.current_session()
-	end
-	return s
+	return require("aero.session_target").resolve("viewed")
 end
 
 --- Show agent-reported usage for the focused/selected session without starting it.
 function M.usage()
-	local s = M.viewed_session()
-	if not s then
-		notify("select an agent session in the dashboard or focus its panel first", vim.log.levels.WARN)
-		return
-	end
-	local usage = require("aero.acp.usage")
-	local data = s.chat and s.chat.usage
-	if not s.chat then
-		local saved = require("aero.history").load(s)
-		local restored = {}
-		usage.restore(restored, saved and saved.usage)
-		data = restored.usage
-	end
-	notify("Usage for " .. s.name .. "\n" .. table.concat(usage.lines({ usage = data }), "\n"))
-	return data and vim.deepcopy(data) or nil
+	return require("aero.commands").usage()
 end
 
 --- Show `s` in a window chosen by `how` ("default" | "vsplit" | "split" | "tab") and focus it.
 --- Switch to the worktree's tab (with worktree_tabs), bringing the dashboard along to new tabs.
 local function enter_worktree(path)
-	if not tabs.enabled() then
-		if not tabs.available(path) then
-			return false
-		end
-		local buffers = require("aero.buffers")
-		buffers.remember()
-		vim.t.aero_worktree = path
-		vim.cmd.tcd(vim.fn.fnameescape(path))
-		buffers.restore(path, target_win())
-		return true
-	end
-	local had_dashboard = is_open() and config.options.dashboard.position ~= "current"
-	local created = tabs.enter(path)
-	if created == nil then
-		return false
-	end
-	if created and had_dashboard then
-		M.open()
-	end
-	return true
+	return navigation.enter_worktree(path)
 end
 
 local function open_session(s, how)
-	if how == "default" and panel.enabled() and config.options.dashboard.position ~= "current" then
-		if not enter_worktree(s.worktree) then
-			return
-		end
-		return panel.focus(s)
-	end
-	local win = target_win()
-	if how ~= "default" then
-		api.nvim_set_current_win(win)
-		vim.cmd(({ vsplit = "vsplit", split = "split", tab = "tab split" })[how])
-		win = api.nvim_get_current_win()
-	end
-	win = session.show(s, win, how == "default")
-	if win then
-		state.target = win
-		api.nvim_set_current_win(win)
-		if config.options.start_insert then
-			session.enter(s)
-		end
-	end
+	return navigation.open_session(s, how)
 end
 
 --- Start a fresh session of `agent` on the worktree under the cursor.
@@ -881,6 +547,7 @@ function M.add_workspace(path)
 		end
 		local _, added = store.add_workspace(root)
 		notify((added and "added " or "already added ") .. vim.fn.fnamemodify(root, ":~"))
+		load_worktrees()
 		M.render()
 	end
 	if path then
@@ -990,6 +657,7 @@ function actions.toggle()
 	end
 	if item.kind == "workspace" then
 		store.set_expanded(item.ws.root, item.ws.expanded == false)
+		load_worktrees()
 	elseif item.kind == "worktree" then
 		state.expanded[item.wt.path] = not wt_expanded(item.wt, session.list(item.wt.path))
 	elseif item.kind == "exports" then
@@ -1219,6 +887,7 @@ function actions.delete()
 			require("aero.buffers").forget(wt.path)
 			state.worktrees[ws.root] = nil
 			notify("removed " .. vim.fn.fnamemodify(wt.path, ":~"))
+			load_worktrees()
 			M.render()
 		end)
 		return
@@ -1338,6 +1007,7 @@ function M.pull(path)
 		state.pulling[path] = nil
 		-- Git may have fetched new refs even if it could not fast-forward the checkout.
 		state.worktrees = {}
+		load_worktrees()
 		M.render()
 		if not ok then
 			notify("pull failed: " .. output, vim.log.levels.ERROR)
@@ -1364,19 +1034,7 @@ function actions.cd()
 end
 
 function M.open_worktree(dir, opener)
-	if not enter_worktree(dir) then
-		return
-	end
-	local win = target_win()
-	api.nvim_set_current_win(win)
-	state.target = win
-	if opener then
-		opener(dir)
-		require("aero.buffers").remember(win)
-	else
-		require("aero.buffers").restore(dir, win)
-	end
-	return win
+	return navigation.open_worktree(dir, opener)
 end
 
 function actions.edit()
@@ -1674,6 +1332,26 @@ session.on_change(function()
 		M.render()
 	end
 end)
+
+require("aero.events").on("reports_changed", function()
+	M.render()
+end)
+require("aero.events").on("tasks_view_changed", function()
+	M.render()
+end)
+require("aero.events").on("workspace_added", function()
+	if state.buf and api.nvim_buf_is_valid(state.buf) then
+		load_worktrees()
+		M.render()
+	end
+end)
+api.nvim_create_autocmd("User", {
+	group = "Aero.dashboard",
+	pattern = "AeroTaskChanged",
+	callback = function()
+		M.render()
+	end,
+})
 
 -- spin busy sessions' icons and keep their activity current
 spinner.on_frame(function()
