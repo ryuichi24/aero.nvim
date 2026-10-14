@@ -196,19 +196,41 @@ function M.open(opts)
 		M.close()
 		opts.select(s)
 	end
-	for _, mode in ipairs({ "n", "i" }) do
-		for _, key in ipairs({ "<Down>", "<C-n>" }) do
-			vim.keymap.set(mode, key, function()
-				move(1)
-			end, { buffer = p.search })
+	local function bind_navigation()
+		for _, mode in ipairs({ "n", "i" }) do
+			for _, key in ipairs({ "<Down>", "<C-n>" }) do
+				vim.keymap.set(mode, key, function()
+					move(1)
+				end, { buffer = p.search })
+			end
+			for _, key in ipairs({ "<Up>", "<C-p>" }) do
+				vim.keymap.set(mode, key, function()
+					move(-1)
+				end, { buffer = p.search })
+			end
+			vim.keymap.set(mode, "<CR>", select, { buffer = p.search })
 		end
-		for _, key in ipairs({ "<Up>", "<C-p>" }) do
-			vim.keymap.set(mode, key, function()
-				move(-1)
-			end, { buffer = p.search })
-		end
-		vim.keymap.set(mode, "<CR>", select, { buffer = p.search })
 	end
+	local function protect_navigation()
+		require("aero.acp.completion_guard").apply(p.search)
+		bind_navigation()
+	end
+	protect_navigation()
+	api.nvim_create_autocmd("InsertEnter", {
+		buffer = p.search,
+		callback = protect_navigation,
+	})
+	-- Completion plugins can install mappings after the popup is created.
+	api.nvim_create_autocmd({ "FileType", "LspAttach" }, {
+		buffer = p.search,
+		callback = function()
+			vim.schedule(function()
+				if popup == p and api.nvim_buf_is_valid(p.search) then
+					protect_navigation()
+				end
+			end)
+		end,
+	})
 	vim.keymap.set("n", "q", M.close, { buffer = p.search })
 	vim.keymap.set("n", "j", function()
 		move(1)
