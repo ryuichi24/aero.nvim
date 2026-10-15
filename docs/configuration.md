@@ -73,6 +73,7 @@ require("aero").setup({
   events = {}, -- event name -> function or list of functions; "*" observes all events
   layout = { min_code_width = 20 }, -- false disables automatic side-column rebalancing
   acp = {
+    auto_yes = false, -- automatically allow permission requests in new conversations
     max_tool_lines = 20, -- truncate tool output in transcripts
     prompt_height = 25,
     decorations = true, -- native transcript cards, colors, and visual borders

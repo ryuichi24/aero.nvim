@@ -272,12 +272,40 @@ function Chat:choose(index, block)
 	self:set_option_keys(self.permission ~= nil)
 	self.pending_focus = self.permission ~= nil
 	p.block.answer = choice.name or choice.optionId
-	p.respond({ outcome = { outcome = "selected", optionId = choice.optionId } })
+	if choice.auto_yes then
+		self.auto_yes = true
+	end
+	p.respond({ outcome = { outcome = "selected", optionId = choice.auto_yes or choice.optionId } })
+	if choice.auto_yes then
+		for _, request in ipairs(vim.list_extend({}, self.permissions or {})) do
+			for i, option in ipairs(request.block.options) do
+				if option.auto_yes then
+					self:choose(i, request.block)
+					break
+				end
+			end
+		end
+	end
 	-- back to following the output
 	for _, win in ipairs(vim.fn.win_findbuf(self.buf)) do
 		api.nvim_win_set_cursor(win, { api.nvim_buf_line_count(self.buf), 0 })
 	end
 	self:changed()
+end
+
+function Chat:toggle_auto_yes()
+	self.auto_yes = not self.auto_yes
+	if self.auto_yes then
+		for _, request in ipairs(vim.list_extend({}, self.permissions or {})) do
+			for i, option in ipairs(request.block.options) do
+				if option.auto_yes then
+					self:choose(i, request.block)
+					break
+				end
+			end
+		end
+	end
+	vim.notify("Aero: auto yes " .. (self.auto_yes and "enabled" or "disabled") .. " for this conversation")
 end
 
 --- <CR> in the transcript: choose the option under the cursor, otherwise write a prompt.
@@ -607,6 +635,7 @@ function M.start(s, buf, agent, resume, session_id, opts)
 		buf = buf,
 		state = "starting",
 		busy = false,
+		auto_yes = require("aero.config").options.acp.auto_yes == true,
 		blocks = {},
 		tools = {},
 		queue = {},

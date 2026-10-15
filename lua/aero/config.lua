@@ -24,6 +24,7 @@ M.defaults = {
 		["opencode-acp"] = { type = "acp", cmd = { "opencode", "acp" }, key = "O" },
 	},
 	acp = {
+		auto_yes = false, -- automatically allow permission requests in new conversations
 		-- tool call output longer than this is truncated in the chat buffer
 		max_tool_lines = 20,
 		-- prompt window height

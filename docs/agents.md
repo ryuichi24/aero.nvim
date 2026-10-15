@@ -86,8 +86,25 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero todos<CR>", { desc = "Focus agent t
 | `i`, `a`, `o`, `I`, `A`, `<CR>` | Open prompt below transcript |
 | `<CR>` on an option / `1`–`9` | Answer pending permission |
 | `p` | Jump to pending permission |
+| `gY` | Toggle auto yes for this conversation |
 | `<C-g>` | Toggle the input panel, keeping the draft |
 | `<C-c>` | Cancel the turn and pending request |
+
+Permission requests with an allow option also offer **Auto yes for this conversation**,
+including in the companion. Selecting it approves the pending requests and automatically
+allows future requests in this conversation. Aero prefers the agent's allow-once option;
+requests without an allow option still require an answer. Auto-approved requests remain
+in the transcript. Press `gY` in the transcript to toggle the mode off or on. The mode
+is runtime-only and is reset to the setup default when the conversation is replaced
+or Neovim restarts. Enable it by default for ACP conversations with:
+
+```lua
+require("aero").setup({
+  acp = { auto_yes = true },
+})
+```
+
+The default is `false`. `gY` still overrides it for the current conversation.
 
 The prompt is a regular Markdown buffer; closing it retains the draft.
 
