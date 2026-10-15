@@ -238,11 +238,15 @@ function M.setup(chat)
 	api.nvim_create_autocmd("BufWinEnter", {
 		buffer = buf,
 		callback = function()
-			options.apply(api.nvim_get_current_win(), options.transcript)
+			options.apply(api.nvim_get_current_win(), vim.tbl_extend("force", options.transcript, {
+				number = require("aero.config").options.acp.line_numbers.transcript,
+			}))
 		end,
 	})
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-		options.apply(win, options.transcript)
+		options.apply(win, vim.tbl_extend("force", options.transcript, {
+			number = require("aero.config").options.acp.line_numbers.transcript,
+		}))
 	end
 	require("aero.acp.todos").attach(chat)
 end
