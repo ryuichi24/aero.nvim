@@ -125,6 +125,11 @@ end, {
 				return vim.startswith(s, arglead)
 			end, { "install", "start", "stop", "pair", "devices", "revoke" })
 		end
+		if words[2] == "tasks" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(s)
+				return vim.startswith(s, arglead)
+			end, { "install" })
+		end
 		if
 			words[2] == "board"
 			and (words[3] == "markdown" or words[3] == "work")
