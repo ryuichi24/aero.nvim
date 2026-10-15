@@ -31,8 +31,8 @@ M.defaults = {
 		tab_completion = true, -- map Tab/Shift-Tab to navigate prompt suggestions
 		decorations = true, -- native transcript cards, colors, and visual borders
 		line_numbers = {
-			transcript = false, -- show absolute line numbers in agent log transcripts
-			prompt = false, -- show absolute line numbers in prompt buffers
+			transcript = { show = false, relative = false },
+			prompt = { show = false, relative = false },
 		},
 		image_previews = false, -- expose ACP images to Markdown image renderers (e.g. image.nvim)
 		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees

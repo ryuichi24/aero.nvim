@@ -77,8 +77,8 @@ require("aero").setup({
     prompt_height = 25,
     decorations = true, -- native transcript cards, colors, and visual borders
     line_numbers = {
-      transcript = false, -- absolute line numbers in agent log transcripts
-      prompt = false, -- absolute line numbers in prompt buffers
+      transcript = { show = false, relative = false },
+      prompt = { show = false, relative = false },
     },
     image_previews = false, -- embedded image links for image.nvim
     show_usage = true, -- agent-reported tokens, context usage, and cumulative fees

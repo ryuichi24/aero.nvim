@@ -139,10 +139,8 @@ function M.compose(chat)
 		if vim.bo[buf].filetype == "" then
 			vim.bo[buf].filetype = "markdown"
 		end
-		require("aero.acp.editor_options").apply(0, {
-			winfixheight = true,
-			number = require("aero.config").options.acp.line_numbers.prompt,
-		})
+		local options = require("aero.acp.editor_options")
+		options.apply(0, vim.tbl_extend("force", { winfixheight = true }, options.line_numbers("prompt")))
 		layout.track(api.nvim_get_current_win(), "prompt", chat.s.key)
 	end
 	vim.cmd.startinsert({ bang = api.nvim_buf_get_lines(buf, 0, -1, false)[1] ~= "" })

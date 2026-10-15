@@ -3,6 +3,11 @@ local api = vim.api
 local M = {}
 M.transcript = { wrap = true, linebreak = true, conceallevel = 2 }
 
+function M.line_numbers(kind)
+	local config = require("aero.config").options.acp.line_numbers[kind]
+	return { number = config.show, relativenumber = config.show and config.relative }
+end
+
 function M.apply(win, extra)
 	for name, value in
 		pairs(vim.tbl_extend("force", { foldenable = false, number = false, relativenumber = false }, extra or {}))
