@@ -8,6 +8,7 @@ local M = {}
 ---@field env? table<string, string>
 
 M.defaults = {
+	default_agent = "opencode-acp", -- agent used by the first (default) choice in the agent picker
 	-- lifecycle event name -> function or list of functions
 	events = {},
 	---@type table<string, Aero.Agent>

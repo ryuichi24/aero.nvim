@@ -34,6 +34,7 @@ settings without defaults are listed after this block.
 
 ```lua
 require("aero").setup({
+  default_agent = "opencode-acp", -- first (default) choice when pressing `a` on a worktree
   agents = {
     claude = { cmd = { "claude" }, resume = { "claude", "--continue" }, key = "c" },
     codex = { cmd = { "codex" }, resume = { "codex", "resume", "--last" }, key = "x" },

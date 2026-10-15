@@ -551,8 +551,12 @@ end
 local function choose_agent(item)
 	local names = vim.tbl_keys(config.options.agents)
 	table.sort(names)
-	vim.ui.select(names, { prompt = "New agent for " .. wt_label(item.wt) }, function(choice)
+	table.insert(names, 1, "default")
+	vim.ui.select(names, { prompt = "New agent for " .. wt_label(item.wt) }, function(choice, index)
 		if choice then
+			if index == 1 or (index == nil and choice == "default") then
+				choice = config.options.default_agent
+			end
 			start_agent(item, choice)
 		end
 	end)
