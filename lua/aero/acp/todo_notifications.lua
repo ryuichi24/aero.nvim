@@ -16,7 +16,11 @@ local function layout()
 			api.nvim_win_close(card.win, true)
 			card.win = nil
 		end
-		local height = math.max(1, math.min(#card.lines, math.floor(available / math.max(1, count)) - 2))
+		local screen_lines = 0
+		for _, line in ipairs(card.lines) do
+			screen_lines = screen_lines + math.max(1, math.ceil(vim.fn.strdisplaywidth(line) / width))
+		end
+		local height = math.max(1, math.min(screen_lines, math.floor(available / math.max(1, count)) - 2))
 		local config = {
 			relative = "editor", row = row, col = math.max(0, vim.o.columns - width - 2),
 			width = width, height = height, border = "rounded", style = "minimal",
@@ -28,7 +32,8 @@ local function layout()
 				api.nvim_win_set_config(card.win, config)
 			else
 				card.win = api.nvim_open_win(card.buf, false, config)
-				vim.wo[card.win].wrap = false
+				vim.wo[card.win].wrap = true
+				vim.wo[card.win].linebreak = false
 			end
 			row = row + height + 2
 		elseif card.win and api.nvim_win_is_valid(card.win) then
