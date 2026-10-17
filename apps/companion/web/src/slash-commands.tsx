@@ -3,6 +3,7 @@ import type { LifecycleAction } from './lifecycle-controls';
 import { BoardAssignment } from './task-assignment';
 
 const builtins = [
+  { name: 'prompt', description: 'Insert a custom prompt snippet into the draft' },
   { name: 'report', description: 'Create or select a worktree report' },
   { name: 'reference', description: 'Select a worktree reference file or folder' },
   { name: 'model', description: 'Choose the session model' },
@@ -13,7 +14,9 @@ const builtins = [
 ];
 
 export function slashPickerOpen(prompt: string) {
-  return ['/report', '/reference', '/context', '/model', '/mode'].includes(prompt.trim());
+  return ['/prompt', '/report', '/reference', '/context', '/model', '/mode'].includes(
+    prompt.trim(),
+  );
 }
 
 export function SlashCommands({
@@ -86,7 +89,7 @@ export function SlashCommands({
         <p>An AI-formatted copy uses a separate agent conversation and tokens.</p>
       </section>
     );
-  if (/\s/.test(text) || text === '/report' || text === '/reference' || text === '/context')
+  if (/\s/.test(text) || ['/prompt', '/report', '/reference', '/context'].includes(text))
     return null;
   const commands = [
     ...builtins,

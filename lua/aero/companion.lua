@@ -76,6 +76,21 @@ function M.dispatch(method, params)
 		end
 		return nil, "stale worktree or host epoch"
 	end
+	if method == "prompt_snippets" then
+		if params.epoch ~= epoch then return nil, "stale host epoch" end
+		for _, s in ipairs(sessions) do
+			if s.key == params.session and s.chat then
+				describe(s)
+				if identity(s.chat, identities) ~= params.conversation then return nil, "stale conversation" end
+				local snippets = require("aero.prompt_snippets")
+				local items, errors = snippets.list(s.worktree)
+				local templates = {}
+				for _, item in ipairs(items) do table.insert(templates, item.prompt) end
+				return { items = items, errors = errors, context = snippets.context(s.chat, table.concat(templates, "\n")) }
+			end
+		end
+		return nil, "session unavailable"
+	end
 	if
 		not lifecycle[method]
 		and method ~= "session_assign_board"
@@ -227,6 +242,8 @@ function M.dispatch(method, params)
 				text = expanded
 			elseif name == "export" then
 				return finish(nil, "use /export or /export readable")
+			elseif name == "prompt" then
+				return finish(nil, "choose a prompt snippet in the companion before sending")
 			elseif name ~= "report" and name ~= "reference" then
 				local advertised = false
 				for _, available in ipairs(chat.commands or {}) do

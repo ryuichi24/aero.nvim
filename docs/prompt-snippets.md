@@ -11,6 +11,15 @@ search by name, description, or prompt content. The preview shows the full promp
 editing, without sending it. `q` closes the popup in normal mode and preserves
 the draft.
 
+### Companion app
+
+Type `/prompt` in the companion's follow-up composer to search the same merged
+snippet collection. Select a snippet, fill in any custom variable inputs, then
+choose **Insert prompt** to populate the draft for editing and sending.
+**Cancel selection** preserves the draft. Built-in values are captured on the
+Neovim host when the picker loads, including the host's source-editor context.
+Snippet creation and file editing remain available through `:Aero snippet` in Neovim.
+
 ## Create a snippet file
 
 Run `:Aero snippet` to choose **global** or **workspace**, then enter a filename.

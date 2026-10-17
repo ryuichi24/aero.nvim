@@ -143,17 +143,23 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.source(w, r)
 		return
 	}
-	if r.URL.Path == "/api/reference_browse" {
+	if r.URL.Path == "/api/reference_browse" || r.URL.Path == "/api/prompt_snippets" {
 		var input struct {
-			Epoch    string `json:"epoch"`
-			Target   string `json:"target"`
-			Worktree string `json:"worktree"`
-			Path     string `json:"path"`
+			Epoch        string `json:"epoch"`
+			Target       string `json:"target"`
+			Worktree     string `json:"worktree"`
+			Path         string `json:"path"`
+			Session      string `json:"session"`
+			Conversation string `json:"conversation"`
 		}
 		if !decodeBody(w, r, &input) {
 			return
 		}
-		response, err := b.state.host.Call(r.Context(), "reference_browse", input)
+		method := "reference_browse"
+		if r.URL.Path == "/api/prompt_snippets" {
+			method = "prompt_snippets"
+		}
+		response, err := b.state.host.Call(r.Context(), method, input)
 		if err != nil {
 			reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
 			return

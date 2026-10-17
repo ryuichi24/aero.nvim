@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import { useCompanionDispatch, useCompanionState } from '../companion-context';
 import { draftKey } from '../companion-state';
 import { ReportCommand } from '../report-command';
+import { PromptCommand } from '../prompt-command';
 import { ReferenceCommand } from '../reference-browser';
 import { SlashCommands, slashPickerOpen } from '../slash-commands';
 import type { ActionData, ActionPath, Session, Snapshot } from '../types';
@@ -79,6 +80,15 @@ export function PromptComposer({
           disabled={!!composerBlockReason}
           onChoose={choose}
           onAction={onAction}
+        />
+      )}
+      {session && prompt.trim() === '/prompt' && (
+        <PromptCommand
+          key={`${snapshot?.epoch}:${session.id}:${session.conversation}`}
+          session={session}
+          epoch={snapshot?.epoch}
+          online={online && !pending}
+          onChoose={choose}
         />
       )}
       {session && prompt.trim() === '/report' && (

@@ -52,6 +52,24 @@ assert(vim.tbl_contains(
 local generation = snapshot.sessions[1].conversation
 assert(snapshot.sessions[1].activity == nil, "idle session has live activity")
 local chat = s.chat
+-- Snippet browsing is read-only, conversation-scoped, and uses shared merging/context.
+local snippets = require("aero.prompt_snippets")
+local original_paths = snippets.paths
+vim.fn.mkdir(dir .. "/prompt", "p")
+vim.fn.writefile({ '[{"name":"Review","prompt":"{{session}} {{topic}}",},] // comment' }, dir .. "/prompt/review.jsonc")
+snippets.paths = function()
+	return { { path = dir .. "/prompt/review.jsonc", scope = "workspace" } }
+end
+local browse = { epoch = snapshot.epoch, session = s.key, conversation = generation }
+local collection = assert(bridge.dispatch("prompt_snippets", browse))
+assert(#collection.items == 1 and collection.items[1].name == "Review")
+assert(collection.context.session == s.name and collection.context.worktree == s.worktree)
+assert(collection.items[1].prompt == "{{session}} {{topic}}" and (chat.turn or 0) == 0)
+local missing, browse_err = bridge.dispatch("prompt_snippets", vim.tbl_extend("force", browse, { epoch = "stale" }))
+assert(not missing and browse_err == "stale host epoch")
+missing, browse_err = bridge.dispatch("prompt_snippets", vim.tbl_extend("force", browse, { conversation = "stale" }))
+assert(not missing and browse_err == "stale conversation")
+snippets.paths = original_paths
 chat.busy = true
 chat:on_update({ sessionUpdate = "tool_call", toolCallId = "live-action", title = "Run checks", status = "in_progress" })
 local live = bridge.dispatch("snapshot").sessions[1]
@@ -64,6 +82,8 @@ assert(bridge.dispatch("snapshot").sessions[1].activity == nil, "finished sessio
 local function params(id, extra)
 	return vim.tbl_extend("force", { operation_id = id, session = s.key, conversation = generation }, extra or {})
 end
+local rejected, rejection = bridge.dispatch("prompt", params("snippet-000000001", { text = "/prompt" }))
+assert(not rejected and rejection:find("choose a prompt snippet", 1, true) and (chat.turn or 0) == 0)
 local request = params("prompt-0000000001", { text = "permission" })
 assert(bridge.dispatch("prompt", request).status == "accepted")
 assert(bridge.dispatch("prompt", request).status == "accepted")

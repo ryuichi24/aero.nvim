@@ -24,6 +24,33 @@ import (
 
 type hostFunc func(context.Context, string, any) (hostResponse, error)
 
+func TestPromptSnippetRoute(t *testing.T) {
+	calls := 0
+	c := newClient(t, hostFunc(func(_ context.Context, method string, params any) (hostResponse, error) {
+		calls++
+		if method != "prompt_snippets" {
+			t.Fatalf("method = %s", method)
+		}
+		encoded, _ := json.Marshal(params)
+		var data map[string]any
+		_ = json.Unmarshal(encoded, &data)
+		if data["epoch"] != "host" || data["session"] != "session" || data["conversation"] != "generation" {
+			t.Fatalf("lost snippet identity fields: %s", encoded)
+		}
+		return hostResponse{Result: json.RawMessage(`{"items":[],"errors":[],"context":{"session":"Agent"}}`)}, nil
+	}))
+	input := map[string]string{"epoch": "host", "session": "session", "conversation": "generation"}
+	c.json("POST", "/api/prompt_snippets", input, http.StatusUnauthorized)
+	if calls != 0 {
+		t.Fatal("unauthenticated request reached host")
+	}
+	c.pair()
+	c.json("POST", "/api/prompt_snippets", input, http.StatusOK)
+	if calls != 1 {
+		t.Fatalf("host calls = %d", calls)
+	}
+}
+
 func TestLifecycleRoutes(t *testing.T) {
 	for _, method := range []string{"session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		t.Run(method, func(t *testing.T) {

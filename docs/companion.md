@@ -493,6 +493,14 @@ The opt-in defaults to `false` and does not require disabling authentication.
   You can also type `/report new <name>` or `/report select <filename.md>`
   directly, with additional instructions on subsequent lines. Existing files
   are never overwritten by creation, and retries reuse the original receipt.
+- Type **`/prompt`** to search the host's merged global and workspace prompt
+  snippets. Select one to preview it and fill in custom variables such as
+  `{{topic}}`, then choose **Insert prompt** to populate the draft without
+  sending. Repeated variables share one input; empty answers are allowed.
+  **Cancel selection** keeps the draft unchanged. Built-in values come from the
+  Neovim host: Git uses the session's worktree, and editor values use the host's
+  source window. Sending is blocked while the picker is open. Manage snippet
+  files in Neovim with `:Aero snippet`; see [Prompt snippets](prompt-snippets.md).
 - Type **`/`** to see built-in commands and commands advertised by the current
   agent. Selecting a command updates the draft; send it when ready.
 - **`/model`** and **`/mode`** show the agent's available choices in the companion.

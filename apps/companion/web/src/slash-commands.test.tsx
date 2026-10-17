@@ -55,9 +55,18 @@ function menu(prompt: string, disabled = false) {
 
 it('offers built-in and advertised commands and selects drafts', async () => {
   const choose = menu('/');
-  expect(screen.getAllByRole('button')).toHaveLength(8);
+  expect(screen.getAllByRole('button')).toHaveLength(9);
   await userEvent.click(screen.getByRole('button', { name: '/compact — Compact context' }));
   expect(choose).toHaveBeenCalledWith('/compact');
+});
+
+it('selects the local prompt picker command without submitting', async () => {
+  const choose = menu('/pr');
+  await userEvent.click(
+    screen.getByRole('button', { name: '/prompt — Insert a custom prompt snippet into the draft' }),
+  );
+  expect(choose).toHaveBeenCalledWith('/prompt');
+  expect(slashPickerOpen('/prompt')).toBe(true);
 });
 
 it.each([
