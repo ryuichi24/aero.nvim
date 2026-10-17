@@ -96,8 +96,8 @@ Use `:Aero worktrees` and `:Aero workspaces` to jump between checkouts.
 ### Native ACP conversations
 
 Read highlighted Markdown transcripts with distinct messages, thinking, tool calls,
-command output, and permissions. Press `i` to open the prompt and send with `:w` or
-`<C-s>`. Cancel turns, switch agent-provided models and modes, and inspect reported
+command output, and permissions. Press `i` to open the prompt and send with
+`<C-CR>` (Ctrl-Enter). Cancel turns, switch agent-provided models and modes, and inspect reported
 token usage and fees without leaving Neovim.
 
 [Agent setup and ACP controls](docs/agents.md) · [Mermaid previews](docs/markdown.md)
@@ -110,6 +110,10 @@ source, and line range to the agent's draft without submitting it.
 [Quoting selections and targeting sessions](docs/quoting.md)
 
 ### Markdown reports
+
+Build a draft with multiple actions: type `/report` or `/prompt` on its own line
+and press Enter to open its picker, even when the draft already contains text.
+Repeat `/prompt` to add more snippets, then send the combined draft with Ctrl-Enter.
 
 Use `:Aero report` or `/report` to select or create a worktree report and attach it
 to a draft. Reports appear in the dashboard and remain available across restarts.

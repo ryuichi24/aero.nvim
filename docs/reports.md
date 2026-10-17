@@ -12,7 +12,7 @@ select, and `<Esc>`/`q` to cancel. Aero asks for a recipient when several agents
 available without a selected session.
 
 In ACP prompts, typing `/report` and pressing Enter opens the picker. Sending it with
-`:w` or `<C-s>` also works; `<C-x><C-o>` completes it. Enter in other insert-mode
+Ctrl-Enter also works; `<C-x><C-o>` completes it. Enter in other
 drafts continues to insert a newline.
 
 Selecting appends the absolute path and an instruction to read/update the report to

@@ -178,7 +178,7 @@ instead of spelling out the tool instructions:
 /new-ticket Add regression coverage for the edge case we discussed. Put it in todo.
 ```
 
-Submit with `:w`, `<C-s>`, or normal-mode `<CR>`. Aero expands the command into
+Submit with `<C-CR>` (Ctrl-Enter). Aero expands the command into
 instructions to read the board, discover its states and revision, and create a
 ticket through MCP with initial description and acceptance criteria. A bare
 `/new-ticket` uses the conversation's follow-up context; the agent is instructed

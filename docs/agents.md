@@ -107,11 +107,16 @@ require("aero").setup({
 The default is `false`. `gY` still overrides it for the current conversation.
 
 The prompt is a regular Markdown buffer; closing it retains the draft.
+Submit with `:Aero prompt send` or Ctrl-Enter; `:w` keeps the draft and Ctrl-s has no submit binding.
+You can also type `/send` on its own line and press Enter. Aero removes that line
+and submits the remaining draft; an empty draft sends nothing.
+Your terminal must send Ctrl-Enter as a distinct key (for example, using Kitty's keyboard protocol).
 
 | Prompt key | Action |
 | --- | --- |
-| `:w` / `<C-s>` | Send (Ctrl-s works in normal and insert mode) |
-| `<CR>` | Send in normal mode |
+| `:Aero prompt send` | Submit the selected ACP session's draft |
+| `<C-CR>` | Submit the draft in normal or insert mode (Ctrl-Enter) |
+| `<CR>` | Run a local slash command or insert a newline |
 | `<C-x><C-o>` | Complete slash commands |
 | `<C-n>` / `<C-p>` | Next / previous suggestion |
 | `<Tab>` / `<S-Tab>` | Next / previous suggestion when `acp.tab_completion = true` |
