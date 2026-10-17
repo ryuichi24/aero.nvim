@@ -218,6 +218,7 @@ M.defaults = {
 		yank_name = "yy",
 		yank_path = "yY",
 		pull = "P",
+		switch_branch = "gb",
 		review = "gr",
 		cd = ".",
 		edit = "e",

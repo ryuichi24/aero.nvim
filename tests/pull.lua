@@ -75,7 +75,7 @@ local dashboard_win = api.nvim_get_current_win()
 local function await_status(branch, status)
 	assert(vim.wait(5000, function()
 		for _, text in ipairs(api.nvim_buf_get_lines(api.nvim_win_get_buf(dashboard_win), 0, -1, false)) do
-			if text:find(" " .. branch, 1, true) and text:find(status, 1, true) then
+			if text:find("(" .. branch .. ")", 1, true) and text:find(status, 1, true) then
 				return true
 			end
 		end
@@ -88,7 +88,7 @@ assert(git({ "-C", feature, "rev-parse", "HEAD" }) == initial, "status check cha
 local function select(branch)
 	api.nvim_set_current_win(dashboard_win)
 	for line, text in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
-		if text:find(" " .. branch, 1, true) then
+		if text:find("(" .. branch .. ")", 1, true) then
 			api.nvim_win_set_cursor(0, { line, 0 })
 			return
 		end
@@ -124,7 +124,7 @@ assert(type(vim.fn.maparg("P", "n", false, true).callback) == "function")
 -- A different shortcut should target the main worktree, not the previous selection.
 opts.keymaps = { pull = "gp" }
 aero.setup(vim.deepcopy(opts))
-select("main (main)")
+select("main")
 assert(vim.fn.maparg("P", "n", false, true).callback == nil)
 before = #messages
 api.nvim_feedkeys(api.nvim_replace_termcodes("gp", true, false, true), "xt", false)

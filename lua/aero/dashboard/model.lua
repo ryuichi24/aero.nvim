@@ -79,11 +79,11 @@ function M.build(snapshot)
 				local wt, expanded = tree.wt, tree.expanded
 				local segments = {
 					{ "   " .. (expanded and icons.expanded or icons.collapsed) .. " " },
-					{ M.worktree_label(wt), "AeroWorktree" },
+					{ tree.basename, "AeroWorktree" },
+					{ " (", "AeroBranch" },
+					{ wt.branch or "detached " .. (wt.head or ""):sub(1, 7), "AeroBranch" },
+					{ ")", "AeroBranch" },
 				}
-				if wt.path == ws.root then
-					table.insert(segments, { " (main)", "AeroMain" })
-				end
 				if wt.branch then
 					local label, highlight = tracking_label(cache, wt.branch)
 					if label then
@@ -91,9 +91,6 @@ function M.build(snapshot)
 					end
 				end
 				local virt = expanded and {} or vim.deepcopy(tree.summary)
-				if wt.path ~= ws.root then
-					table.insert(virt, 1, { " " .. tree.basename, "AeroDim" })
-				end
 				local item = { kind = "worktree", id = "wt:" .. wt.path, ws = ws, wt = wt }
 				add(segments, item, virt)
 				if expanded then

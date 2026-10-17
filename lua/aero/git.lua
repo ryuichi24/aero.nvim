@@ -92,6 +92,36 @@ function M.remote_branches(root, cb)
 	end)
 end
 
+--- List local and remote branch choices, excluding symbolic remote refs.
+function M.branches(path, cb)
+	run_async({ "git", "-C", path, "for-each-ref", "--format=%(refname)\t%(symref)", "refs/heads/", "refs/remotes/" }, function(ok, err, out)
+		if not ok then
+			return cb(nil, err)
+		end
+		local branches = {}
+		for line in out:gmatch("[^\n]+") do
+			local ref, symbolic = line:match("^([^\t]+)\t(.*)$")
+			ref = ref or line
+			if not symbolic or symbolic == "" then
+				local remote = ref:match("^refs/remotes/(.+)$")
+				table.insert(branches, { name = remote or ref:gsub("^refs/heads/", ""), remote = remote })
+			end
+		end
+		cb(branches)
+	end)
+end
+
+--- Switch only this checkout; Git rejects conflicting changes and occupied branches.
+function M.switch_branch(path, branch, cb)
+	local args = { "git", "-C", path, "switch" }
+	if branch.remote then
+		vim.list_extend(args, { "--track", "--", "refs/remotes/" .. branch.remote })
+	else
+		vim.list_extend(args, { "--", branch.name })
+	end
+	return run_async(args, cb)
+end
+
 --- Create a worktree, optionally creating a tracking branch from an explicit remote ref.
 function M.add(root, branch, path, cb, remote)
 	local event_path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))

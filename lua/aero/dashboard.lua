@@ -39,6 +39,7 @@ function M.setup_highlights()
 		AeroTitle = "Title",
 		AeroWorkspace = "Directory",
 		AeroWorktree = "Function",
+		AeroBranch = "Special",
 		AeroMain = "Special",
 		AeroSession = "Normal",
 		AeroBusy = "DiagnosticWarn",
@@ -631,30 +632,68 @@ local function add_worktree(ws)
 			return
 		end
 		branch = vim.trim(branch)
-		local path = config.options.worktree_path(ws, branch)
-		notify("creating worktree " .. branch .. " …")
-		git.add(ws.root, branch, path, function(ok, err)
-			if not ok then
-				notify(err, vim.log.levels.ERROR)
+		local default_path = config.options.worktree_path(ws, branch)
+		vim.ui.input({ prompt = "Worktree name: ", default = vim.fs.basename(default_path) }, function(name)
+			if not name or vim.trim(name) == "" then
 				return
 			end
-			store.set_expanded(ws.root, true)
-			state.worktrees[ws.root] = nil
-			local cache = worktrees(ws)
-			for _, wt in ipairs(cache.list or {}) do
-				if wt.branch == branch then
-					state.expanded[wt.path] = true
-				end
+			name = vim.trim(name)
+			if name == "." or name == ".." or name:find("/", 1, true) then
+				return notify("Worktree name must be a single directory name", vim.log.levels.WARN)
 			end
-			notify("created " .. vim.fn.fnamemodify(path, ":~"))
-			M.render()
-		end, remote)
+			local path = vim.fs.joinpath(vim.fs.dirname(default_path), name)
+			notify("creating worktree " .. name .. " (" .. branch .. ") …")
+			git.add(ws.root, branch, path, function(ok, err)
+				if not ok then
+					notify(err, vim.log.levels.ERROR)
+					return
+				end
+				store.set_expanded(ws.root, true)
+				state.worktrees[ws.root] = nil
+				local cache = worktrees(ws)
+				for _, wt in ipairs(cache.list or {}) do
+					if wt.branch == branch then
+						state.expanded[wt.path] = true
+					end
+				end
+				notify("created " .. vim.fn.fnamemodify(path, ":~"))
+				M.render()
+			end, remote)
+		end)
 	end
-	vim.ui.select({ "Create a new branch", "Check out a remote branch" }, {
+	vim.ui.select({ "Create a new branch", "Check out an existing branch", "Check out a remote branch" }, {
 		prompt = "Add worktree (" .. ws.name .. "):",
 	}, function(choice)
 		if choice == "Create a new branch" then
 			vim.ui.input({ prompt = "New worktree branch (" .. ws.name .. "): " }, create)
+		elseif choice == "Check out an existing branch" then
+			git.branches(ws.root, function(branches, err)
+				if not branches then
+					return notify(err, vim.log.levels.ERROR)
+				end
+				local trees, list_err = git.list(ws.root)
+				if not trees then
+					return notify(list_err, vim.log.levels.ERROR)
+				end
+				local occupied = {}
+				for _, wt in ipairs(trees) do
+					if wt.branch then
+						occupied[wt.branch] = true
+					end
+				end
+				local available = {}
+				for _, branch in ipairs(branches) do
+					if not branch.remote and not occupied[branch.name] then
+						table.insert(available, branch.name)
+					end
+				end
+				if #available == 0 then
+					return notify("No available local branches; create a new branch or choose a remote branch", vim.log.levels.WARN)
+				end
+				vim.ui.select(available, { prompt = "Existing branch:" }, function(branch)
+					create(branch)
+				end)
+			end)
 		elseif choice == "Check out a remote branch" then
 			git.remote_branches(ws.root, function(branches, err)
 				if not branches then
@@ -1157,6 +1196,39 @@ function actions.pull()
 	M.pull()
 end
 
+function actions.switch_branch()
+	local item = current_item()
+	if not item or not item.wt then
+		return notify("move the cursor to a worktree first", vim.log.levels.WARN)
+	end
+	local path = item.wt.path
+	git.branches(path, function(branches, err)
+		if not branches then
+			return notify(err, vim.log.levels.ERROR)
+		end
+		vim.ui.select(branches, {
+			prompt = "Switch branch (" .. wt_label(item.wt) .. "):",
+			format_item = function(branch)
+				return branch.name .. (branch.remote and " (remote)" or branch.name == item.wt.branch and " (current)" or "")
+			end,
+		}, function(branch)
+			if not branch then
+				return
+			end
+			git.switch_branch(path, branch, function(ok, switch_err)
+				if not ok then
+					return notify("branch switch failed: " .. switch_err, vim.log.levels.ERROR)
+				end
+				state.worktrees = {}
+				load_worktrees()
+				M.render()
+				vim.cmd("checktime")
+				notify("switched " .. vim.fn.fnamemodify(path, ":~") .. " to " .. branch.name)
+			end)
+		end)
+	end)
+end
+
 function actions.review()
 	require("aero.review").open()
 end
@@ -1303,6 +1375,7 @@ local descriptions = {
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",
 	pull = "pull worktree upstream (fast-forward only)",
+	switch_branch = "switch worktree branch",
 	review = "review worktree changes",
 	cd = ":tcd to worktree",
 	edit = "open worktree / restore last code buffer",
