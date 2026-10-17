@@ -218,6 +218,7 @@ M.defaults = {
 		yank_name = "yy",
 		yank_path = "yY",
 		pull = "P",
+		review = "gr",
 		cd = ".",
 		edit = "e",
 		open_board_markdown = "I", -- open the selected board's raw Markdown file

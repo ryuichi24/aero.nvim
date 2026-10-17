@@ -1157,6 +1157,10 @@ function actions.pull()
 	M.pull()
 end
 
+function actions.review()
+	require("aero.review").open()
+end
+
 function actions.cd()
 	local dir = item_dir(current_item())
 	if dir then
@@ -1299,6 +1303,7 @@ local descriptions = {
 	restart = "restart session (resume)",
 	refresh = "refresh git worktrees",
 	pull = "pull worktree upstream (fast-forward only)",
+	review = "review worktree changes",
 	cd = ":tcd to worktree",
 	edit = "open worktree / restore last code buffer",
 	open_board_markdown = "open selected board's raw Markdown file",

@@ -107,6 +107,7 @@ local function append(source, target)
 end
 
 function M.quote(range)
+	if require("aero.review").quote() then return end
 	local source = selection(range)
 	if not source then
 		return

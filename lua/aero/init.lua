@@ -77,6 +77,12 @@ function M.pull(path)
 	return ensure().pull(path)
 end
 
+--- Review on-disk worktree changes, or committed changes against an explicit base ref.
+function M.review(path, base)
+	ensure()
+	return require("aero.review").open(path, base)
+end
+
 function M.pick()
 	ensure().pick()
 end

@@ -4,6 +4,13 @@ end
 vim.g.loaded_Aero = true
 
 local subcommands = {
+	review = function(args)
+		if #args > 1 then
+			vim.notify("Aero: use :Aero review [base-ref]", vim.log.levels.WARN)
+			return
+		end
+		require("aero").review(nil, args[1])
+	end,
 	reference = function()
 		require("aero.reference").open()
 	end,
