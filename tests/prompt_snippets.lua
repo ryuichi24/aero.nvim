@@ -120,6 +120,8 @@ end
 write(dir .. "/.aero/prompts.json", {})
 local chat = { s = { worktree = dir, name = "test", key = "snippet-test" }, buf = api.nvim_create_buf(false, true) }
 chat.s.chat = chat
+local draft_saves = 0
+function chat:save_history() draft_saves = draft_saves + 1 end
 function chat:get_prompt_buf()
 	return require("aero.acp.prompt").buffer(self, function() return self end)
 end
@@ -129,6 +131,8 @@ chat:compose()
 local submitted = 0
 function chat:send_prompt_buf() submitted = submitted + 1 end
 api.nvim_buf_set_lines(buf, 0, -1, false, { "Unfinished draft" })
+assert(draft_saves > 0 and vim.deep_equal(chat.draft, { "Unfinished draft" }),
+	"editing the prompt did not request draft persistence")
 vim.fn.maparg("<CR>", "n", false, true).callback()
 api.nvim_exec_autocmds("BufWriteCmd", { buffer = buf })
 assert(submitted == 0, "Enter or :w submitted an unfinished draft")
