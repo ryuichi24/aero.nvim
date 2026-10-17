@@ -177,7 +177,7 @@ describe('mobile companion', () => {
       '/other',
     );
     await userEvent.click(screen.getByRole('button', { name: 'Reports' }));
-    await userEvent.click(screen.getByRole('button', { name: 'review /other' }));
+    await userEvent.click(screen.getByRole('button', { name: 'other (review) /other' }));
     await userEvent.click(screen.getByRole('button', { name: 'Changes' }));
     first.unmount();
     sessionStorage.clear();
@@ -261,7 +261,7 @@ describe('mobile companion', () => {
         .map((button) => button.textContent),
     ).toEqual(['Home', 'Sessions', 'Inbox', 'Workspace']);
     await userEvent.click(screen.getByRole('button', { name: 'Reports' }));
-    await userEvent.click(screen.getByRole('button', { name: 'review /other' }));
+    await userEvent.click(screen.getByRole('button', { name: 'other (review) /other' }));
     await screen.findByRole('button', { name: 'plan.md' });
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search report names' }), 'missing');
     expect(screen.queryByRole('button', { name: 'plan.md' })).toBeNull();
@@ -1113,7 +1113,7 @@ describe('mobile companion', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Inbox (1)' }));
     await userEvent.click(screen.getByRole('button', { name: 'permission: Choose an option' }));
     expect(screen.getByRole('navigation', { name: 'Current session location' }).textContent).toBe(
-      'Aero/mobile-ui/Test agent',
+      'Aero/workspace (mobile-ui)/Test agent',
     );
     await userEvent.click(screen.getByRole('button', { name: '← All sessions' }));
     expect(

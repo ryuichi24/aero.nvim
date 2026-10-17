@@ -4,6 +4,7 @@ import { operationID, post, RequestError } from './api';
 import { Markdown } from './markdown';
 import type { LifecycleAction } from './lifecycle-controls';
 import type { ActionResponse, PendingAction, Snapshot } from './types';
+import { worktreeLabel } from './sessionGroups';
 
 type Entry = { name: string; directory: boolean };
 type Transfer = { path: string; action: 'copy' | 'cut' };
@@ -198,7 +199,7 @@ function ReferenceFinder({
     >
       <h3>Reference finder</h3>
       <p>
-        <strong>Target worktree:</strong> {tree.branch || tree.path.split('/').at(-1)}{' '}
+        <strong>Target worktree:</strong> {worktreeLabel(tree)}{' '}
         <code>{tree.path}</code>
       </p>
       <p>
@@ -304,7 +305,7 @@ function ReferenceFinder({
         ))}
       </ul>
       <aside className="reference-staging" aria-label="Staged references">
-        <h4>Staged for {tree.branch || tree.path.split('/').at(-1)}</h4>
+        <h4>Staged for {worktreeLabel(tree)}</h4>
         <p>
           Target: <code>{tree.path}</code>
         </p>

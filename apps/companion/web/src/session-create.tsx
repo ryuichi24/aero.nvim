@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LifecycleForm } from './lifecycle-controls';
 import type { LifecycleAction } from './lifecycle-controls';
 import type { Snapshot } from './types';
+import { worktreeLabel } from './sessionGroups';
 
 export function SessionCreate({
   snapshot,
@@ -31,7 +32,7 @@ export function SessionCreate({
         <select value={tree?.path || ''} onChange={(event) => setChosen(event.target.value)}>
           {trees.map((item) => (
             <option key={item.path} value={item.path}>
-              {item.branch || item.path} · {item.workspace || item.path}
+              {worktreeLabel(item)} · {item.workspace || item.path}
             </option>
           ))}
         </select>

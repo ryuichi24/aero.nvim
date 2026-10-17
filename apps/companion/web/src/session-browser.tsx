@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
-import { filterGroups, groupSessions, sessionLocation } from './sessionGroups';
+import { filterGroups, groupSessions, pathName, sessionLocation } from './sessionGroups';
 import { browserReducer, initialBrowserState } from './session-browser-state';
 import type { Selection, Session, Snapshot } from './types';
 import { LifecycleForm } from './lifecycle-controls';
@@ -279,7 +279,12 @@ export function SessionBrowser({
                               {worktreeExpanded ? '▾' : '▸'}
                             </span>
                             <span className="navigation-label">
-                              <span className="worktree-name">{worktree.label}</span>
+                              <span className="worktree-name">
+                                {pathName(worktree.path)}{' '}
+                                <span className="text-slate-400 font-normal">
+                                  ({worktree.branch || 'detached'})
+                                </span>
+                              </span>
                               <span className="navigation-path">{worktree.path}</span>
                               <span className="navigation-count">
                                 {countLabel(worktree.sessions.length, 'session')}

@@ -8,6 +8,7 @@ import { Markdown } from './markdown';
 import { ImageDirectory, ImageSession } from './image-link';
 import { FullscreenAttention } from './fullscreen-attention';
 import type { Snapshot } from './types';
+import { worktreeLabel } from './sessionGroups';
 
 interface SourceResponse {
   entries?: { name: string; directory: boolean }[];
@@ -330,7 +331,7 @@ export function SourceBrowser({
                       picker.querySelector('summary')?.focus();
                     }}
                   >
-                    <strong>{tree.branch || tree.path.split('/').filter(Boolean).at(-1)}</strong>
+                    <strong>{worktreeLabel(tree)}</strong>
                     <span className="report-worktree-hint">
                       {tree.path.split('/').filter(Boolean).slice(-2).join('/')}
                     </span>
@@ -363,7 +364,7 @@ export function SourceBrowser({
           >
             {trees.map((tree) => (
               <option key={tree.path} value={tree.path}>
-                {tree.branch || tree.path} · {tree.path}
+                {worktreeLabel(tree)} · {tree.path}
               </option>
             ))}
           </select>

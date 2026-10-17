@@ -121,7 +121,7 @@ it('manages references without a selected session and recovers an identical muta
   connect(snapshot);
   await userEvent.click(screen.getByRole('button', { name: 'References' }));
   await userEvent.click(screen.getByText('Repo', { selector: 'summary' }));
-  await userEvent.click(screen.getByRole('button', { name: /Main worktree/ }));
+  await userEvent.click(screen.getByRole('button', { name: /repo \(detached\)/ }));
   await userEvent.click(await screen.findByRole('button', { name: '· note.md' }));
   const input = screen.getByRole('textbox', { name: 'Reference item name' });
   await userEvent.clear(input);

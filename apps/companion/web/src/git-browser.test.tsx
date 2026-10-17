@@ -53,13 +53,13 @@ it('groups sibling worktrees by workspace, shows summaries, and clears diffs whe
   await screen.findByText('+change in /sibling-feature');
   fireEvent.click(screen.getByRole('button', { name: /main.*\/alpha/ }));
   await waitFor(() => expect(screen.queryByLabelText('File diff')).toBeNull());
-  expect(screen.getByText('Alpha / main')).toBeTruthy();
+  expect(screen.getByText('Alpha / alpha (main)')).toBeTruthy();
   fireEvent.change(screen.getByRole('combobox', { name: 'Workspace' }), {
     target: { value: '/beta' },
   });
   await screen.findByRole('button', { name: /beta-main.*Working tree clean/ });
   expect(screen.queryByRole('button', { name: /feature.*sibling/ })).toBeNull();
-  expect(screen.getByText('Beta / beta-main')).toBeTruthy();
+  expect(screen.getByText('Beta / beta (beta-main)')).toBeTruthy();
   expect(fetch.mock.calls.filter(([url]) => url.endsWith('/diff'))).toHaveLength(1);
   client.clear();
 });

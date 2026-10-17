@@ -101,14 +101,14 @@ describe('workspace session browser', () => {
     expect(workspaceButton.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('button', { name: /^Review ·/ })).toBeNull();
     await userEvent.click(workspaceButton);
-    const mobile = within(aero).getByRole('group', { name: 'Worktree mobile-ui' });
-    await userEvent.click(within(mobile).getByRole('button', { name: /^mobile-ui/ }));
+    const mobile = within(aero).getByRole('group', { name: 'Worktree mobile (mobile-ui)' });
+    await userEvent.click(within(mobile).getByRole('button', { name: /^mobile \(mobile-ui\)/ }));
     await userEvent.click(within(mobile).getByRole('button', { name: /^Review · waiting/ }));
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
       id: 'mobile-review',
       conversation: 'conv-r',
     });
-    const docs = within(aero).getByRole('group', { name: 'Worktree docs' });
+    const docs = within(aero).getByRole('group', { name: 'Worktree docs (docs)' });
     await userEvent.click(within(docs).getByRole('button', { name: /^docs/ }));
     expect(within(docs).getByText('No ACP sessions in this worktree.')).toBeTruthy();
     // The same session name in another workspace cannot redirect this action.
@@ -121,7 +121,7 @@ describe('workspace session browser', () => {
     const search = screen.getByRole('searchbox');
     await userEvent.type(search, 'Review');
     expect(screen.getByRole('group', { name: 'Workspace Aero' })).toBeTruthy();
-    expect(screen.getByRole('group', { name: 'Worktree mobile-ui' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Worktree mobile (mobile-ui)' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /^Review ·/ })).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Workspace Blog' })).toBeNull();
     await userEvent.clear(search);
@@ -142,8 +142,8 @@ describe('workspace session browser', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Group by workspace/worktree' }));
     const current = screen.getByRole('button', { name: /^Review · waiting/ });
     expect(current.getAttribute('aria-current')).toBe('page');
-    const mobile = screen.getByRole('group', { name: 'Worktree mobile-ui' });
-    const toggle = within(mobile).getByRole('button', { name: /^mobile-ui/ });
+    const mobile = screen.getByRole('group', { name: 'Worktree mobile (mobile-ui)' });
+    const toggle = within(mobile).getByRole('button', { name: /^mobile \(mobile-ui\)/ });
     await userEvent.click(toggle);
     const updated: Snapshot = {
       ...snapshot,

@@ -19,6 +19,10 @@ export function pathName(path: string): string {
   return path.replace(/\/+$/, '').split('/').at(-1) || path;
 }
 
+export function worktreeLabel(worktree: { path: string; branch?: string }): string {
+  return `${pathName(worktree.path)} (${worktree.branch || 'detached'})`;
+}
+
 function normalize(path: string): string {
   return path.replace(/\/+$/, '') || '/';
 }
@@ -60,7 +64,7 @@ export function groupSessions(snapshot: Snapshot): WorkspaceGroup[] {
       path,
       branch: worktree.branch,
       target: worktree.target,
-      label: worktree.branch || (path === workspace.root ? 'Main worktree' : pathName(path)),
+      label: worktreeLabel(worktree),
       sessions: [],
     };
     worktrees.set(path, group);
@@ -72,7 +76,7 @@ export function groupSessions(snapshot: Snapshot): WorkspaceGroup[] {
       const workspace = owner(path);
       const worktree = {
         path,
-        label: path === workspace.root ? 'Main worktree' : pathName(path),
+        label: pathName(path),
         sessions: [],
       };
       worktrees.set(path, worktree);
