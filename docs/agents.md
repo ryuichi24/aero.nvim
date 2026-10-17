@@ -107,6 +107,8 @@ require("aero").setup({
 The default is `false`. `gY` still overrides it for the current conversation.
 
 The prompt is a regular Markdown buffer; closing it retains the draft.
+With `persist_sessions = true` (the default), unfinished prompts are automatically
+saved per session and restored when you reopen the session after restarting Neovim.
 Submit with `:Aero prompt send` or Ctrl-Enter; `:w` keeps the draft and Ctrl-s has no submit binding.
 You can also type `/send` on its own line and press Enter. Aero removes that line
 and submits the remaining draft; an empty draft sends nothing.

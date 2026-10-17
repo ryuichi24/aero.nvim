@@ -654,6 +654,13 @@ function M.start(s, buf, agent, resume, session_id, opts)
 	local saved = resume and history.load(s)
 	if saved and saved.type == "acp" and type(saved.blocks) == "table" then
 		chat.blocks, chat.agent_info = saved.blocks, saved.agent_info
+		if type(saved.draft) == "table" and vim.islist(saved.draft) then
+			local valid = true
+			for _, line in ipairs(saved.draft) do
+				valid = valid and type(line) == "string" and not line:find("\n", 1, true)
+			end
+			if valid then chat.draft = saved.draft end
+		end
 		usage.restore(chat, saved.usage)
 		chat.saved_session_id = type(saved.session_id) == "string" and saved.session_id ~= "" and saved.session_id
 			or nil
@@ -670,6 +677,7 @@ function M.start(s, buf, agent, resume, session_id, opts)
 	end
 	if old then
 		chat.prompt_buf = old.prompt_buf
+		chat.draft = old.draft
 		if resume and old.resume_error then
 			chat.queue = old.queue
 		end

@@ -159,6 +159,20 @@ wait(function()
 end)
 assert(sessions.from_buf(acp.buf) == acp, "ACP buffer uses a different session registry")
 assert(store.find_session(acp.worktree, acp.name).acp_session_id == "fixture-session", "ACP ID was not persisted")
+local draft_lines = { "unfinished prompt", "", "  keep this spacing  " }
+if phase == "save" then
+	vim.api.nvim_buf_set_lines(acp.chat:get_prompt_buf(), 0, -1, false, draft_lines)
+elseif phase == "replay" then
+	local buf = acp.chat:get_prompt_buf()
+	assert(vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), draft_lines),
+		"draft was not restored across Neovim processes")
+	acp.chat:send_prompt_buf()
+	assert(vim.deep_equal(acp.chat.draft, { "" }), "submitting did not clear the saved draft")
+	wait(function() return not acp.chat.busy end)
+elseif phase == "recover-id" then
+	assert(vim.deep_equal(vim.api.nvim_buf_get_lines(acp.chat:get_prompt_buf(), 0, -1, false), { "" }),
+		"submitted draft reappeared after restarting Neovim")
+end
 if phase == "save" then
 	acp.chat:prompt("old question")
 	wait(function()

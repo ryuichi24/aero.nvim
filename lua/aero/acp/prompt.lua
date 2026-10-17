@@ -74,6 +74,19 @@ function M.buffer(chat, lookup)
 	vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].swapfile = "acwrite", "hide", false
 	pcall(api.nvim_buf_set_name, buf, ("Aero://%s#%s/prompt"):format(chat.s.worktree, chat.s.name))
 	local key = chat.s.key
+	if chat.draft and #chat.draft > 0 then
+		api.nvim_buf_set_lines(buf, 0, -1, false, chat.draft)
+	end
+	vim.bo[buf].modified = false
+	api.nvim_buf_attach(buf, false, {
+		on_lines = function()
+			local current = lookup(key)
+			if current then
+				current.draft = api.nvim_buf_get_lines(buf, 0, -1, false)
+				current:save_history()
+			end
+		end,
+	})
 	local function with_chat(method)
 		return function()
 			local current = lookup(key)

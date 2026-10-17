@@ -45,6 +45,7 @@ function M.history(chat)
 		agent_info = chat.agent_info,
 		session_id = chat.session_id or chat.saved_session_id,
 		usage = chat.usage,
+		draft = chat.draft,
 	}
 end
 
