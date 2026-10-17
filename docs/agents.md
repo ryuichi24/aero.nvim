@@ -154,6 +154,13 @@ panel session, even if hidden. `/cancel` also works. Cancellation discards queue
 prompts and pending permissions while retaining the conversation; continue after
 the agent acknowledges cancellation.
 
+## Prompt snippets
+
+Type `/prompt` in the ACP composer to choose a custom prompt from a searchable
+popup with a full-text preview. Snippets are loaded from user-owned global and
+workspace JSON files and inserted into the draft for editing before sending.
+See [Prompt snippets](prompt-snippets.md) for file locations and the JSON format.
+
 ## Prompt history
 
 Use `:Aero prompts`, or `gP` in an ACP transcript, to review that session's submitted

@@ -13,6 +13,9 @@ function M.send(chat)
 		vim.bo[buf].modified = false
 		return
 	end
+	if text == "/prompt" then
+		return require("aero.prompt_snippets").open(chat)
+	end
 	if chat.state == "exited" and text ~= "/export" then
 		return chat:prompt(text)
 	end
@@ -85,7 +88,7 @@ function M.buffer(chat, lookup)
 			return
 		end
 		local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
-		if text == "/report" or text == "/cancel" or text == "/export" then
+		if text == "/prompt" or text == "/report" or text == "/cancel" or text == "/export" then
 			with_chat("send_prompt_buf")()
 		else
 			api.nvim_feedkeys(api.nvim_replace_termcodes("<CR>", true, false, true), "in", false)

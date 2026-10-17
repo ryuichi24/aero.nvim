@@ -65,6 +65,13 @@ local subcommands = {
 	prompts = function()
 		require("aero").prompts()
 	end,
+	snippet = function(args)
+		if #args > 2 then
+			vim.notify("Aero: use :Aero snippet [global|workspace] [filename]", vim.log.levels.WARN)
+			return
+		end
+		require("aero.prompt_snippet_files").new(args[1], args[2])
+	end,
 	cancel = function()
 		require("aero").cancel()
 	end,
@@ -119,6 +126,10 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "snippet" and (#words > 2 or cmdline:match("%s$")) then
+			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
+			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "global", "workspace" })
+		end
 		if words[2] == "collapse" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)

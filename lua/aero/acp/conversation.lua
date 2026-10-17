@@ -484,6 +484,9 @@ function Chat:new_session(params)
 end
 
 function Chat:prompt(text)
+	if vim.trim(text) == "/prompt" then
+		return require("aero.prompt_snippets").open(self)
+	end
 	if vim.trim(text) == "/export" then
 		return require("aero.exports").export(self)
 	end
@@ -782,6 +785,9 @@ function M.omnifunc(findstart, base)
 	if ("/report"):sub(1, #base) == base then
 		table.insert(out, { word = "/report", menu = "Attach a worktree report to the draft" })
 	end
+	if ("/prompt"):sub(1, #base) == base then
+		table.insert(out, { word = "/prompt", menu = "Insert a custom prompt snippet into the draft" })
+	end
 	if ("/reference"):sub(1, #base) == base then
 		table.insert(out, { word = "/reference", menu = "Attach a worktree reference file or folder" })
 	end
@@ -798,6 +804,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/export"
 			and word ~= "/mode"
 			and word ~= "/report"
+			and word ~= "/prompt"
 			and word ~= "/reference"
 			and word ~= "/cancel"
 			and word ~= "/new-ticket"
