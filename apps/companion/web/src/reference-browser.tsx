@@ -199,8 +199,7 @@ function ReferenceFinder({
     >
       <h3>Reference finder</h3>
       <p>
-        <strong>Target worktree:</strong> {worktreeLabel(tree)}{' '}
-        <code>{tree.path}</code>
+        <strong>Target worktree:</strong> {worktreeLabel(tree)} <code>{tree.path}</code>
       </p>
       <p>
         <strong>Reference folder:</strong> <code>{tree.reference_directory}</code>
