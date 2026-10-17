@@ -13,8 +13,8 @@ end
 local function input(keys)
 	vim.rpcrequest(child, "nvim_input", keys)
 end
-local function wait(fn)
-	assert(vim.wait(5000, fn, 10), "timed out")
+local function wait(fn, message)
+	assert(vim.wait(5000, fn, 10), message or "timed out")
 end
 local function mode()
 	return vim.rpcrequest(child, "nvim_get_mode").mode
@@ -54,11 +54,13 @@ local ok, err = xpcall(function()
 	end)
 	assert(mode():sub(1, 1) == "n", "process exited but cursor remained trapped in terminal input mode")
 	assert(lua("return vim.api.nvim_buf_is_valid(_G.exit_test.s.buf)"), "exit removed the scrollback buffer")
-	assert(
-		lua(
+	-- The virtual terminal renders channel output asynchronously; observing the
+	-- process exit does not mean its final output has reached the buffer yet.
+	wait(function()
+		return lua(
 			"return table.concat(vim.api.nvim_buf_get_lines(_G.exit_test.s.buf, 0, -1, false), '\\n'):find('goodbye', 1, true) ~= nil"
 		)
-	)
+	end, "exited terminal did not preserve its final output")
 	local width = lua("return vim.api.nvim_win_get_width(_G.exit_test.panel)")
 	input("\023hhh\027") -- Repeat resizing through the child's real input loop.
 	wait(function()
