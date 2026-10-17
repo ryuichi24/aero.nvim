@@ -4,6 +4,7 @@ import { BoardAssignment } from './task-assignment';
 
 const builtins = [
   { name: 'report', description: 'Create or select a worktree report' },
+  { name: 'reference', description: 'Select a worktree reference file or folder' },
   { name: 'model', description: 'Choose the session model' },
   { name: 'mode', description: 'Choose the session mode' },
   { name: 'cancel', description: 'Cancel the current turn and discard queued prompts' },
@@ -12,7 +13,7 @@ const builtins = [
 ];
 
 export function slashPickerOpen(prompt: string) {
-  return ['/report', '/model', '/mode'].includes(prompt.trim());
+  return ['/report', '/reference', '/context', '/model', '/mode'].includes(prompt.trim());
 }
 
 export function SlashCommands({
@@ -85,7 +86,8 @@ export function SlashCommands({
         <p>An AI-formatted copy uses a separate agent conversation and tokens.</p>
       </section>
     );
-  if (/\s/.test(text) || text === '/report') return null;
+  if (/\s/.test(text) || text === '/report' || text === '/reference' || text === '/context')
+    return null;
   const commands = [
     ...builtins,
     ...(session.commands || []).filter(

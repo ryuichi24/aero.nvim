@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import { useCompanionDispatch, useCompanionState } from '../companion-context';
 import { draftKey } from '../companion-state';
 import { ReportCommand } from '../report-command';
+import { ReferenceCommand } from '../reference-browser';
 import { SlashCommands, slashPickerOpen } from '../slash-commands';
 import type { ActionData, ActionPath, Session, Snapshot } from '../types';
 
@@ -88,11 +89,18 @@ export function PromptComposer({
           onChoose={choose}
         />
       )}
+      {session && ['/reference', '/context'].includes(prompt.trim()) && (
+        <ReferenceCommand
+          worktree={session.worktree}
+          online={online && !pending}
+          onChoose={choose}
+        />
+      )}
       <div className="composer-toolbar">
         <details className="composer-actions">
           <summary aria-label="Prompt actions">Actions</summary>
           <div className="quick-actions">
-            {['report', 'model', 'mode', 'export'].map((command) => (
+            {['report', 'reference', 'model', 'mode', 'export'].map((command) => (
               <button
                 key={command}
                 type="button"
@@ -105,9 +113,11 @@ export function PromptComposer({
               >
                 {command === 'report'
                   ? 'Select or create report'
-                  : command === 'export'
-                    ? 'Export transcript'
-                    : `Change ${command}`}
+                  : command === 'reference'
+                    ? 'Select reference'
+                    : command === 'export'
+                      ? 'Export transcript'
+                      : `Change ${command}`}
               </button>
             ))}
           </div>

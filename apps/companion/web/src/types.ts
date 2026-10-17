@@ -111,6 +111,7 @@ export interface Snapshot {
     branch?: string;
     target?: string;
     reports_directory?: string;
+    reference_directory?: string;
   }[];
   epoch?: string;
   agents?: string[];
@@ -122,6 +123,7 @@ export interface Selection {
 }
 
 export type ActionPath =
+  | 'reference_update'
   | 'session_assign_board'
   | 'prompt'
   | 'cancel'
@@ -134,6 +136,9 @@ export type ActionPath =
   | 'worktree_rename'
   | 'worktree_delete';
 export interface ActionData {
+  reference_action?: 'transfer' | 'rename' | 'delete';
+  path?: string;
+  items?: { path: string; action: 'copy' | 'cut' }[];
   board_id?: string;
   replace?: boolean;
   operation_id: string;

@@ -53,6 +53,7 @@ export function CompanionHome({
           [
             ['sessions', 'New session'],
             ['reports', 'Reports'],
+            ['reference', 'References'],
             ['git', 'Changes'],
             ['source', 'Source'],
           ] as const

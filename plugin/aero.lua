@@ -4,8 +4,8 @@ end
 vim.g.loaded_Aero = true
 
 local subcommands = {
-	context = function()
-		require("aero.context").open()
+	reference = function()
+		require("aero.reference").open()
 	end,
 	toggle = function()
 		require("aero").toggle()
@@ -21,7 +21,7 @@ local subcommands = {
 	end,
 	collapse = function(args)
 		if #args > 1 then
-			vim.notify("Aero: use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|context]", vim.log.levels.WARN)
+			vim.notify("Aero: use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]", vim.log.levels.WARN)
 			return
 		end
 		require("aero").collapse(args[1])
@@ -107,6 +107,7 @@ local subcommands = {
 vim.api.nvim_create_user_command("Aero", function(opts)
 	local args = opts.fargs
 	local sub = table.remove(args, 1) or "toggle"
+	if sub == "context" then sub = "reference" end -- legacy command alias
 	local fn = subcommands[sub]
 	if not fn then
 		vim.notify("Aero: unknown subcommand " .. sub, vim.log.levels.ERROR)
@@ -121,7 +122,7 @@ end, {
 		if words[2] == "collapse" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "all", "workspaces", "worktrees", "reports", "exports", "boards", "context" })
+			end, { "all", "workspaces", "worktrees", "reports", "exports", "boards", "reference" })
 		end
 		if words[2] == "companion" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)

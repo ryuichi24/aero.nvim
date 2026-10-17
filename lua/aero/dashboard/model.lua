@@ -144,38 +144,38 @@ function M.build(snapshot)
 							)
 						end
 					end
-					local context = tree.context or {}
+					local references = tree.references or {}
 					add(
 						{
-							{ "     " .. (tree.context_open and icons.expanded or icons.collapsed) .. " " },
-							{ "Context", "AeroWorkspace" },
+							{ "     " .. (tree.reference_open and icons.expanded or icons.collapsed) .. " " },
+							{ "References", "AeroWorkspace" },
 						},
-						{ kind = "context", id = "context:" .. wt.path, ws = ws, wt = wt },
-						{ { " " .. #context, "AeroDim" } }
+						{ kind = "reference", id = "reference:" .. wt.path, ws = ws, wt = wt },
+						{ { " " .. #references, "AeroDim" } }
 					)
-					if tree.context_open then
-						if tree.context_err then
-							add({ { "       ! " .. tree.context_err:gsub("[%c]", " "), "AeroExited" } })
+					if tree.reference_open then
+						if tree.reference_err then
+							add({ { "       ! " .. tree.reference_err:gsub("[%c]", " "), "AeroExited" } })
 						end
-						local function add_context(entries, indent, parent)
+						local function add_references(entries, indent, parent)
 							for _, entry in ipairs(entries) do
 								local directory = entry.kind == "directory"
 								local prefix = directory and ((entry.expanded and icons.expanded or icons.collapsed) .. " ") or ""
-								local id = "context-item:" .. entry.path
+								local id = "reference-item:" .. entry.path
 								add(
 									{ { indent .. prefix }, { entry.name:gsub("[%c]", " ") .. (directory and "/" or ""), "AeroSession" } },
-									{ kind = "context_item", id = id, parent = parent, ws = ws, wt = wt, context = entry }
+									{ kind = "reference_item", id = id, parent = parent, ws = ws, wt = wt, reference = entry }
 								)
 								if directory and entry.expanded then
 									if entry.err then add({ { indent .. "  ! " .. entry.err:gsub("[%c]", " "), "AeroExited" } }) end
-									add_context(entry.children or {}, indent .. "  ", id)
+									add_references(entry.children or {}, indent .. "  ", id)
 								end
 							end
 						end
-						add_context(context, "       ", "context:" .. wt.path)
+						add_references(references, "       ", "reference:" .. wt.path)
 						add(
 							{ { "       Add +", "AeroDim" } },
-							{ kind = "context_new", id = "context-new:" .. wt.path, ws = ws, wt = wt }
+							{ kind = "reference_new", id = "reference-new:" .. wt.path, ws = ws, wt = wt }
 						)
 					end
 					add(

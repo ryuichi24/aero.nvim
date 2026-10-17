@@ -29,6 +29,10 @@ function M.new()
 			params.force or false,
 			params.board_id or false,
 			params.replace or false,
+			params.reference_action or false,
+			params.path or false,
+			params.items or false,
+			params.transfer_id or false,
 		})
 		local previous = entries[params.operation_id]
 		if previous then

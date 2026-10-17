@@ -110,6 +110,7 @@ export function ConversationScreen({
               {(
                 [
                   ['reports', 'Reports'],
+                  ['reference', 'References'],
                   ['git', 'Changes'],
                   ['source', 'Source'],
                 ] as const

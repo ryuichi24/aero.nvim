@@ -259,34 +259,34 @@ and publishing instructions.
 
 Licensed under the [MIT License](LICENSE).
 
-## Worktree context
+## Worktree references
 
-Use `:Aero context` to collect reference files and folders for the selected
+Use `:Aero reference` to collect reference files and folders for the selected
 worktree (or the current worktree when editing code). Each worktree stores its
-own context under `stdpath("data")/Aero/workspaces/<workspace>/<worktree>/context`
+own references under `stdpath("data")/Aero/workspaces/<workspace>/<worktree>/references`
 by default, alongside the worktree's reports and outside the Git checkout.
 
-Expanded worktrees show a **Context** section in the sidebar with their stored
+Expanded worktrees show a **References** section in the sidebar with their stored
 files and folders (folders end in `/`). Press `Enter` or `l` on a folder to expand
 its children inline in the sidebar; nested folders work the same way. Press `h`
 to collapse a folder or move to its parent. Files open in the editor. Select
-**Add +** (or press `a` on a context row) to launch the finder for that
+**Add +** (or press `a` on a reference row) to launch the finder for that
 worktree. The list refreshes after transfers. Use the usual `l`/`h`/`Tab`
-controls to expand or collapse it, or `:Aero collapse context` to collapse all
-context sections.
+controls to expand or collapse it, or `:Aero collapse reference` to collapse all
+reference sections.
 
-Press `d` on a context item in the sidebar to delete it after confirmation.
-Press `N` to rename a context file or folder, including nested items. Existing
+Press `d` on a reference item in the sidebar to delete it after confirmation.
+Press `N` to rename a reference file or folder, including nested items. Existing
 names are never overwritten, and renamed folders retain their expanded state.
 In supported input UIs (Dressing/Snacks), renaming a file preselects only its
 name, leaving the final extension intact; folder names are selected in full.
 Deleting a folder removes its stored contents recursively. This removes only the
-stored context copy. The finder and staging popup show the target worktree;
+stored reference copy. The finder and staging popup show the target worktree;
 the finder also shows the directory you are currently browsing.
 
 ```lua
 require("aero").setup({
-  context = {
+  reference_finder = {
     home = "~/Documents", -- where the finder starts
     directory = "data", -- scoped storage under stdpath("data")/Aero/workspaces
   },
@@ -296,6 +296,11 @@ require("aero").setup({
 `directory` can also be a path (relative paths resolve inside the worktree), or a
 function receiving the worktree path and returning an
 exact directory path. Use a distinct path per worktree to retain isolation.
+Existing default `context` storage directories are reused when no `references`
+directory exists, preserving existing files and paths in saved prompts. Explicit
+custom storage paths continue to be used as configured.
+The former `:Aero context`, `:Aero collapse context`, and `/context` commands
+remain accepted as legacy aliases; new menus and completions use **reference**.
 
 The finder supports `Enter`/`l` to enter a folder and `-`/`h` to go to its parent.
 Press `y` to mark a file or folder for copying, `d` to mark it for cutting, and
@@ -304,11 +309,89 @@ Hidden files are included. Marks survive navigation between directories.
 
 Run `:w` to stage marked items in the persistent popup below the finder. You can
 keep browsing and saving to build the stack. Press `q` or `Esc` to finish: saved
-items are transferred into the context folder, and unsaved marks are discarded.
+items are transferred into the reference folder, and unsaved marks are discarded.
 Sources marked with `d` are removed only when transferred on exit. Existing
 destination names and overlapping source selections are rejected rather than
 overwritten; transfer errors keep the finder open so you can resolve them and retry.
 
-In an ACP prompt, submit `/context` to select a stored file or folder. Its absolute
+In an ACP prompt, submit `/reference` to select a stored file or folder. Its absolute
 path is appended to the draft with an instruction to read it for reference; send
-the draft when ready. Choose **Add context +** in that picker to open the finder.
+the draft when ready. Choose **Add reference +** in that picker to open the finder.
+
+### Companion UI
+
+Open **Workspace → References**, or **Review → References for this worktree** from a
+conversation. The companion uses the same reference storage and `reference_finder.home`
+configuration as Neovim. Expand folders inline, preview text/Markdown, and select
+an item to rename or delete it. Deleting a folder removes its stored contents.
+
+**Add reference** opens a finder for files on the **Neovim host**, starting at your
+configured home directory. Mark items with **Copy**/`y` or **Cut**/`d`, then
+**Save selections** (or Ctrl/Cmd-S) to add them to the persistent staging panel.
+**Finish finder** transfers saved selections into the displayed worktree's
+reference folder; unsaved selections are discarded. **Unmark**/`u` and **Unstage**
+remove selections, while **Discard finder** exits without transferring anything.
+The target worktree and storage location stay visible as you browse.
+
+In a companion prompt, type `/reference` or choose **Select reference** from Prompt
+actions. Selecting an item drafts `/reference select <path>` without submitting it.
+Add your instructions below that command and send when ready. Reference mutations
+use the companion's existing operation receipts and identical-retry flow.
+
+#### Companion reference security
+
+Remote filesystem browsing and imports are disabled by default (`roots = {}`).
+Paired devices can still browse, attach, rename, and delete items already in a
+worktree's reference folder. `reference_finder.home` is a starting directory, not an access
+boundary.
+
+To enable remote imports from explicit source directories without changing the
+local Neovim finder:
+
+```lua
+require("aero").setup({
+  reference_finder = { home = "~/Documents" },
+  companion = {
+    reference_finder = {
+      roots = { "~/Documents", "~/Projects/reference" },
+      allow_cut = false,
+    },
+  },
+})
+```
+
+Allowed roots are checked on the host for directory browsing, imported files,
+and recursively imported children, including resolved symlink targets. An empty
+`roots = {}` (the default) disables remote source browsing/imports; `roots = false`
+explicitly opts into unrestricted access. `allow_cut = true` (the default)
+preserves cut support within the allowed roots;
+`false` enforces copy-only imports even for direct API requests.
+The finder offers an allowed-root selector when restrictions are enabled. If
+`reference_finder.home` falls outside those roots, it starts at the first allowed root.
+
+The earlier setup keys `context` and `companion.context` are accepted as aliases.
+If both old and new keys are supplied, the `reference_finder` settings take precedence.
+
+Companion transfers run asynchronously, scan before writing, reserve destinations
+exclusively, and copy all items before removing any cut sources. Changed sources
+are rejected, and failures before cut completion clean up only newly-created copies.
+If removal fails after a cut has begun, completed copies are retained to avoid data
+loss. Conflicting mutations to the same reference directory are rejected while a
+transfer runs. Receipt fingerprints bind the action, paths, and transferred items.
+
+Default resource limits under `companion.reference_finder` are:
+
+| Setting | Default |
+|---|---|
+| `max_entries` | 100,000 recursive source entries |
+| `max_bytes` | 1 GiB of source file data |
+| `max_depth` | 128 nested directory levels |
+| `timeout_ms` | 120,000 ms for scanning/copying |
+| `max_listing_entries` | 10,000 host finder entries per directory |
+
+Each limit accepts a positive integer, or `false` to disable that limit. Increase
+the relevant limit when importing larger references. A timed-out HTTP response
+does not restart the transfer: **Retry identical action** retrieves its receipt.
+**Cancel reference transfer** requests cancellation while scanning/copying; retry
+the original action to collect the final outcome. Once verified cut-source removal
+starts, cancellation is refused so it cannot interrupt that completion phase.

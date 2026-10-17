@@ -67,12 +67,23 @@ function M.dispatch(method, params)
 			return identity(chat, identities)
 		end)
 	end
+	if method == "reference_browse" then
+		for _, tree in ipairs(worktrees()) do
+			if tree.path == params.worktree and params.epoch == epoch
+				and params.target == require("aero.companion_lifecycle").target(epoch, tree) then
+				return require("aero.companion.reference").browse(params)
+			end
+		end
+		return nil, "stale worktree or host epoch"
+	end
 	if
 		not lifecycle[method]
 		and method ~= "session_assign_board"
 		and method ~= "prompt"
 		and method ~= "cancel"
 		and method ~= "permission"
+		and method ~= "reference_update"
+		and method ~= "reference_cancel"
 	then
 		return nil, "unknown method"
 	end
@@ -89,6 +100,21 @@ function M.dispatch(method, params)
 			worktree_cache_at = -5000
 		end
 		return result, err
+	end
+	if method == "reference_update" or method == "reference_cancel" then
+		for _, tree in ipairs(worktrees()) do
+			if tree.path == params.worktree and params.epoch == epoch
+				and params.target == require("aero.companion_lifecycle").target(epoch, tree) then
+				finish({ status = "unknown" })
+				if method == "reference_cancel" then
+					return finish(require("aero.companion.reference_transfer").cancel(params.worktree, params.transfer_id))
+				end
+				local ok, result, err = pcall(require("aero.companion.reference").update, params, finish)
+				if not ok then return finish(nil, tostring(result)) end
+				return finish(result, err)
+			end
+		end
+		return finish(nil, "stale worktree or host epoch")
 	end
 	local selected
 	for _, s in ipairs(sessions) do
@@ -172,6 +198,10 @@ function M.dispatch(method, params)
 		if vim.trim(text):match("^/") then
 			local command, rest = vim.trim(text):match("^([^\n]+)\n?(.*)$")
 			local name, argument = vim.trim(text):match("^/(%S+)%s*(.*)$")
+			if name == "context" then -- preserve drafts created before the feature rename
+				name = "reference"
+				command = command:gsub("^/context", "/reference")
+			end
 			if name == "cancel" then
 				if argument ~= "" then
 					return finish(nil, "use /cancel without arguments")
@@ -197,7 +227,7 @@ function M.dispatch(method, params)
 				text = expanded
 			elseif name == "export" then
 				return finish(nil, "use /export or /export readable")
-			elseif name ~= "report" then
+			elseif name ~= "report" and name ~= "reference" then
 				local advertised = false
 				for _, available in ipairs(chat.commands or {}) do
 					if available.name == name then
@@ -210,7 +240,14 @@ function M.dispatch(method, params)
 				end
 				control = true
 			end
-			if name == "report" then
+			if name == "reference" then
+				local relative = command:match("^/reference%s+select%s+(.+)$")
+				local entry, err = require("aero.companion.reference").entry(selected.worktree, relative)
+				if not entry then return finish(nil, err or "use /reference select <path>") end
+				text = "Read this reference " .. (entry.kind == "directory" and "folder" or "file")
+					.. ": " .. vim.json.encode(entry.path)
+				if rest ~= "" then text = text .. "\n\n" .. rest end
+			elseif name == "report" then
 				local action, name = command:match("^/report%s+(%S+)%s+(.+)$")
 				if action ~= "new" and action ~= "select" then
 					return finish(nil, "use /report new <name> or /report select <filename>")

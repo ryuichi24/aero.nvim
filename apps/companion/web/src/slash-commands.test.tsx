@@ -55,7 +55,7 @@ function menu(prompt: string, disabled = false) {
 
 it('offers built-in and advertised commands and selects drafts', async () => {
   const choose = menu('/');
-  expect(screen.getAllByRole('button')).toHaveLength(7);
+  expect(screen.getAllByRole('button')).toHaveLength(8);
   await userEvent.click(screen.getByRole('button', { name: '/compact — Compact context' }));
   expect(choose).toHaveBeenCalledWith('/compact');
 });

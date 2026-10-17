@@ -1424,3 +1424,24 @@ body:has(#conversation:not([hidden])) .todo-notifications {
 :root[data-theme='light'] .mermaid-preview-controls button {
   @apply bg-canvas;
 }
+.reference-finder-files {
+  max-height: 40vh;
+  overflow: auto;
+}
+.reference-browser code,
+.reference-browser button {
+  overflow-wrap: anywhere;
+}
+.reference-staging {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--color-slate-950, #020617);
+  padding: 1rem;
+  border: 1px solid var(--color-slate-600);
+  border-radius: 0.5rem;
+}
+.reference-staging ul {
+  max-height: 20vh;
+  overflow: auto;
+}

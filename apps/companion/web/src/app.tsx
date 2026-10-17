@@ -26,6 +26,7 @@ import { NavigationIcon } from './navigation-icon';
 import type { View } from './companion-state';
 import { useDisplayPreferences, useWorkspacePreferences } from './preferences/use-preferences';
 import { WorkspaceReview } from './workspace-review';
+import { CancelReferenceTransfer } from './reference-browser';
 import { formatQuote, type Quote } from './quote';
 import { LifecycleForm } from './lifecycle-controls';
 import type { Selection, Snapshot } from './types';
@@ -115,7 +116,8 @@ function Companion() {
     )
       setWorkspaceScope('');
   }, [snapshot, workspaceScope]);
-  const workspaceView = view === 'reports' || view === 'source' || view === 'git';
+  const workspaceView =
+    view === 'reports' || view === 'source' || view === 'git' || view === 'reference';
   const scopedSnapshot = scopeSnapshot(snapshot, workspaceScope);
   const reviewTree = scopedSnapshot?.worktrees.find((tree) => tree.path === reviewWorktree);
   const reviewGroups = selectReviewGroups(scopedSnapshot, contextSearch);
@@ -623,6 +625,7 @@ function Companion() {
               {(
                 [
                   ['reports', 'Reports'],
+                  ['reference', 'References'],
                   ['git', 'Changes'],
                   ['source', 'Source'],
                 ] as const
@@ -668,8 +671,17 @@ function Companion() {
                 )}
               </details>
             )}
-            {!reviewTree && <p>Choose a worktree to review its reports, changes, and source.</p>}
+            {!reviewTree && (
+              <p>Choose a worktree to review its reports, references, changes, and source.</p>
+            )}
           </section>
+        )}
+        {pending?.path === 'reference_update' && pending.data.reference_action === 'transfer' && (
+          <CancelReferenceTransfer
+            key={pending.data.operation_id}
+            pending={pending}
+            disabled={!online || pairing}
+          />
         )}
         {retry && pending && (
           <button
@@ -707,6 +719,8 @@ function Companion() {
             worktree={reviewTree?.path || ''}
             view={view}
             onQuote={quoteFromSource}
+            onAction={act}
+            actionsDisabled={!online || !!pending}
           />
         )}
         {quoteRequest && (

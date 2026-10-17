@@ -69,3 +69,83 @@ func TestReportBrowsing(t *testing.T) {
 	request(worktree, "nested/findings.md", http.StatusBadRequest)
 	request(worktree, "missing.md", http.StatusNotFound)
 }
+
+func TestReferenceBrowsing(t *testing.T) {
+	worktree, root, outside := t.TempDir(), t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "folder"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "folder", "reference.txt"), []byte("reference"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "escape")); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(map[string]any{"sessions": []any{}, "worktrees": []any{map[string]string{"path": worktree, "reference_directory": root}}})
+	c := newClient(t, hostFunc(func(context.Context, string, any) (hostResponse, error) { return hostResponse{Result: data}, nil }))
+	request := func(path string, status int) map[string]any {
+		return c.json("POST", "/api/reference", map[string]string{"worktree": worktree, "path": path}, status)
+	}
+	request("", http.StatusUnauthorized)
+	c.pair()
+	listing := request("", http.StatusOK)
+	entries := listing["entries"].([]any)
+	if len(entries) != 1 || entries[0].(map[string]any)["name"] != "folder" {
+		t.Fatalf("unexpected references: %v", listing)
+	}
+	request("folder", http.StatusOK)
+	if request("folder/reference.txt", http.StatusOK)["content"] != "reference" {
+		t.Fatal("reference content missing")
+	}
+	request("../", http.StatusBadRequest)
+	request("escape", http.StatusNotFound)
+	c.json("POST", "/api/reference", map[string]string{"worktree": outside}, http.StatusForbidden)
+}
+
+func TestReferenceActionsForwardWorktreeScope(t *testing.T) {
+	c := newClient(t, hostFunc(func(_ context.Context, method string, params any) (hostResponse, error) {
+		encoded, _ := json.Marshal(params)
+		var input map[string]any
+		_ = json.Unmarshal(encoded, &input)
+		if input["worktree"] != "/repo" || input["target"] != "target" || input["epoch"] != "epoch" {
+			t.Fatalf("lost scope: %s", encoded)
+		}
+		if method == "reference_browse" {
+			return hostResponse{Result: json.RawMessage(`{"path":"/home","entries":[]}`)}, nil
+		}
+		if method == "reference_cancel" && input["transfer_id"] == "reference-operation-0001" {
+			return hostResponse{Result: json.RawMessage(`{"status":"accepted"}`)}, nil
+		}
+		if method != "reference_update" || input["reference_action"] != "transfer" || len(input["items"].([]any)) != 1 {
+			t.Fatalf("unexpected reference action: %s %s", method, encoded)
+		}
+		return hostResponse{Result: json.RawMessage(`{"status":"accepted"}`)}, nil
+	}))
+	c.json("POST", "/api/reference_cancel", map[string]any{}, http.StatusUnauthorized)
+	c.pair()
+	c.json("POST", "/api/reference_browse", map[string]any{"epoch": "epoch", "target": "target", "worktree": "/repo", "path": ""}, http.StatusOK)
+	c.json("POST", "/api/reference_update", map[string]any{"operation_id": "reference-operation-0001", "epoch": "epoch", "target": "target", "worktree": "/repo", "reference_action": "transfer", "items": []map[string]string{{"path": "/home/ref", "action": "copy"}}}, http.StatusOK)
+	c.json("POST", "/api/reference_cancel", map[string]any{"operation_id": "reference-cancellation-0001", "epoch": "epoch", "target": "target", "worktree": "/repo", "transfer_id": "reference-operation-0001"}, http.StatusOK)
+}
+
+func TestReferenceTransferPollsIdenticalReceipt(t *testing.T) {
+	calls := 0
+	var previous string
+	c := newClient(t, hostFunc(func(_ context.Context, method string, params any) (hostResponse, error) {
+		encoded, _ := json.Marshal(params)
+		if method != "reference_update" || (previous != "" && previous != string(encoded)) {
+			t.Fatalf("poll changed action: %s %s", method, encoded)
+		}
+		previous = string(encoded)
+		calls++
+		if calls < 3 {
+			return hostResponse{Result: json.RawMessage(`{"status":"unknown"}`)}, nil
+		}
+		return hostResponse{Result: json.RawMessage(`{"status":"accepted"}`)}, nil
+	}))
+	c.pair()
+	result := c.json("POST", "/api/reference_update", map[string]any{"operation_id": "reference-operation-0001", "reference_action": "transfer"}, http.StatusOK)
+	if calls != 3 || result["result"].(map[string]any)["status"] != "accepted" {
+		t.Fatalf("transfer receipt not polled: %v", result)
+	}
+}

@@ -74,6 +74,7 @@ export function readPending(): PendingAction | null {
         'worktree_create',
         'worktree_rename',
         'worktree_delete',
+        'reference_update',
       ].includes(action.path || '') ||
       !data ||
       typeof data.operation_id !== 'string'
@@ -84,7 +85,11 @@ export function readPending(): PendingAction | null {
       (typeof data.session !== 'string' || typeof data.conversation !== 'string')
     )
       return null;
-    if (action.path?.startsWith('session_') || action.path?.startsWith('worktree_')) {
+    if (
+      action.path?.startsWith('session_') ||
+      action.path?.startsWith('worktree_') ||
+      action.path === 'reference_update'
+    ) {
       if (typeof data.epoch !== 'string') return null;
     }
     if (action.path === 'prompt' && typeof data.text !== 'string') return null;

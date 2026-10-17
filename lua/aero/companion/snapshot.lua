@@ -57,8 +57,10 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 	}
 	for _, tree in ipairs(worktrees) do
 		tree.target = require("aero.companion_lifecycle").target(epoch, tree)
+		local workspace = { root = tree.workspace or require("aero.git").main_root(tree.path) or tree.path }
+		tree.reference_directory = require("aero.reference").directory(tree.path, workspace)
 		tree.reports_directory =
-			require("aero.reports").directory(tree.path, tree.workspace and { root = tree.workspace })
+			require("aero.reports").directory(tree.path, workspace)
 	end
 	for id, agent in pairs(config.agents) do
 		if agent.type == "acp" then

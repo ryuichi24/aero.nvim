@@ -13,7 +13,7 @@ export function useCompanionRoute(
   pending: RefObject<PendingAction | null>,
   setWorktree: Dispatch<SetStateAction<string>>,
   setTab: Dispatch<SetStateAction<SessionTab>>,
-  setWorkspaceView: Dispatch<SetStateAction<'reports' | 'git' | 'source'>>,
+  setWorkspaceView: Dispatch<SetStateAction<'reports' | 'git' | 'source' | 'reference'>>,
 ) {
   const dispatch = useCompanionDispatch();
   const [ready, setReady] = useState(false);
@@ -21,10 +21,18 @@ export function useCompanionRoute(
     function restore() {
       try {
         const route = JSON.parse(decodeURIComponent(window.location.hash.slice(1)) || '{}');
+        if (route.view === 'context') route.view = 'reference'; // legacy bookmark
         if (
-          ['home', 'sessions', 'inbox', 'conversation', 'reports', 'source', 'git'].includes(
-            route.view,
-          )
+          [
+            'home',
+            'sessions',
+            'inbox',
+            'conversation',
+            'reports',
+            'source',
+            'git',
+            'reference',
+          ].includes(route.view)
         ) {
           if (route.selection?.id && typeof route.selection.id === 'string')
             dispatch({ type: 'select-session', selection: route.selection });
@@ -53,7 +61,8 @@ export function useCompanionRoute(
   function navigate(next: View, nextWorktree = worktree) {
     setWorktree(nextWorktree);
     dispatch({ type: 'navigate', view: next });
-    if (next === 'reports' || next === 'git' || next === 'source') setWorkspaceView(next);
+    if (next === 'reports' || next === 'git' || next === 'source' || next === 'reference')
+      setWorkspaceView(next);
     if (!window.location.hash)
       window.history.replaceState(
         null,

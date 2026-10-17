@@ -289,7 +289,9 @@ func TestStreamReconnectPromptRetryPermissionAndCancel(t *testing.T) {
 	var snapshot map[string]any
 	for range 50 {
 		snapshot = event(t, scanner)
-		if firstSession(snapshot)["permission"] != nil {
+		// Permission state can be visible while its inbox workspace lookup is
+		// still completing; wait for the corresponding attention event too.
+		if firstSession(snapshot)["permission"] != nil && len(snapshot["inbox"].([]any)) == 1 {
 			break
 		}
 	}

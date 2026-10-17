@@ -87,7 +87,9 @@ describe('mobile companion', () => {
       '/alpha',
     );
     expect(
-      within(context).getByText('Choose a worktree to review its reports, changes, and source.'),
+      within(context).getByText(
+        'Choose a worktree to review its reports, references, changes, and source.',
+      ),
     ).toBeTruthy();
     expect(within(context).queryByText('Manage worktree')).toBeNull();
   });

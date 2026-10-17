@@ -33,24 +33,32 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var trees []struct {
-		Path             string `json:"path"`
-		ReportsDirectory string `json:"reports_directory"`
+		Path               string `json:"path"`
+		ReportsDirectory   string `json:"reports_directory"`
+		ReferenceDirectory string `json:"reference_directory"`
 	}
 	_ = json.Unmarshal(snapshot["worktrees"], &trees)
 	allowed := false
 	reports := r.URL.Path == "/api/reports"
+	reference := r.URL.Path == "/api/reference"
 	directory := input.Worktree
 	for _, tree := range trees {
 		if tree.Path == input.Worktree {
 			allowed = true
 			if reports {
 				directory = tree.ReportsDirectory
+			} else if reference {
+				directory = tree.ReferenceDirectory
 			}
 			break
 		}
 	}
 	if !allowed {
 		reject(w, http.StatusForbidden, "worktree unavailable")
+		return
+	}
+	if reference && directory == "" {
+		reject(w, http.StatusNotFound, "reference unavailable")
 		return
 	}
 	name := input.Path
@@ -67,7 +75,7 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 	}
 	root, err := os.OpenRoot(directory)
 	if err != nil {
-		if reports && name == "." && os.IsNotExist(err) {
+		if (reports || reference) && name == "." && os.IsNotExist(err) {
 			reply(w, http.StatusOK, map[string]any{"entries": []sourceEntry{}})
 			return
 		}
@@ -106,7 +114,7 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 			if reports && (!item.Type().IsRegular() || !strings.HasSuffix(item.Name(), ".md")) {
 				continue
 			}
-			if item.Name() == ".git" {
+			if item.Name() == ".git" && !reference {
 				continue
 			}
 			stat, err := root.Stat(filepath.Join(name, item.Name()))

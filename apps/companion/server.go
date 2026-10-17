@@ -139,12 +139,34 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.git(w, r)
 		return
 	}
-	if r.URL.Path == "/api/source" || r.URL.Path == "/api/reports" {
+	if r.URL.Path == "/api/source" || r.URL.Path == "/api/reports" || r.URL.Path == "/api/reference" {
 		b.source(w, r)
 		return
 	}
+	if r.URL.Path == "/api/reference_browse" {
+		var input struct {
+			Epoch    string `json:"epoch"`
+			Target   string `json:"target"`
+			Worktree string `json:"worktree"`
+			Path     string `json:"path"`
+		}
+		if !decodeBody(w, r, &input) {
+			return
+		}
+		response, err := b.state.host.Call(r.Context(), "reference_browse", input)
+		if err != nil {
+			reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
+			return
+		}
+		if response.Error != "" {
+			reject(w, http.StatusBadRequest, response.Error)
+			return
+		}
+		reply(w, http.StatusOK, response.Result)
+		return
+	}
 	method := map[string]string{"/api/prompt": "prompt", "/api/cancel": "cancel", "/api/permission": "permission"}[r.URL.Path]
-	for _, lifecycle := range []string{"session_assign_board", "session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
+	for _, lifecycle := range []string{"reference_update", "reference_cancel", "session_assign_board", "session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		if r.URL.Path == "/api/"+lifecycle {
 			method = lifecycle
 		}
@@ -154,22 +176,29 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var action struct {
-		OperationID  string  `json:"operation_id"`
-		Session      string  `json:"session"`
-		Conversation string  `json:"conversation"`
-		Text         string  `json:"text,omitempty"`
-		Permission   string  `json:"permission,omitempty"`
-		Option       string  `json:"option,omitempty"`
-		Epoch        string  `json:"epoch,omitempty"`
-		Target       string  `json:"target,omitempty"`
-		Workspace    string  `json:"workspace,omitempty"`
-		Worktree     string  `json:"worktree,omitempty"`
-		Agent        string  `json:"agent,omitempty"`
-		Name         *string `json:"name,omitempty"`
-		Branch       string  `json:"branch,omitempty"`
-		Force        bool    `json:"force,omitempty"`
-		BoardID      string  `json:"board_id,omitempty"`
-		Replace      bool    `json:"replace"`
+		OperationID     string  `json:"operation_id"`
+		Session         string  `json:"session"`
+		Conversation    string  `json:"conversation"`
+		Text            string  `json:"text,omitempty"`
+		Permission      string  `json:"permission,omitempty"`
+		Option          string  `json:"option,omitempty"`
+		Epoch           string  `json:"epoch,omitempty"`
+		Target          string  `json:"target,omitempty"`
+		Workspace       string  `json:"workspace,omitempty"`
+		Worktree        string  `json:"worktree,omitempty"`
+		Agent           string  `json:"agent,omitempty"`
+		Name            *string `json:"name,omitempty"`
+		Branch          string  `json:"branch,omitempty"`
+		Force           bool    `json:"force,omitempty"`
+		BoardID         string  `json:"board_id,omitempty"`
+		Replace         bool    `json:"replace"`
+		ReferenceAction string  `json:"reference_action,omitempty"`
+		TransferID      string  `json:"transfer_id,omitempty"`
+		Path            string  `json:"path,omitempty"`
+		Items           []struct {
+			Path   string `json:"path"`
+			Action string `json:"action"`
+		} `json:"items,omitempty"`
 	}
 	if !decodeBody(w, r, &action) {
 		return
@@ -186,8 +215,9 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := b.state.host.Call(r.Context(), method, action)
 	defer b.state.invalidateSnapshot()
-	// ACP assignment finishes asynchronously; observe the same idempotent receipt.
-	if method == "session_assign_board" && err == nil {
+	// ACP assignments and reference transfers finish asynchronously; observe the
+	// same idempotent receipt without re-running their side effects.
+	if (method == "session_assign_board" || method == "reference_update") && err == nil {
 		deadline := time.Now().Add(5 * time.Second)
 		for response.Error == "" && time.Now().Before(deadline) {
 			var receipt struct {

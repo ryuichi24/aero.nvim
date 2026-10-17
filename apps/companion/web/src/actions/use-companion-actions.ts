@@ -46,6 +46,8 @@ export function useCompanionActions(
       savePending(null);
       pendingRef.current = null;
       dispatch({ type: 'action-accepted', action, status });
+      if (action.path === 'reference_update')
+        void client.invalidateQueries({ queryKey: ['reference'] });
       if (response.result.message) dispatch({ type: 'notice', message: response.result.message });
       if (response.result.session) {
         resumedRef.current = response.result.session;
@@ -78,7 +80,8 @@ export function useCompanionActions(
   }
 
   async function act(path: ActionPath, extra: Partial<ActionData> = {}) {
-    const lifecycle = path.startsWith('session_') || path.startsWith('worktree_');
+    const lifecycle =
+      path.startsWith('session_') || path.startsWith('worktree_') || path === 'reference_update';
     const target = extra.session
       ? { id: extra.session, conversation: extra.conversation }
       : selected;

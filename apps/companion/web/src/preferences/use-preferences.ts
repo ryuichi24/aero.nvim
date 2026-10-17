@@ -49,13 +49,16 @@ export function useWorkspacePreferences() {
   const [workspaceScope, setWorkspaceScope] = useState(() =>
     readStored<string>('aero-workspace-scope', '', 'local'),
   );
-  const [lastWorkspaceView, setLastWorkspaceView] = useState<'reports' | 'git' | 'source'>(() => {
+  const [lastWorkspaceView, setLastWorkspaceView] = useState<
+    'reports' | 'git' | 'source' | 'reference'
+  >(() => {
     const value = readStored<string>(
       'aero-workspace-view',
       readStored<string>('aero-workspace-view', 'reports'),
       'local',
     );
-    return value === 'source' || value === 'git' ? value : 'reports';
+    if (value === 'context') return 'reference'; // legacy workspace-view preference
+    return value === 'source' || value === 'git' || value === 'reference' ? value : 'reports';
   });
   const [recent, setRecent] = useState<string[]>(() => {
     const value = readStored<unknown>('aero-recent-sessions', []);

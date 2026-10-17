@@ -3,6 +3,8 @@ import type { Snapshot } from './types';
 import { SourceBrowser } from './source-browser';
 import { GitBrowser } from './git-browser';
 import type { Quote } from './quote';
+import { ReferenceBrowser } from './reference-browser';
+import type { LifecycleAction } from './lifecycle-controls';
 
 // Keep visited readers mounted so each context retains its tree, file, and scroll position.
 export function WorkspaceReview({
@@ -10,15 +12,19 @@ export function WorkspaceReview({
   worktree,
   view,
   onQuote,
+  onAction,
+  actionsDisabled,
 }: {
   snapshot: Snapshot | null;
   worktree: string;
   view: string;
   onQuote?: (quote: Quote, worktree: string) => void;
+  onAction?: LifecycleAction;
+  actionsDisabled?: boolean;
 }) {
   const [visited, setVisited] = useState<Record<string, string[]>>({});
   const positions = useRef(new Map<string, { top: number; left: number }>());
-  const active = !!worktree && ['reports', 'source', 'git'].includes(view);
+  const active = !!worktree && ['reports', 'source', 'git', 'reference'].includes(view);
   const mounted = visited[worktree]?.includes(view) === true;
   useLayoutEffect(() => {
     if (!active || !mounted) return;
@@ -35,7 +41,7 @@ export function WorkspaceReview({
     return () => window.removeEventListener('scroll', remember);
   }, [active, mounted, worktree, view]);
   useEffect(() => {
-    if (!worktree || !['reports', 'source', 'git'].includes(view)) return;
+    if (!worktree || !['reports', 'source', 'git', 'reference'].includes(view)) return;
     setVisited((previous) =>
       previous[worktree]?.includes(view)
         ? previous
@@ -52,7 +58,17 @@ export function WorkspaceReview({
           <div key={path} hidden={path !== worktree}>
             {views.map((tool) => (
               <div key={tool} hidden={view !== tool}>
-                {tool === 'git' ? (
+                {tool === 'reference' ? (
+                  <ReferenceBrowser
+                    snapshot={{
+                      ...context,
+                      connected: context.connected && path === worktree && view === tool,
+                    }}
+                    worktree={path}
+                    onAction={onAction}
+                    disabled={actionsDisabled}
+                  />
+                ) : tool === 'git' ? (
                   <GitBrowser
                     snapshot={{
                       ...context,

@@ -22,8 +22,8 @@ local state = {
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
 	reports_expanded = {}, -- worktree path -> report section expanded
-	context_expanded = {}, -- worktree path -> context section expanded
-	context_folders_expanded = {}, -- context directory path -> expanded
+	reference_expanded = {}, -- worktree path -> reference section expanded
+	reference_folders_expanded = {}, -- reference directory path -> expanded
 	exports_expanded = {}, -- worktree path -> exported logs section expanded
 	boards_expanded = {}, -- workspace root -> board section expanded
 	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
@@ -128,10 +128,10 @@ end
 
 local animation_snapshot
 
-local function context_children(entries)
+local function reference_children(entries)
 	for _, entry in ipairs(entries) do
 		if entry.kind == "directory" then
-			entry.expanded = state.context_folders_expanded[entry.path] == true
+			entry.expanded = state.reference_folders_expanded[entry.path] == true
 			if entry.expanded then
 				entry.children = {}
 				local scan, err = vim.uv.fs_scandir(entry.path)
@@ -143,7 +143,7 @@ local function context_children(entries)
 						table.insert(entry.children, { name = name, kind = kind, path = vim.fs.joinpath(entry.path, name) })
 					end
 					table.sort(entry.children, function(a, b) return a.name < b.name end)
-					context_children(entry.children)
+					reference_children(entry.children)
 				end
 			end
 		end
@@ -188,9 +188,9 @@ local function build()
 					tree.exports_open = state.exports_expanded[wt.path] ~= false
 					tree.reports, tree.report_err = reports.list(wt.path, ws)
 					tree.reports_open = state.reports_expanded[wt.path] ~= false
-					tree.context, tree.context_err = require("aero.context").list(wt.path)
-					tree.context_open = state.context_expanded[wt.path] ~= false
-					if tree.context_open then context_children(tree.context) end
+					tree.references, tree.reference_err = require("aero.reference").list(wt.path)
+					tree.reference_open = state.reference_expanded[wt.path] ~= false
+					if tree.reference_open then reference_children(tree.references) end
 				end
 			end
 			local boards
@@ -238,17 +238,18 @@ end
 --- Collapse all existing sidebar nodes of a type, including hidden descendants.
 function M.collapse(kind)
 	kind = kind or "all"
-	local valid = { all = true, workspaces = true, worktrees = true, reports = true, exports = true, boards = true, context = true }
+	if kind == "context" then kind = "reference" end -- legacy command alias
+	local valid = { all = true, workspaces = true, worktrees = true, reports = true, exports = true, boards = true, reference = true }
 	if not valid[kind] then
-		notify("use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|context]", vim.log.levels.WARN)
+		notify("use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]", vim.log.levels.WARN)
 		return
 	end
-	if kind == "all" or kind == "context" then state.context_folders_expanded = {} end
+	if kind == "all" or kind == "reference" then state.reference_folders_expanded = {} end
 	for _, ws in ipairs(store.data.workspaces) do
 		if kind == "all" or kind == "boards" then
 			state.boards_expanded[ws.root] = false
 		end
-		if kind == "all" or kind == "worktrees" or kind == "reports" or kind == "exports" or kind == "context" then
+		if kind == "all" or kind == "worktrees" or kind == "reports" or kind == "exports" or kind == "reference" then
 			local cache = state.worktrees[ws.root]
 			local list = cache and cache.list or git.list(ws.root)
 			for _, wt in ipairs(list or {}) do
@@ -258,8 +259,8 @@ function M.collapse(kind)
 				if kind == "all" or kind == "reports" then
 					state.reports_expanded[wt.path] = false
 				end
-				if kind == "all" or kind == "context" then
-					state.context_expanded[wt.path] = false
+				if kind == "all" or kind == "reference" then
+					state.reference_expanded[wt.path] = false
 				end
 				if kind == "all" or kind == "exports" then
 					state.exports_expanded[wt.path] = false
@@ -711,14 +712,14 @@ function actions.open(how)
 		open_session(item.session, how or "default")
 	elseif item.kind == "report" or item.kind == "export" then
 		open_report(item, how)
-	elseif item.kind == "context_item" then
-		if item.context.kind == "directory" then
+	elseif item.kind == "reference_item" then
+		if item.reference.kind == "directory" then
 			actions.toggle()
 		else
-			open_report(vim.tbl_extend("force", item, { report = item.context }), how)
+			open_report(vim.tbl_extend("force", item, { report = item.reference }), how)
 		end
-	elseif item.kind == "context_new" then
-		require("aero.context").open(item.wt.path)
+	elseif item.kind == "reference_new" then
+		require("aero.reference").open(item.wt.path)
 	elseif item.kind == "report_new" then
 		new_report(item)
 	else
@@ -740,10 +741,10 @@ function actions.toggle()
 		state.exports_expanded[item.wt.path] = state.exports_expanded[item.wt.path] == false
 	elseif item.kind == "reports" then
 		state.reports_expanded[item.wt.path] = state.reports_expanded[item.wt.path] == false
-	elseif item.kind == "context" then
-		state.context_expanded[item.wt.path] = state.context_expanded[item.wt.path] == false
-	elseif item.kind == "context_item" and item.context.kind == "directory" then
-		state.context_folders_expanded[item.context.path] = not state.context_folders_expanded[item.context.path]
+	elseif item.kind == "reference" then
+		state.reference_expanded[item.wt.path] = state.reference_expanded[item.wt.path] == false
+	elseif item.kind == "reference_item" and item.reference.kind == "directory" then
+		state.reference_folders_expanded[item.reference.path] = not state.reference_folders_expanded[item.reference.path]
 	elseif item.kind == "boards" then
 		state.boards_expanded[item.ws.root] = state.boards_expanded[item.ws.root] == false
 	end
@@ -760,8 +761,8 @@ function actions.expand()
 		or item.kind == "export"
 		or item.kind == "report"
 		or item.kind == "report_new"
-		or item.kind == "context_item" and item.context.kind ~= "directory"
-		or item.kind == "context_new"
+		or item.kind == "reference_item" and item.reference.kind ~= "directory"
+		or item.kind == "reference_new"
 		or item.kind == "board"
 		or item.kind == "board_new"
 		or item.kind == "tickets_removed"
@@ -775,10 +776,10 @@ function actions.expand()
 		expanded = state.exports_expanded[item.wt.path] ~= false
 	elseif item.kind == "reports" then
 		expanded = state.reports_expanded[item.wt.path] ~= false
-	elseif item.kind == "context" then
-		expanded = state.context_expanded[item.wt.path] ~= false
-	elseif item.kind == "context_item" and item.context.kind == "directory" then
-		expanded = state.context_folders_expanded[item.context.path] == true
+	elseif item.kind == "reference" then
+		expanded = state.reference_expanded[item.wt.path] ~= false
+	elseif item.kind == "reference_item" and item.reference.kind == "directory" then
+		expanded = state.reference_folders_expanded[item.reference.path] == true
 	elseif item.kind == "boards" then
 		expanded = state.boards_expanded[item.ws.root] ~= false
 	else
@@ -804,15 +805,15 @@ function actions.collapse()
 	local is_header = item.id:match("^ws:")
 		or item.id:match("^wt:")
 		or item.kind == "reports"
-		or item.kind == "context"
-		or item.kind == "context_item" and item.context.kind == "directory"
+		or item.kind == "reference"
+		or item.kind == "reference_item" and item.reference.kind == "directory"
 		or item.kind == "boards"
 		or item.kind == "exports"
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
 		or item.kind == "reports" and state.reports_expanded[item.wt.path] ~= false
-		or item.kind == "context" and state.context_expanded[item.wt.path] ~= false
-		or item.kind == "context_item" and state.context_folders_expanded[item.context.path] == true
+		or item.kind == "reference" and state.reference_expanded[item.wt.path] ~= false
+		or item.kind == "reference_item" and state.reference_folders_expanded[item.reference.path] == true
 		or item.kind == "exports" and state.exports_expanded[item.wt.path] ~= false
 		or item.kind == "boards" and state.boards_expanded[item.ws.root] ~= false
 	if is_header and open then
@@ -824,9 +825,9 @@ function actions.collapse()
 		or item.kind == "export" and "exports:" .. item.wt.path
 		or item.kind == "exports" and "wt:" .. item.wt.path
 		or (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
-		or item.kind == "context_item" and item.parent
-		or (item.kind == "context_item" or item.kind == "context_new") and "context:" .. item.wt.path
-		or item.kind == "context" and "wt:" .. item.wt.path
+		or item.kind == "reference_item" and item.parent
+		or (item.kind == "reference_item" or item.kind == "reference_new") and "reference:" .. item.wt.path
+		or item.kind == "reference" and "wt:" .. item.wt.path
 		or (item.kind == "session" or item.kind == "reports") and "wt:" .. item.wt.path
 		or "ws:" .. item.ws.root
 	if item.id == parent then
@@ -851,8 +852,8 @@ function actions.add()
 		add_worktree(item.ws)
 	elseif item.kind == "reports" or item.kind == "report" or item.kind == "report_new" then
 		new_report(item)
-	elseif item.kind == "context" or item.kind == "context_item" or item.kind == "context_new" then
-		require("aero.context").open(item.wt.path)
+	elseif item.kind == "reference" or item.kind == "reference_item" or item.kind == "reference_new" then
+		require("aero.reference").open(item.wt.path)
 	else
 		choose_agent(item)
 	end
@@ -904,26 +905,26 @@ function actions.rename()
 				M.render()
 			end
 		)
-	elseif item.kind == "context_item" then
-		local entry = item.context
+	elseif item.kind == "reference_item" then
+		local entry = item.reference
 		local stem = entry.kind ~= "directory" and entry.name:match("^(.+)%.[^.]+$")
 		require("aero.input").input({
-			prompt = "Rename context item: ", default = entry.name, select_length = stem and #stem or nil,
+			prompt = "Rename reference item: ", default = entry.name, select_length = stem and #stem or nil,
 		}, function(name)
 			if not name or vim.trim(name) == "" then return end
-			local renamed, err = require("aero.context").rename(entry, name)
+			local renamed, err = require("aero.reference").rename(entry, name)
 			if not renamed then return notify(err, vim.log.levels.WARN) end
 			local expanded = {}
-			for path, value in pairs(state.context_folders_expanded) do
+			for path, value in pairs(state.reference_folders_expanded) do
 				if path == entry.path or vim.startswith(path, entry.path .. "/") then
 					expanded[renamed.path .. path:sub(#entry.path + 1)] = value
 				else
 					expanded[path] = value
 				end
 			end
-			state.context_folders_expanded = expanded
-			item.id = "context-item:" .. renamed.path
-			require("aero.events").emit("context_changed", { worktree = item.wt.path })
+			state.reference_folders_expanded = expanded
+			item.id = "reference-item:" .. renamed.path
+			require("aero.events").emit("reference_changed", { worktree = item.wt.path })
 		end)
 	elseif item.kind == "report" then
 		reports.rename(item.report, function(report)
@@ -962,9 +963,9 @@ function actions.delete()
 			notify(err, vim.log.levels.WARN)
 			return
 		end
-	elseif item.kind == "context_item" then
-		local entry = item.context
-		local label = entry.kind == "directory" and "context folder and all its contents" or "context item"
+	elseif item.kind == "reference_item" then
+		local entry = item.reference
+		local label = entry.kind == "directory" and "reference folder and all its contents" or "reference item"
 		if vim.fn.confirm("Delete " .. label .. " " .. entry.name .. "?", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
@@ -976,10 +977,10 @@ function actions.delete()
 			ok, err = vim.uv.fs_unlink(entry.path)
 		end
 		if not ok then
-			notify("could not delete context item: " .. tostring(err), vim.log.levels.ERROR)
+			notify("could not delete reference item: " .. tostring(err), vim.log.levels.ERROR)
 			return
 		end
-		require("aero.events").emit("context_changed", { worktree = item.wt.path })
+		require("aero.events").emit("reference_changed", { worktree = item.wt.path })
 	elseif item.kind == "report" or item.kind == "export" then
 		local label = item.kind == "export" and "exported log" or "report"
 		if vim.fn.confirm("Delete " .. label .. " " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
@@ -1470,7 +1471,7 @@ end)
 require("aero.events").on("reports_changed", function()
 	M.render()
 end)
-require("aero.events").on("context_changed", function()
+require("aero.events").on("reference_changed", function()
 	M.render()
 end)
 require("aero.events").on("tasks_view_changed", function()

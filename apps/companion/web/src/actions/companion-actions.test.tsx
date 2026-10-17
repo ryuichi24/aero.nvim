@@ -91,3 +91,56 @@ it('reports queued and rejected outcomes and retains uncertain actions through r
   await waitFor(() => expect(sessionStorage.getItem('aero_pending')).toBeNull());
   expect(fetch.mock.calls[3][1].body).toBe(fetch.mock.calls[2][1].body);
 });
+
+it('manages references without a selected session and recovers an identical mutation after reload', async () => {
+  const updates: string[] = [];
+  const fetch = vi.fn(async (url: string, options: RequestInit) => {
+    if (url === '/api/reference_update') {
+      updates.push(options.body as string);
+      if (updates.length === 1) throw new TypeError('Connection lost');
+      return response({ result: { status: 'accepted' } });
+    }
+    return response({ entries: [{ name: 'note.md', directory: false }] });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const snapshot = {
+    ...initial,
+    epoch: 'host',
+    sessions: [],
+    workspaces: [{ root: '/repo', name: 'Repo' }],
+    worktrees: [
+      {
+        path: '/repo',
+        workspace: '/repo',
+        target: 'tree',
+        reference_directory: '/data/references',
+      },
+    ],
+  };
+  const first = render(<App />);
+  connect(snapshot);
+  await userEvent.click(screen.getByRole('button', { name: 'References' }));
+  await userEvent.click(screen.getByText('Repo', { selector: 'summary' }));
+  await userEvent.click(screen.getByRole('button', { name: /Main worktree/ }));
+  await userEvent.click(await screen.findByRole('button', { name: '· note.md' }));
+  const input = screen.getByRole('textbox', { name: 'Reference item name' });
+  await userEvent.clear(input);
+  await userEvent.type(input, 'renamed.md');
+  await userEvent.click(screen.getByRole('button', { name: 'Rename reference item' }));
+  await screen.findByText(/Outcome unknown/);
+  expect(JSON.parse(updates[0])).toMatchObject({
+    epoch: 'host',
+    target: 'tree',
+    worktree: '/repo',
+    reference_action: 'rename',
+    name: 'renamed.md',
+  });
+  expect(JSON.parse(updates[0]).session).toBeUndefined();
+  first.unmount();
+  render(<App />);
+  connect(snapshot);
+  await userEvent.click(screen.getByRole('button', { name: 'Retry identical action' }));
+  await screen.findByText('Action accepted');
+  expect(updates[1]).toBe(updates[0]);
+  expect(sessionStorage.getItem('aero_pending')).toBeNull();
+});
