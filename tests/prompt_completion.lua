@@ -45,6 +45,7 @@ assert(start == 1 and #items >= 6)
 local found = {}
 for _, item in ipairs(items) do found[item.word] = item.menu end
 assert(found["/report"] and found["/export"] and found["/cancel"])
+assert(found["/send"])
 for _, width in ipairs({ 20, 30, 45 }) do
 	local fitted = completion.fit(items, width)
 	local longest, menu = 0, 0

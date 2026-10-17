@@ -59,8 +59,12 @@ local subcommands = {
 	fullscreen = function()
 		require("aero").fullscreen()
 	end,
-	prompt = function()
-		require("aero").prompt()
+	prompt = function(args)
+		if #args > 1 or args[1] and args[1] ~= "send" then
+			vim.notify("Aero: use :Aero prompt [send]", vim.log.levels.WARN)
+			return
+		end
+		require("aero").prompt(args[1])
 	end,
 	prompts = function()
 		require("aero").prompts()
@@ -126,6 +130,10 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "prompt" and (#words > 2 or cmdline:match("%s$")) then
+			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
+			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "send" })
+		end
 		if words[2] == "snippet" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
 			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "global", "workspace" })

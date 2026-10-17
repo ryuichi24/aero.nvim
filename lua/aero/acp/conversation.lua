@@ -788,6 +788,9 @@ function M.omnifunc(findstart, base)
 	if ("/prompt"):sub(1, #base) == base then
 		table.insert(out, { word = "/prompt", menu = "Insert a custom prompt snippet into the draft" })
 	end
+	if ("/send"):sub(1, #base) == base then
+		table.insert(out, { word = "/send", menu = "Submit the current draft" })
+	end
 	if ("/reference"):sub(1, #base) == base then
 		table.insert(out, { word = "/reference", menu = "Attach a worktree reference file or folder" })
 	end
@@ -805,6 +808,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/mode"
 			and word ~= "/report"
 			and word ~= "/prompt"
+			and word ~= "/send"
 			and word ~= "/reference"
 			and word ~= "/cancel"
 			and word ~= "/new-ticket"

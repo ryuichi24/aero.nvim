@@ -29,9 +29,9 @@ end
 local prompt = compose()
 assert(api.nvim_win_get_height(prompt) == 8)
 assert(api.nvim_win_get_width(panel.win()) == 40)
-assert(vim.fn.maparg("<C-s>", "n", false, true).nowait == 1,
+assert(vim.fn.maparg("<C-CR>", "n", false, true).nowait == 1,
 	"normal-mode send no longer acts immediately")
-assert(vim.fn.maparg("<C-s>", "i", false, true).nowait == 1,
+assert(vim.fn.maparg("<C-CR>", "i", false, true).nowait == 1,
 	"insert-mode send no longer acts immediately")
 -- Feed complete sequences to verify the Ctrl-w prefix and repeated directions.
 local function keys(sequence)

@@ -9,6 +9,16 @@ local function notify(message, level)
 	vim.notify("Aero: " .. message, level or vim.log.levels.INFO)
 end
 
+function M.send_prompt()
+	local selected = target.resolve("viewed")
+	if not selected or not selected.chat then
+		notify("select an ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
+		return
+	end
+	selected.chat:send_prompt_buf()
+	return selected
+end
+
 function M.cancel()
 	local selected = target.resolve("cancel")
 	if not selected or not selected.chat or not selected.chat:alive() then

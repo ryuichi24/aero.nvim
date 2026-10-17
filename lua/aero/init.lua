@@ -129,8 +129,9 @@ function M.terminal()
 end
 
 --- Jump to the panel session's prompt (or terminal), opening the panel if needed.
-function M.prompt()
+function M.prompt(action)
 	ensure()
+	if action == "send" then return require("aero.commands").send_prompt() end
 	require("aero.panel").prompt()
 end
 

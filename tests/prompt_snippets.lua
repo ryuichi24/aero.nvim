@@ -126,6 +126,17 @@ end
 function chat:compose() api.nvim_set_current_buf(self:get_prompt_buf()) end
 local buf = chat:get_prompt_buf()
 chat:compose()
+local submitted = 0
+function chat:send_prompt_buf() submitted = submitted + 1 end
+api.nvim_buf_set_lines(buf, 0, -1, false, { "Unfinished draft" })
+vim.fn.maparg("<CR>", "n", false, true).callback()
+api.nvim_exec_autocmds("BufWriteCmd", { buffer = buf })
+assert(submitted == 0, "Enter or :w submitted an unfinished draft")
+assert(vim.fn.maparg("<C-s>", "i", false, true).desc ~= "Aero: send prompt")
+for _, mode in ipairs({ "n", "i" }) do
+	vim.fn.maparg("<C-CR>", mode, false, true).callback()
+end
+assert(submitted == 2, "Ctrl-Enter did not submit in both modes")
 api.nvim_buf_set_lines(buf, 0, -1, false, { "/prompt" })
 -- Sending opens the picker without clearing the command; closing preserves it.
 require("aero.acp.prompt").send(chat)
@@ -143,6 +154,25 @@ write(dir .. "/global.json", { { name = "Updated", prompt = "Fresh text" } })
 snippets.open(chat)
 vim.fn.maparg("<CR>", "n", false, true).callback()
 assert(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"):match("\n\nFresh text$"))
+-- A slash command on its own line extends an existing draft without sending it.
+for _ = 1, 2 do
+	local draft = api.nvim_buf_get_lines(buf, 0, -1, false)
+	api.nvim_buf_set_lines(buf, -1, -1, false, { "/prompt" })
+	api.nvim_win_set_cursor(0, { #draft + 1, 0 })
+	require("aero.acp.prompt").send(chat)
+	vim.fn.maparg("<CR>", "n", false, true).callback()
+	assert(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+		== table.concat(draft, "\n") .. "\n\nFresh text")
+end
+local reports = require("aero.reports")
+local original_pick, picked = reports.pick, false
+reports.pick = function(session) picked = session == chat.s end
+api.nvim_buf_set_lines(buf, 0, -1, false, { "Existing draft", "/report", "More context" })
+api.nvim_win_set_cursor(0, { 2, 0 })
+require("aero.acp.prompt").send(chat)
+reports.pick = original_pick
+assert(picked)
+assert(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n") == "Existing draft\nMore context")
 local context = snippets.context(chat)
 assert(context.worktree == dir and context.workspace == dir and context.session == "test")
 assert(context.date:match("^%d%d%d%d%-%d%d%-%d%d$") and context.time:match("^%d%d:%d%d:%d%d$"))
