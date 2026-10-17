@@ -12,6 +12,12 @@ normal and fullscreen logs and pauses live scrolling while you review history.
 Scroll back to the bottom to resume following new output. Queued prompts appear
 in the list after they are sent.
 
+## Worktree references
+
+Browse and manage stored files under **Workspace → References**, or attach them
+to conversation drafts with `/reference`. See [worktree references](references.md)
+for finder staging, host source access, and transfer limits.
+
 ## Source folding
 
 Source files open with code folds expanded by default. To open them collapsed:

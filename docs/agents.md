@@ -154,6 +154,13 @@ panel session, even if hidden. `/cancel` also works. Cancellation discards queue
 prompts and pending permissions while retaining the conversation; continue after
 the agent acknowledges cancellation.
 
+## Prompt history
+
+Use `:Aero prompts`, or `gP` in an ACP transcript, to review that session's submitted
+prompts in chronological order. The selected prompt is previewed in full;
+`Ctrl-d`/`Ctrl-u` scroll the preview, and `Enter` jumps to its chat log line.
+Use `i` to filter, `j`/`k` to select, and `q` to close. Empty sessions report no prompts.
+
 ## Inline image previews in Kitty
 
 ACP image messages and images in tool results (including Playwright MCP

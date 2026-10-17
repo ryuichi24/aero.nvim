@@ -27,6 +27,8 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero collapse reports` | Collapse all Reports sections |
 | `:Aero collapse exports` | Collapse all Exported logs sections |
 | `:Aero collapse boards` | Collapse all Boards sections |
+| `:Aero collapse reference` | Collapse all References sections |
+| `:Aero reference` | Open the selected worktree's reference finder |
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero term` | Toggle the current worktree's shell |
 
@@ -49,6 +51,17 @@ vim.keymap.set("n", "<leader>ai", aero.inbox, { desc = "Agent attention inbox" }
 vim.keymap.set("n", "<leader>aw", aero.worktrees, { desc = "Search worktrees" })
 vim.keymap.set("n", "<leader>aW", aero.workspaces, { desc = "Search workspaces" })
 ```
+
+The session popup groups active sessions under worktree headings. Rows show the
+session name, agent, and live status (idle, busy, or waiting), including ACP thinking
+or tool activity. `Enter` opens the worktree and focuses its session panel. Stopped
+and exited sessions are excluded; use `:Aero pick` to browse those too.
+Arrows and `Ctrl-n`/`Ctrl-p` select in either mode; `q` remains ordinary search text
+in insert mode. See [picker configuration](configuration.md#search-popup-mode)
+to change the initial mode.
+
+For reference storage, sidebar actions, and file imports, see
+[worktree references](references.md).
 
 ## Renaming worktree folders
 
