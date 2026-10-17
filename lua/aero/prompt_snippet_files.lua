@@ -4,7 +4,8 @@ local M = {}
 function M.starter(name)
 	local header = [[// Aero prompt snippets
 // Add objects to this array; each needs a unique name and a non-empty prompt.
-// description is optional. Use \n inside a prompt string for a newline.
+// prompt accepts a string or an array of strings: one item per line, "" for a blank line.
+// description is optional. You can also use \n inside a prompt string for a newline.
 // Comments and trailing commas are supported. Save, then open /prompt to reload.
 // Files load alphabetically; later names win. Workspace snippets override global ones.
 // {{custom_name}} asks for input; repeated variables ask once. Cancel keeps the draft.
@@ -37,7 +38,11 @@ function M.starter(name)
 ]]
 	return header .. "[\n  {\n    \"name\": " .. vim.json.encode(name)
 		.. ',\n    "description": "Investigate a topic in this workspace",\n'
-		.. '    "prompt": "In {{workspace_name}}, investigate {{topic}}.\\nFocus on correctness and explain your findings as of {{date}}."\n'
+		.. '    "prompt": [\n'
+		.. '      "In {{workspace_name}}, investigate {{topic}}.",\n'
+		.. '      "",\n'
+		.. '      "Focus on correctness and explain your findings as of {{date}}."\n'
+		.. '    ]\n'
 		.. "  }\n]\n"
 end
 

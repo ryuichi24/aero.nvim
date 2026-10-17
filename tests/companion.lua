@@ -56,7 +56,7 @@ local chat = s.chat
 local snippets = require("aero.prompt_snippets")
 local original_paths = snippets.paths
 vim.fn.mkdir(dir .. "/prompt", "p")
-vim.fn.writefile({ '[{"name":"Review","prompt":"{{session}} {{topic}}",},] // comment' }, dir .. "/prompt/review.jsonc")
+vim.fn.writefile({ '[{"name":"Review","prompt":["{{session}}", "", "{{topic}}"],},] // comment' }, dir .. "/prompt/review.jsonc")
 snippets.paths = function()
 	return { { path = dir .. "/prompt/review.jsonc", scope = "workspace" } }
 end
@@ -64,7 +64,7 @@ local browse = { epoch = snapshot.epoch, session = s.key, conversation = generat
 local collection = assert(bridge.dispatch("prompt_snippets", browse))
 assert(#collection.items == 1 and collection.items[1].name == "Review")
 assert(collection.context.session == s.name and collection.context.worktree == s.worktree)
-assert(collection.items[1].prompt == "{{session}} {{topic}}" and (chat.turn or 0) == 0)
+assert(collection.items[1].prompt == "{{session}}\n\n{{topic}}" and (chat.turn or 0) == 0)
 local missing, browse_err = bridge.dispatch("prompt_snippets", vim.tbl_extend("force", browse, { epoch = "stale" }))
 assert(not missing and browse_err == "stale host epoch")
 missing, browse_err = bridge.dispatch("prompt_snippets", vim.tbl_extend("force", browse, { conversation = "stale" }))

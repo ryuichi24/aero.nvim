@@ -94,7 +94,7 @@ local loaded, load_errors = snippets.list(dir)
 assert(#loaded == 1 and #load_errors == 0 and loaded[1].prompt == parsed[1].prompt)
 write(dir .. "/global.json", {
 	{ name = "Review", prompt = "Global review" },
-	{ name = "Explain", description = "Explain code", prompt = "Explain this code.\nInclude examples." },
+	{ name = "Explain", description = "Explain code", prompt = { "Explain this code.", "Include examples." } },
 })
 write(dir .. "/.aero/prompts.json", { { name = "Review", prompt = "Workspace review" } })
 local items, errors = snippets.list(dir)
@@ -105,6 +105,18 @@ items, errors = snippets.list(dir)
 assert(#items == 2 and #errors == 1 and items[2].scope == "global")
 write(dir .. "/.aero/prompts.json", { { name = "broken" } })
 assert(#select(2, snippets.list(dir)) == 1)
+write(dir .. "/.aero/prompts.json", {
+	{ name = "Review", prompt = { "  Review {{session}}", "", "Keep 100% of {{topic}}.", "" } },
+})
+items, errors = snippets.list(dir)
+assert(#errors == 0 and items[2].scope == "workspace")
+assert(items[2].prompt == "  Review {{session}}\n\nKeep 100% of {{topic}}.\n")
+assert(snippets.render(items[2].prompt, { session = "test", topic = "code" }) == "  Review test\n\nKeep 100% of code.\n")
+for _, invalid in ipairs({ {}, { "", "  " }, { "valid", 1 }, { "valid", vim.NIL }, { line = "text" } }) do
+	write(dir .. "/.aero/prompts.json", { { name = "Review", prompt = invalid } })
+	items, errors = snippets.list(dir)
+	assert(#errors == 1 and items[2].scope == "global", "accepted invalid prompt: " .. vim.inspect(invalid))
+end
 write(dir .. "/.aero/prompts.json", {})
 local chat = { s = { worktree = dir, name = "test", key = "snippet-test" }, buf = api.nvim_create_buf(false, true) }
 chat.s.chat = chat

@@ -113,7 +113,11 @@ Each file contains an array of snippets:
   {
     "name": "Code review",
     "description": "Review changes for correctness and missing tests",
-    "prompt": "Review the current changes.\nFocus on correctness, edge cases, and missing tests."
+    "prompt": [
+      "Review the current changes.",
+      "",
+      "Focus on correctness, edge cases, and missing tests."
+    ]
   },
   {
     "name": "Explain",
@@ -122,7 +126,12 @@ Each file contains an array of snippets:
 ]
 ```
 
-`name` and `prompt` are required non-empty strings; `description` is optional.
+`name` must be a non-empty string; `description` is an optional string.
+`prompt` accepts either a non-empty string or an array of strings. Each array
+item represents one line, joined with `\n`; use `""` for a blank line. Leading
+spaces and trailing blank lines are preserved. Empty arrays, whitespace-only
+prompts, and arrays containing non-string values are invalid. Existing string
+prompts continue to work, and runtime variables work in both formats.
 Prompt text preserves newlines and supports runtime variables (see below). Names must be unique
 within each file. Workspace snippets override global snippets with the same
 case-sensitive name. The popup labels each snippet's scope.

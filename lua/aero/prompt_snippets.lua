@@ -57,10 +57,22 @@ local function read(path)
 	local names = {}
 	for index, item in ipairs(data) do
 		if type(item) ~= "table" or type(item.name) ~= "string" or vim.trim(item.name) == ""
-			or type(item.prompt) ~= "string" or vim.trim(item.prompt) == ""
 			or (item.description ~= nil and type(item.description) ~= "string") then
-			return nil, "snippet " .. index .. " requires non-empty name and prompt strings and an optional description string"
+			return nil, "snippet " .. index .. " requires a non-empty name string and an optional description string"
 		end
+		local prompt = item.prompt
+		if type(prompt) == "table" and vim.islist(prompt) then
+			for _, line in ipairs(prompt) do
+				if type(line) ~= "string" then
+					return nil, "snippet " .. index .. " prompt array must contain only strings"
+				end
+			end
+			prompt = table.concat(prompt, "\n")
+		end
+		if type(prompt) ~= "string" or vim.trim(prompt) == "" then
+			return nil, "snippet " .. index .. " prompt must be a non-empty string or an array of strings with non-empty content"
+		end
+		item.prompt = prompt
 		if names[item.name] then return nil, "duplicate snippet name: " .. item.name end
 		names[item.name] = true
 	end
