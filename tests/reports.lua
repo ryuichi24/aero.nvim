@@ -198,7 +198,7 @@ assert(vim.t.aero_worktree == main)
 
 aero.open()
 dw = api.nvim_get_current_win()
-local feature_row = row("   ▾ feature")
+local feature_row = row("   ▾ feature (feature)")
 api.nvim_win_set_cursor(dw, { feature_row, 0 })
 vim.cmd("Aero report")
 local choices = picker()
