@@ -496,6 +496,9 @@ function Chat:prompt(text)
 	if vim.trim(text) == "/report" then
 		return require("aero.reports").pick(self.s)
 	end
+	if vim.trim(text) == "/context" then
+		return require("aero.context").pick(self.s)
+	end
 	if vim.trim(text) == "/cancel" then
 		return self:cancel()
 	end
@@ -779,6 +782,9 @@ function M.omnifunc(findstart, base)
 	if ("/report"):sub(1, #base) == base then
 		table.insert(out, { word = "/report", menu = "Attach a worktree report to the draft" })
 	end
+	if ("/context"):sub(1, #base) == base then
+		table.insert(out, { word = "/context", menu = "Attach a worktree context file or folder" })
+	end
 	if ("/cancel"):sub(1, #base) == base then
 		table.insert(out, { word = "/cancel", menu = "Cancel the current turn and discard queued prompts" })
 	end
@@ -792,6 +798,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/export"
 			and word ~= "/mode"
 			and word ~= "/report"
+			and word ~= "/context"
 			and word ~= "/cancel"
 			and word ~= "/new-ticket"
 			and word:find(base, 1, true) == 1

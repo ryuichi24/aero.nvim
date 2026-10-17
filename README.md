@@ -258,3 +258,57 @@ and publishing instructions.
 ## License
 
 Licensed under the [MIT License](LICENSE).
+
+## Worktree context
+
+Use `:Aero context` to collect reference files and folders for the selected
+worktree (or the current worktree when editing code). Each worktree stores its
+own context under `stdpath("data")/Aero/workspaces/<workspace>/<worktree>/context`
+by default, alongside the worktree's reports and outside the Git checkout.
+
+Expanded worktrees show a **Context** section in the sidebar with their stored
+files and folders (folders end in `/`). Press `Enter` or `l` on a folder to expand
+its children inline in the sidebar; nested folders work the same way. Press `h`
+to collapse a folder or move to its parent. Files open in the editor. Select
+**Add +** (or press `a` on a context row) to launch the finder for that
+worktree. The list refreshes after transfers. Use the usual `l`/`h`/`Tab`
+controls to expand or collapse it, or `:Aero collapse context` to collapse all
+context sections.
+
+Press `d` on a context item in the sidebar to delete it after confirmation.
+Press `N` to rename a context file or folder, including nested items. Existing
+names are never overwritten, and renamed folders retain their expanded state.
+In supported input UIs (Dressing/Snacks), renaming a file preselects only its
+name, leaving the final extension intact; folder names are selected in full.
+Deleting a folder removes its stored contents recursively. This removes only the
+stored context copy. The finder and staging popup show the target worktree;
+the finder also shows the directory you are currently browsing.
+
+```lua
+require("aero").setup({
+  context = {
+    home = "~/Documents", -- where the finder starts
+    directory = "data", -- scoped storage under stdpath("data")/Aero/workspaces
+  },
+})
+```
+
+`directory` can also be a path (relative paths resolve inside the worktree), or a
+function receiving the worktree path and returning an
+exact directory path. Use a distinct path per worktree to retain isolation.
+
+The finder supports `Enter`/`l` to enter a folder and `-`/`h` to go to its parent.
+Press `y` to mark a file or folder for copying, `d` to mark it for cutting, and
+`u` to unmark or unstage an item. These actions also support visual selections.
+Hidden files are included. Marks survive navigation between directories.
+
+Run `:w` to stage marked items in the persistent popup below the finder. You can
+keep browsing and saving to build the stack. Press `q` or `Esc` to finish: saved
+items are transferred into the context folder, and unsaved marks are discarded.
+Sources marked with `d` are removed only when transferred on exit. Existing
+destination names and overlapping source selections are rejected rather than
+overwritten; transfer errors keep the finder open so you can resolve them and retry.
+
+In an ACP prompt, submit `/context` to select a stored file or folder. Its absolute
+path is appended to the draft with an instruction to read it for reference; send
+the draft when ready. Choose **Add context +** in that picker to open the finder.

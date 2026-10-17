@@ -7,19 +7,37 @@ M.adapters = {
 	snacks = { filetype = "snacks_input" },
 }
 
-local function select_default(buf, win, default)
+local function select_default(buf, win, default, select_length)
 	if not api.nvim_win_is_valid(win) or api.nvim_get_current_win() ~= win then
 		return
 	end
 	if api.nvim_win_get_buf(win) ~= buf or api.nvim_buf_get_lines(buf, 0, 1, false)[1] ~= default then
 		return
 	end
+	-- stopinsert takes effect after the current event. Selecting immediately
+	-- while still in Insert mode makes that later transition move the cursor
+	-- left once, dropping the final character from a partial selection.
+	if vim.fn.mode():sub(1, 1) == "i" then
+		vim.cmd.stopinsert()
+		vim.defer_fn(function() select_default(buf, win, default, select_length) end, 1)
+		return
+	end
 	-- Select mode replaces the text on typing, unlike Visual mode.
-	vim.cmd.stopinsert()
 	api.nvim_win_set_cursor(win, { 1, 0 })
-	-- Shift+V selects the entire input line, including its final character.
-	vim.cmd("normal! V")
-	api.nvim_feedkeys(api.nvim_replace_termcodes("<C-g>", true, false, true), "ni", false)
+	if select_length and select_length > 0 and select_length < #default then
+		-- Characterwise selection leaves a filename extension intact on replacement.
+		vim.cmd("normal! v")
+		-- Select through the dot, then move left once to leave the full stem
+		-- selected. Native motion handles multibyte final characters correctly.
+		api.nvim_win_set_cursor(win, { 1, select_length })
+		vim.cmd("normal! h")
+	else
+		-- Shift+V selects the entire input line, including its final character.
+		vim.cmd("normal! V")
+	end
+	-- Finish the selection synchronously so queued provider input cannot move
+	-- the boundary before we enter Select mode.
+	vim.cmd("normal! " .. api.nvim_replace_termcodes("<C-g>", true, false, true))
 	-- Input providers normally map confirmation only in Normal/Insert mode.
 	vim.keymap.set("s", "<CR>", function()
 		api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc><CR>", true, false, true), "m", false)
@@ -33,8 +51,13 @@ function M.input(opts, callback)
 		return config.adapter(vim.tbl_extend("force", opts, { select_default = config.select_default }), callback)
 	end
 	local autocmd
+	local saved_selection
 	local active = true
 	local function cleanup()
+		if saved_selection then
+			vim.o.selection = saved_selection
+			saved_selection = nil
+		end
 		if autocmd then
 			pcall(api.nvim_del_autocmd, autocmd)
 			autocmd = nil
@@ -55,7 +78,11 @@ function M.input(opts, callback)
 					local win = api.nvim_get_current_win()
 					vim.schedule(function()
 						if active then
-							select_default(event.buf, win, opts.default)
+							if opts.select_length and opts.select_length > 0 and opts.select_length < #(opts.default or "") then
+								saved_selection = vim.o.selection
+								vim.o.selection = "inclusive"
+							end
+							select_default(event.buf, win, opts.default, opts.select_length)
 						end
 					end)
 				end,

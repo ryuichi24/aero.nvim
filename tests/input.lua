@@ -58,6 +58,24 @@ for _, ft in ipairs({ "DressingInput", "snacks_input" }) do
 	end
 	vim.o.selection = "inclusive"
 	vim.o.virtualedit = ""
+	for _, selection in ipairs({ "inclusive", "exclusive", "old" }) do
+		vim.o.selection = selection
+		for _, name in ipairs({ "note.md", "x.txt", "session-é.lua", "session-界.tar.gz" }) do
+			local stem = assert(name:match("^(.+)%.[^.]+$"))
+			input.input({ prompt = "Rename", default = name, select_length = #stem }, function(value)
+				result = value
+			end)
+			vim.wait(20, function() return false end)
+			keys("")
+			assert(vim.fn.mode() == "s", "filename stem is not selected characterwise")
+			keys("new<Esc><CR>")
+			assert(result == "new" .. name:sub(#stem + 1), ft .. " did not preserve extension: " .. tostring(result))
+			assert(vim.o.selection == selection, "filename selection did not restore user's selection option")
+			api.nvim_win_close(win, true)
+			api.nvim_buf_delete(buf, { force = true })
+		end
+	end
+	vim.o.selection = "inclusive"
 end
 local received
 config.options.input.adapter = function(opts, callback)

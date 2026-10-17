@@ -144,6 +144,40 @@ function M.build(snapshot)
 							)
 						end
 					end
+					local context = tree.context or {}
+					add(
+						{
+							{ "     " .. (tree.context_open and icons.expanded or icons.collapsed) .. " " },
+							{ "Context", "AeroWorkspace" },
+						},
+						{ kind = "context", id = "context:" .. wt.path, ws = ws, wt = wt },
+						{ { " " .. #context, "AeroDim" } }
+					)
+					if tree.context_open then
+						if tree.context_err then
+							add({ { "       ! " .. tree.context_err:gsub("[%c]", " "), "AeroExited" } })
+						end
+						local function add_context(entries, indent, parent)
+							for _, entry in ipairs(entries) do
+								local directory = entry.kind == "directory"
+								local prefix = directory and ((entry.expanded and icons.expanded or icons.collapsed) .. " ") or ""
+								local id = "context-item:" .. entry.path
+								add(
+									{ { indent .. prefix }, { entry.name:gsub("[%c]", " ") .. (directory and "/" or ""), "AeroSession" } },
+									{ kind = "context_item", id = id, parent = parent, ws = ws, wt = wt, context = entry }
+								)
+								if directory and entry.expanded then
+									if entry.err then add({ { indent .. "  ! " .. entry.err:gsub("[%c]", " "), "AeroExited" } }) end
+									add_context(entry.children or {}, indent .. "  ", id)
+								end
+							end
+						end
+						add_context(context, "       ", "context:" .. wt.path)
+						add(
+							{ { "       Add +", "AeroDim" } },
+							{ kind = "context_new", id = "context-new:" .. wt.path, ws = ws, wt = wt }
+						)
+					end
 					add(
 						{
 							{ "     " .. (tree.reports_open and icons.expanded or icons.collapsed) .. " " },

@@ -67,7 +67,7 @@ function M.refresh()
 	ensure().refresh()
 end
 
---- Collapse sidebar nodes: all (default), workspaces, worktrees, reports, exports, or boards.
+--- Collapse sidebar nodes: all (default), workspaces, worktrees, reports, exports, boards, or context.
 function M.collapse(kind)
 	ensure().collapse(kind)
 end
