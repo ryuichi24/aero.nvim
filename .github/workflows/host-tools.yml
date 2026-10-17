@@ -1,0 +1,64 @@
+name: Host tools validation
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/companion/web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: apps/companion/web/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/go.work
+          cache-dependency-path: |
+            apps/mcp/go.sum
+            apps/go.work.sum
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          version: v0.11.6
+          neovim: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install task Markdown prerequisite
+        env:
+          YQ_VERSION: v4.52.4
+        run: |
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$RUNNER_TEMP/yq"
+          chmod +x "$RUNNER_TEMP/yq"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+        with:
+          repository: 3rd/image.nvim
+          ref: 365e2ace0f619164ae6fd2f6f1d2807775dd6849
+          path: .test-deps/image.nvim
+      - name: Install image integration prerequisite
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+      - run: make check-all
+        env:
+          AERO_IMAGE_NVIM: ${{ github.workspace }}/.test-deps/image.nvim
+      - run: go -C apps test -race ./mcp/...
+      - run: pnpm --dir apps/companion/web run format:check
+      - name: Package both host tools
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: python3 apps/scripts/build-release.py ${RELEASE_TAG:+--tag "$RELEASE_TAG"}
+      - name: Smoke test packaged Linux executables
+        run: |
+          apps/dist/aero-mcp-*-linux-amd64 --version
+          apps/dist/aero-companion-*-linux-amd64 --version
+          cd apps/dist
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aero-host-tools
+          path: apps/dist/*

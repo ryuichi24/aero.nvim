@@ -1,0 +1,12 @@
+name: CI
+on:
+  push:
+    branches: ['**']
+    paths: ['apps/**', 'lua/**', 'plugin/**', 'tests/**', 'release.json', 'Makefile', '.github/workflows/**']
+  pull_request:
+    paths: ['apps/**', 'lua/**', 'plugin/**', 'tests/**', 'release.json', 'Makefile', '.github/workflows/**']
+permissions:
+  contents: read
+jobs:
+  check:
+    uses: ./.github/workflows/host-tools.yml
