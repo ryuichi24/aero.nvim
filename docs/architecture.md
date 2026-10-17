@@ -12,6 +12,7 @@ want to understand, then follow its named service rather than the entire UI.
 | Cancel, resume and usage commands | `lua/aero/commands.lua` |
 | Focused/prompt/dashboard/panel session precedence | `lua/aero/session_target.lua` |
 | Code-window and worktree navigation | `lua/aero/navigation.lua` |
+| Worktree review, folder tree, and read-only Git comparisons | `lua/aero/review.lua`, `review/tree.lua`, `review/git.lua` |
 | Dashboard loading and actions | `lua/aero/dashboard.lua` |
 | Prepared tree formatting and buffer updates | `lua/aero/dashboard/model.lua`, `view.lua` |
 | ACP lifecycle, queue and turn completion | `lua/aero/acp/conversation.lua` |
@@ -132,6 +133,7 @@ Fixtures under `tests/fixtures/` are agent/host helpers, not runnable suite case
 | Feature | Lua test families |
 | --- | --- |
 | Dashboard and navigation | `dashboard_*`, `workspace_pickers`, `worktree_*`, `pull` |
+| Worktree review and feedback | `review` |
 | Session identity and recovery | `session_creation`, `rename`, `persistence`, `recovery`, `terminal_exit` |
 | ACP conversation and presentation | `transcript`, `cancel`, `models`, `modes`, `usage`, `images`, `todos`, `todo_notifications` |
 | Draft input and quoting | `prompt_*`, `input`, `quote*`, `prompts` |

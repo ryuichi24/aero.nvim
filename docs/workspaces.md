@@ -30,6 +30,7 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero collapse reference` | Collapse all References sections |
 | `:Aero reference` | Open the selected worktree's reference finder |
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
+| `:Aero review [base-ref]` | Review local changes, or committed changes from an explicit base's merge-base |
 | `:Aero term` | Toggle the current worktree's shell |
 
 Collapse commands apply across registered workspaces, including sections hidden
@@ -141,6 +142,7 @@ vim.keymap.set("t", "<leader>ad", "<C-\\><C-n><cmd>Aero toggle<cr>")
 | `.` / `e` | Set tab cwd to worktree / restore its code buffer |
 | `<C-LeftMouse>` / `<C-CR>` | Open worktree's code pane without starting an agent |
 | `t` / `P` | Open shell / pull upstream |
+| `gr` | Review the selected worktree's changes |
 | `]]` / `[[` | Next / previous workspace |
 | `R` / `q` / `g?` | Refresh / close / help |
 | `gF` | Toggle fullscreen |

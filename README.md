@@ -76,6 +76,15 @@ Register repositories, create or remove worktrees, and manage multiple agents pe
 
 [Dashboard commands and keys](docs/workspaces.md)
 
+### Review worktree changes
+
+Use `:Aero review` or dashboard `gr` to browse staged, unstaged, and untracked
+changes in a collapsible project folder tree. Compare committed branch changes with
+`:Aero review <base-ref>`, open files, and quote a hunk or selected diff text into
+an agent's draft for follow-up.
+
+[Change review, feedback, and diff-viewer integration](docs/review.md)
+
 ### Worktree-specific tabs and shells
 
 Each worktree gets a tab with its own working directory, code windows, and agent panel.
