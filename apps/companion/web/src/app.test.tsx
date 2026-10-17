@@ -517,7 +517,7 @@ describe('mobile companion', () => {
       ],
     });
     await open();
-    const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+    const dialog = document.querySelector<HTMLDialogElement>('.transcript-fullscreen')!;
     dialog.showModal = () => dialog.setAttribute('open', '');
     dialog.close = () => dialog.removeAttribute('open');
     await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
@@ -545,7 +545,7 @@ describe('mobile companion', () => {
     render(<App />);
     connect();
     await open();
-    const nextDialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+    const nextDialog = document.querySelector<HTMLDialogElement>('.transcript-fullscreen')!;
     nextDialog.showModal = () => nextDialog.setAttribute('open', '');
     nextDialog.close = () => nextDialog.removeAttribute('open');
     await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
@@ -658,7 +658,7 @@ describe('mobile companion', () => {
     connect();
     await open();
     draft('Fullscreen request');
-    const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+    const dialog = document.querySelector<HTMLDialogElement>('.transcript-fullscreen')!;
     dialog.showModal = () => dialog.setAttribute('open', '');
     dialog.close = () => dialog.removeAttribute('open');
     await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));

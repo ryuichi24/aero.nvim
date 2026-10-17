@@ -1,5 +1,6 @@
 // Draft editing and local command pickers; submission delegates to the action owner.
-import type { RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { useCompanionDispatch, useCompanionState } from '../companion-context';
 import { draftKey } from '../companion-state';
 import { ReportCommand } from '../report-command';
@@ -21,6 +22,29 @@ export function PromptComposer({
 }) {
   const { selected, drafts, online, connection, pending, retry } = useCompanionState();
   const dispatch = useCompanionDispatch();
+  const [fullscreen, setFullscreen] = useState(false);
+  const inline = useRef<HTMLDivElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const wasFullscreen = useRef(false);
+  const [container] = useState(() => document.createElement('div'));
+  useLayoutEffect(() => {
+    (fullscreen ? dialog.current! : inline.current!).appendChild(container);
+    if (!fullscreen) {
+      if (wasFullscreen.current) promptRef.current?.focus();
+      wasFullscreen.current = false;
+      return;
+    }
+    wasFullscreen.current = true;
+    const modal = dialog.current!;
+    const overflow = document.body.style.overflow;
+    modal.showModal();
+    document.body.style.overflow = 'hidden';
+    promptRef.current?.focus();
+    return () => {
+      modal.close();
+      document.body.style.overflow = overflow;
+    };
+  }, [container, fullscreen, promptRef]);
   const prompt = drafts[draftKey(selected)] || '';
   const disabled =
     !online ||
@@ -54,126 +78,146 @@ export function PromptComposer({
   const choose = (value: string) => dispatch({ type: 'draft', value });
 
   return (
-    <form
-      id="compose"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!sendBlockReason) onAction('prompt', { text: prompt });
-      }}
-    >
-      <label>
-        <span className="sr-only">Follow-up prompt</span>
-        <textarea
-          ref={promptRef}
-          rows={2}
-          placeholder="What should the agent do next? Type / for commands."
-          required
-          value={prompt}
-          onChange={(event) => choose(event.target.value)}
-        />
-      </label>
-      {session && snapshot && (
-        <SlashCommands
-          prompt={prompt}
-          session={session}
-          snapshot={snapshot}
-          disabled={!!composerBlockReason}
-          onChoose={choose}
-          onAction={onAction}
-        />
-      )}
-      {session && prompt.trim() === '/prompt' && (
-        <PromptCommand
-          key={`${snapshot?.epoch}:${session.id}:${session.conversation}`}
-          session={session}
-          epoch={snapshot?.epoch}
-          online={online && !pending}
-          onChoose={choose}
-        />
-      )}
-      {session && prompt.trim() === '/report' && (
-        <ReportCommand
-          key={`${session.id}:${session.conversation}`}
-          worktree={session.worktree}
-          online={online && !pending}
-          onChoose={choose}
-        />
-      )}
-      {session && ['/reference', '/context'].includes(prompt.trim()) && (
-        <ReferenceCommand
-          worktree={session.worktree}
-          online={online && !pending}
-          onChoose={choose}
-        />
-      )}
-      <div className="composer-toolbar">
-        <details className="composer-actions">
-          <summary aria-label="Prompt actions">Actions</summary>
-          <div className="quick-actions">
-            {['report', 'reference', 'model', 'mode', 'export'].map((command) => (
-              <button
-                key={command}
-                type="button"
-                disabled={!!prompt.trim()}
-                onClick={(event) => {
-                  choose(`/${command}`);
-                  const details = event.currentTarget.closest('details');
-                  if (details) details.open = false;
-                }}
-              >
-                {command === 'report'
-                  ? 'Select or create report'
-                  : command === 'reference'
-                    ? 'Select reference'
-                    : command === 'export'
-                      ? 'Export transcript'
-                      : `Change ${command}`}
-              </button>
-            ))}
+    <>
+      <div ref={inline} />
+      <dialog
+        ref={dialog}
+        className="prompt-fullscreen"
+        aria-label="Fullscreen prompt editor"
+        onCancel={() => setFullscreen(false)}
+        onClose={() => setFullscreen(false)}
+      />
+      {createPortal(
+        <form
+          id="compose"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!sendBlockReason) onAction('prompt', { text: prompt });
+          }}
+        >
+          <label>
+            <span className="sr-only">Follow-up prompt</span>
+            <textarea
+              ref={promptRef}
+              rows={5}
+              placeholder="What should the agent do next? Type / for commands."
+              required
+              value={prompt}
+              onChange={(event) => choose(event.target.value)}
+            />
+          </label>
+          {session && snapshot && (
+            <SlashCommands
+              prompt={prompt}
+              session={session}
+              snapshot={snapshot}
+              disabled={!!composerBlockReason}
+              onChoose={choose}
+              onAction={onAction}
+            />
+          )}
+          {session && prompt.trim() === '/prompt' && (
+            <PromptCommand
+              key={`${snapshot?.epoch}:${session.id}:${session.conversation}`}
+              session={session}
+              epoch={snapshot?.epoch}
+              online={online && !pending}
+              onChoose={choose}
+            />
+          )}
+          {session && prompt.trim() === '/report' && (
+            <ReportCommand
+              key={`${session.id}:${session.conversation}`}
+              worktree={session.worktree}
+              online={online && !pending}
+              onChoose={choose}
+            />
+          )}
+          {session && ['/reference', '/context'].includes(prompt.trim()) && (
+            <ReferenceCommand
+              worktree={session.worktree}
+              online={online && !pending}
+              onChoose={choose}
+            />
+          )}
+          <div className="composer-toolbar">
+            <button
+              type="button"
+              aria-label={fullscreen ? 'Exit fullscreen prompt' : 'Fullscreen prompt'}
+              onClick={() => setFullscreen((value) => !value)}
+            >
+              {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            </button>
+            <details className="composer-actions">
+              <summary aria-label="Prompt actions">Actions</summary>
+              <div className="quick-actions">
+                {['report', 'reference', 'model', 'mode', 'export'].map((command) => (
+                  <button
+                    key={command}
+                    type="button"
+                    disabled={!!prompt.trim()}
+                    onClick={(event) => {
+                      choose(`/${command}`);
+                      const details = event.currentTarget.closest('details');
+                      if (details) details.open = false;
+                    }}
+                  >
+                    {command === 'report'
+                      ? 'Select or create report'
+                      : command === 'reference'
+                        ? 'Select reference'
+                        : command === 'export'
+                          ? 'Export transcript'
+                          : `Change ${command}`}
+                  </button>
+                ))}
+              </div>
+              {!!prompt.trim() && (
+                <p className="text-sm text-slate-400">
+                  Your draft is kept. Clear it before choosing a different prompt action.
+                </p>
+              )}
+            </details>
+            <button
+              className="primary-action"
+              id="send"
+              aria-label="Send prompt"
+              disabled={!!sendBlockReason}
+              aria-describedby={sendBlockReason ? 'send-block-reason' : undefined}
+            >
+              Send
+            </button>
+            <button
+              id="cancel"
+              type="button"
+              aria-label="Cancel turn & queue"
+              title="Cancel the current turn and queued prompts"
+              disabled={disabled}
+              aria-describedby={
+                disabled
+                  ? composerBlockReason
+                    ? 'send-block-reason'
+                    : 'cancel-block-reason'
+                  : undefined
+              }
+              onClick={() => onAction('cancel')}
+            >
+              Cancel
+            </button>
           </div>
-          {!!prompt.trim() && (
-            <p className="text-sm text-slate-400">
-              Your draft is kept. Clear it before choosing a different prompt action.
+          {sendBlockReason && (
+            <p id="send-block-reason" role="status" className="mt-2 text-sm text-amber-300">
+              {sendBlockReason} Your draft is kept here.
             </p>
           )}
-        </details>
-        <button
-          className="primary-action"
-          id="send"
-          aria-label="Send prompt"
-          disabled={!!sendBlockReason}
-          aria-describedby={sendBlockReason ? 'send-block-reason' : undefined}
-        >
-          Send
-        </button>
-        <button
-          id="cancel"
-          type="button"
-          aria-label="Cancel turn & queue"
-          title="Cancel the current turn and queued prompts"
-          disabled={disabled}
-          aria-describedby={
-            disabled
-              ? composerBlockReason
-                ? 'send-block-reason'
-                : 'cancel-block-reason'
-              : undefined
-          }
-          onClick={() => onAction('cancel')}
-        >
-          Cancel
-        </button>
-      </div>
-      {sendBlockReason && (
-        <p id="send-block-reason" role="status" className="mt-2 text-sm text-amber-300">
-          {sendBlockReason} Your draft is kept here.
-        </p>
+          {disabled && !composerBlockReason && (
+            <p id="cancel-block-reason" role="status" className="mt-2 text-sm text-amber-300">
+              Cancellation is unavailable. {actionBlockReason}
+            </p>
+          )}
+        </form>,
+        container,
       )}
-      {disabled && !composerBlockReason && (
-        <p id="cancel-block-reason" role="status" className="mt-2 text-sm text-amber-300">
-          Cancellation is unavailable. {actionBlockReason}
-        </p>
-      )}
-    </form>
+    </>
   );
 }

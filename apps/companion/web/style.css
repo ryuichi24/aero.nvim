@@ -772,11 +772,40 @@ textarea {
   @apply m-0;
 }
 #compose textarea {
-  @apply mt-0 min-h-16 w-full resize-none;
-  max-height: min(20dvh, 10rem);
+  @apply mt-0 min-h-32 w-full resize-none;
+  max-height: min(30dvh, 16rem);
 }
 .composer-toolbar {
   @apply mt-2 flex min-w-0 flex-wrap items-start gap-2;
+}
+.prompt-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  @apply border-0 bg-slate-950 text-slate-100;
+}
+.prompt-fullscreen > div {
+  height: 100%;
+}
+.prompt-fullscreen #compose {
+  @apply flex h-full flex-col gap-2 overflow-y-auto;
+}
+.prompt-fullscreen #compose > label {
+  flex: 1 0 40%;
+  min-height: 8rem;
+}
+.prompt-fullscreen #compose textarea {
+  height: 100%;
+  max-height: none;
+}
+.prompt-fullscreen #compose > :not(label) {
+  flex-shrink: 0;
 }
 .composer-toolbar > button {
   @apply m-0 min-h-11 shrink-0 px-3;
