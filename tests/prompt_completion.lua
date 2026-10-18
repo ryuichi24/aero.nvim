@@ -103,5 +103,26 @@ for _, wrapped in ipairs({ false, true }) do
 	assert(not menu.visible(buf))
 end
 vim.fn.screenpos = screenpos
+-- Selected slash descriptions retain their full text in a wrapped popup.
+local description = string.rep("A detailed command explanation. ", 8)
+menu.show(buf, 1, {
+	{ word = "/first", menu = description },
+	{ word = "/second", menu = "Second explanation" },
+})
+local function detail_text()
+	for _, win in ipairs(api.nvim_list_wins()) do
+		if api.nvim_win_get_config(win).zindex == 101 then
+			assert(vim.wo[win].wrap)
+			return table.concat(api.nvim_buf_get_lines(api.nvim_win_get_buf(win), 0, -1, false), "\n"), win
+		end
+	end
+end
+local text, detail = detail_text()
+assert(text == description, "command description was truncated")
+menu.move(buf, 1)
+assert(not api.nvim_win_is_valid(detail), "previous description was not closed")
+assert(detail_text() == "Second explanation")
+menu.close()
+assert(detail_text() == nil, "description remained after closing suggestions")
 print("prompt completion: ok")
 vim.cmd.qa({ bang = true })

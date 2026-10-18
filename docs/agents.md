@@ -128,8 +128,10 @@ Your terminal must send Ctrl-Enter as a distinct key (for example, using Kitty's
 | `<C-c>` | Cancel the turn |
 
 Slash-command suggestions appear automatically as you type `/`, including agent-provided
-commands and descriptions. `/model ` and `/mode ` suggest available IDs. Use
-Ctrl-n/Ctrl-p or the arrow keys to navigate; Enter accepts a suggestion (the first
+commands and descriptions. `/model ` and `/mode ` suggest available IDs.
+The highlighted slash command's full description appears in a wrapped popup beside
+the suggestion list and updates as you navigate.
+Use Ctrl-n/Ctrl-p or the arrow keys to navigate; Enter accepts a suggestion (the first
 one if none is selected). Ctrl-e dismisses the menu. Accepting a suggestion does not
 send the prompt; press Enter again to run `/report`, `/export`, or `/cancel`.
 
@@ -174,6 +176,10 @@ Use `:Aero prompts`, or `gP` in an ACP transcript, to review that session's subm
 prompts in chronological order. The selected prompt is previewed in full;
 `Ctrl-d`/`Ctrl-u` scroll the preview, and `Enter` jumps to its chat log line.
 Use `i` to filter, `j`/`k` to select, and `q` to close. Empty sessions report no prompts.
+
+Type `/history` on its own line in the composer and press Enter to open the same
+picker for reuse. Selecting a prompt inserts its full text into the composer,
+appending it to any existing draft for editing before sending.
 
 ## Inline image previews in Kitty
 

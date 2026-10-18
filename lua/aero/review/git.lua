@@ -44,6 +44,19 @@ local function records(output, kind)
 	return items
 end
 
+--- Local and remote branches, excluding symbolic aliases such as origin/HEAD.
+function M.branches(path, callback)
+	run(path, { "for-each-ref", "--sort=refname", "--format=%(refname:short)%09%(symref)", "refs/heads", "refs/remotes" }, function(out, err, truncated)
+		if not out or truncated then return callback(nil, err or "branch list exceeds 1 MiB") end
+		local branches = {}
+		for line in out:gmatch("[^\n]+") do
+			local name, symbolic = line:match("^(.-)\t(.*)$")
+			if name and symbolic == "" then table.insert(branches, name) end
+		end
+		callback(branches)
+	end)
+end
+
 --- base=nil reviews index/worktree separately; base=ref reviews committed branch changes only.
 function M.collect(path, base, callback)
 	run(path, { "rev-parse", "--show-toplevel" }, function(root, err)

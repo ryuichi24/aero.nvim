@@ -392,10 +392,15 @@ function M.open(path, base)
 		map("R", view.refresh, "refresh")
 		map("gf", view.open_file, "open file")
 		map("b", function()
-			vim.ui.input({ prompt = "Review committed changes against base ref: ", default = view.base or "" }, function(ref)
-				if view.closed or not ref or vim.trim(ref) == "" then return end
-				view.base = vim.trim(ref)
-				view.refresh()
+			git.branches(view.path, function(branches, err)
+				if view.closed then return end
+				if not branches then return notify(err) end
+				if #branches == 0 then return notify("no branches available for review") end
+				vim.ui.select(branches, { prompt = "Review committed changes against base branch:" }, function(ref)
+					if view.closed or not ref then return end
+					view.base = ref
+					view.refresh()
+				end)
 			end)
 		end, "choose branch base")
 		map("L", function() view.base = nil; view.refresh() end, "local changes")

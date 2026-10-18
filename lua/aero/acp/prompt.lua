@@ -14,6 +14,11 @@ function M.command(chat)
 		M.send(chat, true)
 		return true
 	end
+	if text == "/history" then
+		api.nvim_buf_set_lines(buf, row - 1, row, false, {})
+		require("aero.prompts").open(chat, { compose = true })
+		return true
+	end
 	if text ~= "/prompt" and text ~= "/report" then return false end
 	if api.nvim_buf_line_count(buf) == 1 then return false end
 	if text == "/report" and chat.state == "exited" then return false end

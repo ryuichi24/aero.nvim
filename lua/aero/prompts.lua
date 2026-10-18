@@ -12,7 +12,8 @@ function M.items(chat)
 	return items
 end
 
-function M.open(chat)
+function M.open(chat, opts)
+	opts = opts or {}
 	if not chat then
 		local s = require("aero.session_target").resolve("viewed")
 		chat = s and s.chat
@@ -37,6 +38,16 @@ function M.open(chat)
 		select = function(item)
 			if chat.s.chat ~= chat or not api.nvim_buf_is_valid(chat.buf) then
 				vim.notify("Aero: conversation is no longer available", vim.log.levels.INFO)
+				return
+			end
+			if opts.compose then
+				local buf = chat:get_prompt_buf()
+				local draft = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+				local text = vim.trim(draft) == "" and item.text or draft .. "\n\n" .. item.text
+				api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(text, "\n", { plain = true }))
+				chat:compose()
+				api.nvim_win_set_cursor(0, { api.nvim_buf_line_count(buf), 0 })
+				vim.cmd.startinsert({ bang = true })
 				return
 			end
 			if win == -1 or not api.nvim_win_is_valid(win) then
