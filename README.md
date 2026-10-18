@@ -93,6 +93,14 @@ Use `:Aero term` for a worktree-specific shell that keeps running when hidden.
 
 [Worktree tabs, buffers, and terminals](docs/workspaces.md#worktree-tabs-and-remembered-buffers)
 
+### Middle-panel reading tabs
+
+Keep source files, exported logs, references, and reports in independent reading
+slots. Switch between tabs or show opened slots together in panes with `:Aero middle`.
+Press `e` on a worktree to browse source files with Oil or Neovim's directory browser.
+
+[Reading tabs, source browsing, and panes mode](docs/layout.md#middle-panel-reading-tabs)
+
 ### Agent panels and navigation
 
 Keep agents beside your code, monitor their activity, and expand any pane with
@@ -201,32 +209,3 @@ host tools, `make check-all` to verify them, and `make release` to package binar
 ## License
 
 Licensed under the [MIT License](LICENSE).
-
-## Middle-panel reading tabs
-
-Within each worktree, the middle panel has independent **Source**, **Exported logs**,
-**References**, and **Reports** reading slots. Opening a report, exported log, or
-reference from the dashboard selects its slot without replacing the source buffer.
-Each slot keeps its buffer and reading position when switching.
-
-To open a source file, select a worktree in the sidebar and press `e`. This opens
-the worktree root in the **Source** slot using Oil when installed, or Neovim's
-directory browser otherwise. Select a file there to read or edit it. Pressing `e`
-on a report or exported log still opens that document in its own slot.
-Use Ctrl-Enter or Ctrl-click on a worktree to resume its last source buffer instead
-of reopening the root directory.
-
-Click a slot in the middle panel's window bar, or use:
-
-```vim
-:Aero middle source
-:Aero middle exports
-:Aero middle references
-:Aero middle reports
-```
-
-Click the `tabs ⇄` / `panes ⇄` control, or run `:Aero middle` to toggle the display.
-`:Aero middle panes` shows opened slots in stacked middle-panel splits;
-`:Aero middle tabs` returns to one reading window. Buffers, including unsaved edits,
-are retained in either mode. In panes mode, use normal window navigation (`<C-w>j`
-and `<C-w>k`) to move between readers. These controls do not create Neovim tabpages.

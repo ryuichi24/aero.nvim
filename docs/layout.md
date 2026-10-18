@@ -4,6 +4,49 @@ Arrange code, agents, prompts, and shells while keeping their buffers and proces
 
 [Back to README](../README.md)
 
+## Middle-panel reading tabs
+
+Within each worktree, the middle panel has independent **Source**, **Exported logs**,
+**References**, and **Reports** reading slots. Opening a report, exported log, or
+reference from the dashboard selects its slot without replacing the source buffer.
+Each slot keeps its buffer and reading position when switching.
+
+### Opening source files
+
+Select a worktree in the sidebar and press `e` to open its root directory in the
+**Source** slot. Aero uses Oil when installed, or Neovim's directory browser
+otherwise. Select a file there to read or edit it. Pressing `e` on a report or
+exported log still opens that document in its own slot.
+
+Use Ctrl-Enter or Ctrl-click on a worktree to resume its last source buffer instead
+of reopening the root directory. To return to the current source reader, click
+**Source** or run `:Aero middle source`.
+
+### Switching reading slots
+
+Click a slot in the middle panel's window bar, or use:
+
+| Command | Reading slot |
+| --- | --- |
+| `:Aero middle source` | Source |
+| `:Aero middle exports` | Exported logs |
+| `:Aero middle references` | References |
+| `:Aero middle reports` | Reports |
+
+These slots are local to the middle panel; they do not create Neovim tabpages.
+`gt` and `gT` switch Neovim tabpages rather than reading slots.
+
+### Tabs and panes modes
+
+Click the `tabs ⇄` / `panes ⇄` control, or run `:Aero middle` to toggle the display.
+`:Aero middle panes` shows opened slots in stacked middle-panel splits;
+`:Aero middle tabs` returns to one reading window. Buffers, including unsaved edits,
+are retained in either mode.
+
+Use `<C-w>w` or `<C-w>p` to navigate between panes. Aero's default resize mappings
+use `<C-w>j` and `<C-w>k` for resizing; disabling those mappings restores native
+directional window navigation. See [Resizing](#resizing).
+
 ## Agent panel
 
 Sessions open in a fixed-width panel beside code. Files edited by agents update in
