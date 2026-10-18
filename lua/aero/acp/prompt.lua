@@ -3,10 +3,20 @@
 local api = vim.api
 local M = {}
 
+local function reference_command(text)
+	return text == "/reference" or text == "/context"
+end
+
+local function enter_command(text)
+	return text == "/prompt" or text == "/report" or reference_command(text) or text == "/cancel" or text == "/export"
+end
+
 -- Draft-building commands act on the current line, preserving the rest of the draft.
 function M.command(chat)
 	local buf = chat.prompt_buf
-	if api.nvim_get_current_buf() ~= buf then return false end
+	if api.nvim_get_current_buf() ~= buf then
+		return false
+	end
 	local row = api.nvim_win_get_cursor(0)[1]
 	local text = vim.trim(api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
 	if text == "/send" then
@@ -19,12 +29,20 @@ function M.command(chat)
 		require("aero.prompts").open(chat, { compose = true })
 		return true
 	end
-	if text ~= "/prompt" and text ~= "/report" then return false end
-	if api.nvim_buf_line_count(buf) == 1 then return false end
-	if text == "/report" and chat.state == "exited" then return false end
+	if text ~= "/prompt" and text ~= "/report" and not reference_command(text) then
+		return false
+	end
+	if api.nvim_buf_line_count(buf) == 1 then
+		return false
+	end
+	if (text == "/report" or reference_command(text)) and chat.state == "exited" then
+		return false
+	end
 	api.nvim_buf_set_lines(buf, row - 1, row, false, {})
 	if text == "/prompt" then
 		require("aero.prompt_snippets").open(chat)
+	elseif reference_command(text) then
+		require("aero.reference").pick(chat.s)
 	else
 		require("aero.reports").pick(chat.s)
 	end
@@ -36,7 +54,9 @@ function M.send(chat, submitting)
 	if not (buf and api.nvim_buf_is_valid(buf)) then
 		return
 	end
-	if not submitting and M.command(chat) then return end
+	if not submitting and M.command(chat) then
+		return
+	end
 	local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
 	if text == "" then
 		vim.bo[buf].modified = false
@@ -100,18 +120,23 @@ function M.buffer(chat, lookup)
 			end
 		end
 	end
-	api.nvim_create_autocmd("BufWriteCmd", { buffer = buf, callback = function()
-		vim.notify("Aero: draft kept; press Ctrl-Enter to submit", vim.log.levels.INFO)
-	end })
+	api.nvim_create_autocmd("BufWriteCmd", {
+		buffer = buf,
+		callback = function()
+			vim.notify("Aero: draft kept; press Ctrl-Enter to submit", vim.log.levels.INFO)
+		end,
+	})
 	local function map(mode, lhs, callback, description)
 		vim.keymap.set(mode, lhs, callback, { buffer = buf, nowait = true, desc = "Aero: " .. description })
 	end
 	map({ "n", "i" }, "<C-CR>", with_chat("send_prompt_buf"), "send prompt")
 	map("n", "<CR>", function()
 		local current = lookup(key)
-		if current and M.command(current) then return end
+		if current and M.command(current) then
+			return
+		end
 		local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
-		if text == "/prompt" or text == "/report" or text == "/cancel" or text == "/export" then
+		if enter_command(text) then
 			with_chat("send_prompt_buf")()
 			return
 		end
@@ -130,9 +155,11 @@ function M.buffer(chat, lookup)
 			return
 		end
 		local current = lookup(key)
-		if current and M.command(current) then return end
+		if current and M.command(current) then
+			return
+		end
 		local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
-		if text == "/prompt" or text == "/report" or text == "/cancel" or text == "/export" then
+		if enter_command(text) then
 			with_chat("send_prompt_buf")()
 		else
 			api.nvim_feedkeys(api.nvim_replace_termcodes("<CR>", true, false, true), "in", false)
