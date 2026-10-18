@@ -1267,7 +1267,7 @@ function actions.edit()
 	end
 	local dir = item_dir(current_item())
 	if dir then
-		M.open_worktree(dir)
+		navigation.browse_worktree(dir)
 	end
 end
 
@@ -1379,7 +1379,7 @@ local descriptions = {
 	switch_branch = "switch worktree branch",
 	review = "review worktree changes",
 	cd = ":tcd to worktree",
-	edit = "open worktree / restore last code buffer",
+	edit = "browse worktree source (Oil or directory browser)",
 	open_board_markdown = "open selected board's raw Markdown file",
 	edit_enter = "open worktree / restore last code buffer",
 	edit_mouse = "open clicked worktree / restore last code buffer",

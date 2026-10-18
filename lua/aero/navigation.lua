@@ -112,4 +112,16 @@ function M.open_worktree(path, opener)
 	return win
 end
 
+--- Browse the checkout explicitly instead of restoring a previously read document.
+function M.browse_worktree(path)
+	return M.open_worktree(path, function(root)
+		local ok, oil = pcall(require, "oil")
+		if ok and type(oil.open) == "function" then
+			oil.open(root)
+		else
+			vim.cmd("keepalt hide edit " .. vim.fn.fnameescape(root))
+		end
+	end)
+end
+
 return M

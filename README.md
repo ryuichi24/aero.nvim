@@ -209,6 +209,11 @@ Within each worktree, the middle panel has independent **Source**, **Exported lo
 reference from the dashboard selects its slot without replacing the source buffer.
 Each slot keeps its buffer and reading position when switching.
 
+To open a source file, select a worktree in the sidebar and press `e`. This opens
+the worktree root in the **Source** slot using Oil when installed, or Neovim's
+directory browser otherwise. Select a file there to read or edit it. Pressing `e`
+on a report or exported log still opens that document in its own slot.
+
 Click a slot in the middle panel's window bar, or use:
 
 ```vim
