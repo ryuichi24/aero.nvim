@@ -1,4 +1,4 @@
--- Reading slots belong to the middle column, never to Neovim's tabline.
+-- Reading slots belong to the reader panel, never to Neovim's tabline.
 local api = vim.api
 local M = {}
 local states = {}
@@ -40,9 +40,9 @@ local function render(s)
 			local bar = {}
 			for index, name in ipairs(kinds) do
 				local hl = name == kind and "TabLineSel" or "TabLine"
-				bar[#bar + 1] = "%#" .. hl .. "#%" .. index .. "@v:lua.AeroMiddleClick@ " .. labels[name] .. " %T"
+				bar[#bar + 1] = "%#" .. hl .. "#%" .. index .. "@v:lua.AeroReaderClick@ " .. labels[name] .. " %T"
 			end
-			bar[#bar + 1] = "%#TabLineFill#%=%#TabLine#%5@v:lua.AeroMiddleClick@ " .. s.mode .. " ⇄ %T"
+			bar[#bar + 1] = "%#TabLineFill#%=%#TabLine#%5@v:lua.AeroReaderClick@ " .. s.mode .. " ⇄ %T"
 			vim.wo[slot.win].winbar = table.concat(bar)
 		end
 	end
@@ -77,7 +77,7 @@ function M.attach(win, kind)
 		win = api.nvim_open_win(slot.buf, false, { split = "below", win = previous.win })
 	end
 	s.win, s.active = win, kind
-	vim.w[win].aero_middle_kind = kind
+	vim.w[win].aero_reader_kind = kind
 	show(slot, win)
 	render(s)
 	changing = false
@@ -96,7 +96,7 @@ function M.mode(mode)
 	local s = state()
 	mode = mode or (s.mode == "tabs" and "panes" or "tabs")
 	if mode ~= "tabs" and mode ~= "panes" then
-		return vim.notify("Aero: use :Aero middle [tabs|panes|source|exports|references|reports]", vim.log.levels.WARN)
+		return vim.notify("Aero: use :Aero reader [tabs|panes|source|exports|references|reports]", vim.log.levels.WARN)
 	end
 	if not next(s.slots) then
 		require("aero.navigation").code_window()
@@ -130,7 +130,7 @@ function M.mode(mode)
 			if slot and slot ~= active and api.nvim_buf_is_valid(slot.buf) then
 				last = api.nvim_open_win(slot.buf, false, { split = "below", win = last })
 				show(slot, last)
-				vim.w[last].aero_middle_kind = kind
+				vim.w[last].aero_reader_kind = kind
 			end
 		end
 	end
@@ -141,14 +141,14 @@ function M.mode(mode)
 end
 
 function M.setup()
-	_G.AeroMiddleClick = function(index)
+	_G.AeroReaderClick = function(index)
 		if index == 5 then
 			M.mode()
 		else
 			M.select(kinds[index])
 		end
 	end
-	local group = api.nvim_create_augroup("Aero.middle", { clear = true })
+	local group = api.nvim_create_augroup("Aero.reader", { clear = true })
 	api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 		group = group,
 		callback = function()

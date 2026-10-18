@@ -94,7 +94,7 @@ api.nvim_win_set_cursor(0, { 5, 0 })
 mapping("e").callback()
 assert(vim.t.aero_worktree == feature)
 assert(api.nvim_buf_get_name(0) == feature, "e restored a file instead of browsing the worktree root")
-assert(vim.w.aero_middle_kind == "source", "e did not browse in the Source slot")
+assert(vim.w.aero_reader_kind == "source", "e did not browse in the Source slot")
 assert(api.nvim_buf_is_valid(code_buf), "browsing discarded the previous source buffer")
 
 aero.setup({ state_file = dir .. "/state.json", animation = false, keymaps = { edit_mouse = false, edit_enter = false } })

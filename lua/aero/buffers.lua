@@ -15,7 +15,7 @@ local function usable(win)
 		return false
 	end
 	local buf = api.nvim_win_get_buf(win)
-	if vim.w[win].aero_middle_kind and vim.w[win].aero_middle_kind ~= "source" then
+	if vim.w[win].aero_reader_kind and vim.w[win].aero_reader_kind ~= "source" then
 		return false
 	end
 	local b, bo = vim.b[buf], vim.bo[buf]

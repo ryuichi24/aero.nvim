@@ -27,12 +27,12 @@ function M.code_window(kind)
 	local target = require("aero.buffers").code_win() or state.target
 	if target and api.nvim_win_is_valid(target) and vim.tbl_contains(windows, target) and usable(target) then
 		require("aero.layout").rebalance()
-		return require("aero.middle").attach(target, kind)
+		return require("aero.reader").attach(target, kind)
 	end
 	for _, win in ipairs(windows) do
 		if usable(win) then
 			require("aero.layout").rebalance()
-			return require("aero.middle").attach(win, kind)
+			return require("aero.reader").attach(win, kind)
 		end
 	end
 	local dashboard_open = state.win and api.nvim_win_is_valid(state.win)
@@ -46,7 +46,7 @@ function M.code_window(kind)
 	)
 	vim.wo[win].winfixwidth = false
 	require("aero.layout").rebalance()
-	return require("aero.middle").attach(win, kind)
+	return require("aero.reader").attach(win, kind)
 end
 
 function M.enter_worktree(path)

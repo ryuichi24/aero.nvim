@@ -11,7 +11,7 @@ function M.setup(opts)
 	require("aero.dashboard").setup_highlights()
 	require("aero.dashboard").set_keymaps()
 	require("aero.layout").setup()
-	require("aero.middle").setup()
+	require("aero.reader").setup()
 	require("aero.quote").setup()
 	require("aero.mermaid").setup()
 
@@ -122,6 +122,17 @@ end
 function M.panel()
 	ensure()
 	require("aero.panel").toggle()
+end
+
+--- Select a reader slot or display mode; nil toggles tabs/panes.
+---@param action? "source"|"exports"|"references"|"reports"|"tabs"|"panes"
+function M.reader(action)
+	ensure()
+	local reader = require("aero.reader")
+	if vim.tbl_contains({ "source", "exports", "references", "reports" }, action) then
+		return reader.select(action)
+	end
+	return reader.mode(action)
 end
 
 --- Toggle fullscreen for the focused pane, including the code window.
