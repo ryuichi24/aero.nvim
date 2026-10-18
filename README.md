@@ -93,13 +93,13 @@ Use `:Aero term` for a worktree-specific shell that keeps running when hidden.
 
 [Worktree tabs, buffers, and terminals](docs/workspaces.md#worktree-tabs-and-remembered-buffers)
 
-### Middle-panel reading tabs
+### Reader panel
 
 Keep source files, exported logs, references, and reports in independent reading
-slots. Switch between tabs or show opened slots together in panes with `:Aero middle`.
+slots. Switch between tabs or show opened slots together in panes with `:Aero reader`.
 Press `e` on a worktree to browse source files with Oil or Neovim's directory browser.
 
-[Reading tabs, source browsing, and panes mode](docs/layout.md#middle-panel-reading-tabs)
+[Reading tabs, source browsing, and panes mode](docs/layout.md#reader-panel)
 
 ### Agent panels and navigation
 

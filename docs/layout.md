@@ -4,9 +4,9 @@ Arrange code, agents, prompts, and shells while keeping their buffers and proces
 
 [Back to README](../README.md)
 
-## Middle-panel reading tabs
+## Reader panel
 
-Within each worktree, the middle panel has independent **Source**, **Exported logs**,
+Within each worktree, the reader panel has independent **Source**, **Exported logs**,
 **References**, and **Reports** reading slots. Opening a report, exported log, or
 reference from the dashboard selects its slot without replacing the source buffer.
 Each slot keeps its buffer and reading position when switching.
@@ -20,27 +20,61 @@ exported log still opens that document in its own slot.
 
 Use Ctrl-Enter or Ctrl-click on a worktree to resume its last source buffer instead
 of reopening the root directory. To return to the current source reader, click
-**Source** or run `:Aero middle source`.
+**Source** or run `:Aero reader source`.
 
 ### Switching reading slots
 
-Click a slot in the middle panel's window bar, or use:
+Click a slot in the reader panel's window bar, or use:
 
 | Command | Reading slot |
 | --- | --- |
-| `:Aero middle source` | Source |
-| `:Aero middle exports` | Exported logs |
-| `:Aero middle references` | References |
-| `:Aero middle reports` | Reports |
+| `:Aero reader source` | Source |
+| `:Aero reader exports` | Exported logs |
+| `:Aero reader references` | References |
+| `:Aero reader reports` | Reports |
 
-These slots are local to the middle panel; they do not create Neovim tabpages.
+These slots are local to the reader panel; they do not create Neovim tabpages.
 `gt` and `gT` switch Neovim tabpages rather than reading slots.
+
+For custom keymaps, call the public Lua function directly:
+
+```lua
+local aero = require("aero")
+
+vim.keymap.set("n", "<leader>rs", function()
+	aero.reader("source")
+end, { desc = "Reader: Source" })
+
+vim.keymap.set("n", "<leader>re", function()
+	aero.reader("exports")
+end, { desc = "Reader: Exported logs" })
+
+vim.keymap.set("n", "<leader>rf", function()
+	aero.reader("references")
+end, { desc = "Reader: References" })
+
+vim.keymap.set("n", "<leader>rr", function()
+	aero.reader("reports")
+end, { desc = "Reader: Reports" })
+
+vim.keymap.set("n", "<leader>rm", function()
+	aero.reader()
+end, { desc = "Reader: Toggle tabs/panes" })
+
+vim.keymap.set("n", "<leader>rt", function()
+	aero.reader("tabs")
+end, { desc = "Reader: Tabs mode" })
+
+vim.keymap.set("n", "<leader>rp", function()
+	aero.reader("panes")
+end, { desc = "Reader: Panes mode" })
+```
 
 ### Tabs and panes modes
 
-Click the `tabs ⇄` / `panes ⇄` control, or run `:Aero middle` to toggle the display.
-`:Aero middle panes` shows opened slots in stacked middle-panel splits;
-`:Aero middle tabs` returns to one reading window. Buffers, including unsaved edits,
+Click the `tabs ⇄` / `panes ⇄` control, or run `:Aero reader` to toggle the display.
+`:Aero reader panes` shows opened slots in stacked reader-panel splits;
+`:Aero reader tabs` returns to one reading window. Buffers, including unsaved edits,
 are retained in either mode.
 
 Use `<C-w>w` or `<C-w>p` to navigate between panes. Aero's default resize mappings
