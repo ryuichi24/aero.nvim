@@ -12,7 +12,7 @@ function M.set_dashboard(context)
 	dashboard = context
 end
 
-function M.code_window()
+function M.code_window(kind)
 	local state = dashboard.state
 	if config.options.dashboard.position == "current" then
 		return state.win
@@ -27,12 +27,12 @@ function M.code_window()
 	local target = require("aero.buffers").code_win() or state.target
 	if target and api.nvim_win_is_valid(target) and vim.tbl_contains(windows, target) and usable(target) then
 		require("aero.layout").rebalance()
-		return target
+		return require("aero.middle").attach(target, kind)
 	end
 	for _, win in ipairs(windows) do
 		if usable(win) then
 			require("aero.layout").rebalance()
-			return win
+			return require("aero.middle").attach(win, kind)
 		end
 	end
 	local dashboard_open = state.win and api.nvim_win_is_valid(state.win)
@@ -46,7 +46,7 @@ function M.code_window()
 	)
 	vim.wo[win].winfixwidth = false
 	require("aero.layout").rebalance()
-	return win
+	return require("aero.middle").attach(win, kind)
 end
 
 function M.enter_worktree(path)

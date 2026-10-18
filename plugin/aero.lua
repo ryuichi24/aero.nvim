@@ -4,6 +4,14 @@ end
 vim.g.loaded_Aero = true
 
 local subcommands = {
+	middle = function(args)
+		local middle = require("aero.middle")
+		if vim.tbl_contains({ "source", "exports", "references", "reports" }, args[1]) then
+			middle.select(args[1])
+		else
+			middle.mode(args[1])
+		end
+	end,
 	review = function(args)
 		if #args > 1 then
 			vim.notify("Aero: use :Aero review [base-ref]", vim.log.levels.WARN)
@@ -137,6 +145,11 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "middle" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(s)
+				return vim.startswith(s, arglead)
+			end, { "tabs", "panes", "source", "exports", "references", "reports" })
+		end
 		if words[2] == "prompt" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
 			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "send" })

@@ -201,3 +201,25 @@ host tools, `make check-all` to verify them, and `make release` to package binar
 ## License
 
 Licensed under the [MIT License](LICENSE).
+
+## Middle-panel reading tabs
+
+Within each worktree, the middle panel has independent **Source**, **Exported logs**,
+**References**, and **Reports** reading slots. Opening a report, exported log, or
+reference from the dashboard selects its slot without replacing the source buffer.
+Each slot keeps its buffer and reading position when switching.
+
+Click a slot in the middle panel's window bar, or use:
+
+```vim
+:Aero middle source
+:Aero middle exports
+:Aero middle references
+:Aero middle reports
+```
+
+Click the `tabs ⇄` / `panes ⇄` control, or run `:Aero middle` to toggle the display.
+`:Aero middle panes` shows opened slots in stacked middle-panel splits;
+`:Aero middle tabs` returns to one reading window. Buffers, including unsaved edits,
+are retained in either mode. In panes mode, use normal window navigation (`<C-w>j`
+and `<C-w>k`) to move between readers. These controls do not create Neovim tabpages.

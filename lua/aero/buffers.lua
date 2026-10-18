@@ -15,6 +15,9 @@ local function usable(win)
 		return false
 	end
 	local buf = api.nvim_win_get_buf(win)
+	if vim.w[win].aero_middle_kind and vim.w[win].aero_middle_kind ~= "source" then
+		return false
+	end
 	local b, bo = vim.b[buf], vim.bo[buf]
 	if b.aero_session or b.aero_chat_key or b.aero_term or bo.filetype == "Aero" then
 		return false

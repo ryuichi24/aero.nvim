@@ -11,6 +11,7 @@ function M.setup(opts)
 	require("aero.dashboard").setup_highlights()
 	require("aero.dashboard").set_keymaps()
 	require("aero.layout").setup()
+	require("aero.middle").setup()
 	require("aero.quote").setup()
 	require("aero.mermaid").setup()
 

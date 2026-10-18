@@ -718,7 +718,8 @@ local function open_report(item, how)
 	if not enter_worktree(item.wt.path) then
 		return
 	end
-	local win = target_win()
+	local kind = item.kind == "export" and "exports" or item.kind == "reference_item" and "references" or "reports"
+	local win = navigation.code_window(kind)
 	api.nvim_set_current_win(win)
 	if how and how ~= "default" then
 		vim.cmd(({ vsplit = "vsplit", split = "split", tab = "tab split" })[how])
