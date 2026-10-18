@@ -153,6 +153,12 @@ function M.prompt(action)
 	require("aero.panel").prompt()
 end
 
+--- Append the focused source file's absolute path to the current agent's draft.
+function M.file()
+	ensure()
+	return require("aero.commands").file()
+end
+
 --- Review the viewed ACP session's prompts and jump to one in its transcript.
 function M.prompts()
 	ensure()

@@ -9,6 +9,27 @@ local function notify(message, level)
 	vim.notify("Aero: " .. message, level or vim.log.levels.INFO)
 end
 
+function M.file()
+	local buf = vim.api.nvim_get_current_buf()
+	local path = vim.api.nvim_buf_get_name(buf)
+	if vim.bo[buf].buftype ~= "" or path == "" or vim.fn.isdirectory(path) == 1 then
+		notify("focus a named source file buffer first", vim.log.levels.WARN)
+		return
+	end
+	local selected = target.resolve("viewed")
+	if not selected then
+		notify("select an agent session in the dashboard or focus its panel first", vim.log.levels.WARN)
+		return
+	end
+	local text = path:find("%s") and vim.json.encode(path) or path
+	local ok, err = require("aero.compose").append(selected, text)
+	if not ok then
+		notify(err, vim.log.levels.WARN)
+		return
+	end
+	return selected
+end
+
 function M.send_prompt()
 	local selected = target.resolve("viewed")
 	if not selected or not selected.chat then

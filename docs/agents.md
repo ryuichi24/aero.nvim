@@ -163,6 +163,26 @@ panel session, even if hidden. `/cancel` also works. Cancellation discards queue
 prompts and pending permissions while retaining the conversation; continue after
 the agent acknowledges cancellation.
 
+## Add the current source file
+
+Run `:Aero file` while focused on a named source file to append its absolute path
+to the current tab's panel session's draft and open the composer without submitting.
+Existing draft text is preserved, and paths containing whitespace are quoted.
+Terminal agents receive the path as bracketed paste. An unnamed or special buffer
+reports a message instead.
+
+Create your own mapping (no default key is assigned):
+
+```lua
+vim.keymap.set("n", "<leader>af", function()
+  require("aero").file()
+end, {
+  desc = "Aero: add current file to agent prompt",
+})
+```
+
+The same action is available as `require("aero").file()`.
+
 ## Prompt snippets
 
 Type `/prompt` in the ACP composer to choose a custom prompt from a searchable

@@ -76,6 +76,9 @@ local subcommands = {
 		end
 		require("aero").prompt(args[1])
 	end,
+	file = function()
+		require("aero").file()
+	end,
 	prompts = function()
 		require("aero").prompts()
 	end,
