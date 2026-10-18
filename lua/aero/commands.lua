@@ -22,7 +22,9 @@ function M.file()
 		return
 	end
 	local text = path:find("%s") and vim.json.encode(path) or path
-	local ok, err = require("aero.compose").append(selected, text)
+	-- A leading absolute path can be consumed as an unknown slash command by
+	-- the agent instead of starting a model turn.
+	local ok, err = require("aero.compose").append(selected, "File: " .. text)
 	if not ok then
 		notify(err, vim.log.levels.WARN)
 		return
