@@ -213,6 +213,8 @@ To open a source file, select a worktree in the sidebar and press `e`. This open
 the worktree root in the **Source** slot using Oil when installed, or Neovim's
 directory browser otherwise. Select a file there to read or edit it. Pressing `e`
 on a report or exported log still opens that document in its own slot.
+Use Ctrl-Enter or Ctrl-click on a worktree to resume its last source buffer instead
+of reopening the root directory.
 
 Click a slot in the middle panel's window bar, or use:
 

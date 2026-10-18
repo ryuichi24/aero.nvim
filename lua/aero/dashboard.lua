@@ -1249,7 +1249,7 @@ function M.open_worktree(dir, opener)
 	return navigation.open_worktree(dir, opener)
 end
 
-function actions.edit()
+function actions.edit(restore)
 	local item = current_item()
 	if item and item.kind == "board" then
 		api.nvim_set_current_win(M.code_window())
@@ -1267,7 +1267,11 @@ function actions.edit()
 	end
 	local dir = item_dir(current_item())
 	if dir then
-		navigation.browse_worktree(dir)
+		if restore then
+			M.open_worktree(dir)
+		else
+			navigation.browse_worktree(dir)
+		end
 	end
 end
 
@@ -1293,7 +1297,7 @@ function M.open_board_markdown()
 end
 
 function actions.edit_enter()
-	actions.edit()
+	actions.edit(true)
 end
 
 function actions.edit_mouse()
@@ -1311,7 +1315,7 @@ function actions.edit_mouse()
 	api.nvim_set_current_win(mouse.winid)
 	state.win = mouse.winid
 	api.nvim_win_set_cursor(mouse.winid, { mouse.line, 0 })
-	actions.edit()
+	actions.edit(true)
 end
 
 function actions.terminal()
