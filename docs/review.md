@@ -17,6 +17,14 @@ project-relative folders, with directories first and names sorted alphabetically
 Folders start expanded; their collapse state and the selected entry are retained
 when you refresh.
 
+Press `D` in the folder tree to toggle between the diff and the full file with its
+language's syntax highlighting. Code view shows the index version for staged
+entries, the captured HEAD for branch entries, and disk contents for unstaged and
+untracked entries. Deleted files show the pre-deletion version. The mode persists
+while browsing and refreshing. Binary files and files larger than 1 MiB have no
+code preview. Tree-sitter highlighting is used when a parser is available, with
+regular syntax highlighting as a fallback.
+
 Local review labels **staged**, **unstaged**, and **untracked** entries separately.
 A file changed both in the index and on disk has two adjacent entries in the same
 folder. Renames appear at their destination with their original path shown;
@@ -61,17 +69,45 @@ Aero does not silently choose a different base. Press `L` to return to local rev
 | `h` in folder tree | Collapse an expanded folder, or move to the parent folder |
 | `l` in folder tree | Expand a folder, enter its first child, or focus a file's diff |
 | `<Tab>` | Switch between folder tree and diff |
+| `D` in folder tree | Toggle diff / syntax-highlighted full code |
 | `gf` | Open the file in its worktree's code pane; jump to the diff's new-file line when available |
 | `a` in diff | Append the cursor's hunk to an agent draft; above the first hunk, quote the full diff |
 | Visual `a` | Append exactly the selected diff text to an agent draft |
 | Visual `<leader>aq` | Same selection action, using configured `quote_key` |
-| `R` | Refresh the folder tree and selected diff |
-| `b` | Choose a branch base ref |
-| `L` | Return to staged/unstaged/untracked local changes |
+| `R` in folder tree | Refresh the folder tree and selected diff |
+| `b` in folder tree | Choose a branch base ref |
+| `L` in folder tree | Return to staged/unstaged/untracked local changes |
 | `q` / `<Esc>` | Close the review |
 
 The review requires at least 50 columns and 14 lines. It resizes with Neovim and
 closes if the editor becomes too small.
+
+Review controls `b`, `L`, `R`, and `D` are only mapped in the folder tree, leaving
+their normal Vim behavior available in the diff/code panel. Press `<Tab>` to
+return to the tree to use these controls.
+
+### Custom keymaps
+
+These commands control the currently open review from either pane:
+
+| Command | Action |
+| --- | --- |
+| `:Aero review diff` | Toggle diff / syntax-highlighted full code |
+| `:Aero review refresh` | Refresh changes |
+| `:Aero review base` | Choose a branch base ref |
+| `:Aero review local` | Return to local changes |
+
+For example, configure your own leader mappings:
+
+```lua
+vim.keymap.set("n", "<leader>rd", "<cmd>Aero review diff<CR>", { desc = "Review: toggle diff/code" })
+vim.keymap.set("n", "<leader>rr", "<cmd>Aero review refresh<CR>", { desc = "Review: refresh" })
+vim.keymap.set("n", "<leader>rb", "<cmd>Aero review base<CR>", { desc = "Review: choose base" })
+vim.keymap.set("n", "<leader>rl", "<cmd>Aero review local<CR>", { desc = "Review: local changes" })
+```
+
+Open a review with `:Aero review` first. These action names are reserved in the
+command; to review a branch named `diff`, for example, use `:Aero review refs/heads/diff`.
 
 ## Draft feedback
 
@@ -79,6 +115,9 @@ Open the diff, move to a hunk, and press `a`, or select a range and use Visual `
 The feedback includes the worktree, file and old rename path when applicable,
 comparison, refresh time, and a fenced diff. A `Feedback:` line is ready for your
 comments. Existing draft text is preserved.
+
+In code view, `a` quotes the full file and Visual `a` quotes the selected code,
+using a fence labeled with the file's language. `gf` opens the cursor's code line.
 
 Aero prefers the session selected when review opened if it belongs to the reviewed
 worktree. Otherwise it uses that worktree's only session, or asks you to choose
