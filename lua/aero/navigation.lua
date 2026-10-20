@@ -61,13 +61,9 @@ function M.enter_worktree(path)
 		buffers.restore(path, M.code_window())
 		return true
 	end
-	local had_dashboard = dashboard.is_open and dashboard.is_open() and config.options.dashboard.position ~= "current"
 	local created = tabs.enter(path)
 	if created == nil then
 		return false
-	end
-	if created and had_dashboard then
-		dashboard.open()
 	end
 	return true
 end
