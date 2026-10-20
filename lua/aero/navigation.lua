@@ -51,6 +51,8 @@ end
 
 function M.enter_worktree(path, opts)
 	opts = opts or {}
+	local reader = require("aero.reader")
+	reader.remember()
 	if not tabs.enabled() then
 		if not tabs.available(path) then
 			return false
@@ -59,7 +61,11 @@ function M.enter_worktree(path, opts)
 		buffers.remember()
 		vim.t.aero_worktree = path
 		vim.cmd.tcd(vim.fn.fnameescape(path))
-		buffers.restore(path, M.code_window())
+		local kind = reader.active()
+		local win = M.code_window(kind)
+		if kind == "source" then
+			buffers.restore(path, win)
+		end
 		return true
 	end
 	local had_dashboard = opts.browse and dashboard.is_open and dashboard.is_open()
@@ -116,13 +122,14 @@ function M.open_worktree(path, opener, opts)
 	if not M.enter_worktree(path, opts) then
 		return
 	end
-	local win = M.code_window()
+	local kind = opener and "source" or require("aero.reader").active()
+	local win = M.code_window(kind)
 	api.nvim_set_current_win(win)
 	dashboard.state.target = win
 	if opener then
 		opener(path)
 		require("aero.buffers").remember(win)
-	else
+	elseif kind == "source" then
 		require("aero.buffers").restore(path, win)
 	end
 	return win

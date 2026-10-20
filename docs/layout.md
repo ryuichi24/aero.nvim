@@ -9,7 +9,9 @@ Arrange code, agents, prompts, and shells while keeping their buffers and proces
 Within each worktree, the reader panel has independent **Source**, **Exported logs**,
 **References**, and **Reports** reading slots. Opening a report, exported log, or
 reference from the dashboard selects its slot without replacing the source buffer.
-Each slot keeps its buffer and reading position when switching.
+Each slot keeps its buffer and reading position when switching. Returning to a
+worktree through search restores its last selected reading slot, including its
+buffer and reading position, within the current Neovim session.
 
 ### Opening source files
 
@@ -18,8 +20,8 @@ Select a worktree in the sidebar and press `e` to open its root directory in the
 otherwise. Select a file there to read or edit it. Pressing `e` on a report or
 exported log still opens that document in its own slot.
 
-Use Ctrl-Enter or Ctrl-click on a worktree to resume its last source buffer instead
-of reopening the root directory. To return to the current source reader, click
+Use Ctrl-Enter or Ctrl-click on a worktree to resume its last selected reading slot
+instead of reopening the root directory. To return to the current source reader, click
 **Source** or run `:Aero reader source`.
 
 ### Switching reading slots

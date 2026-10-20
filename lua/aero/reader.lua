@@ -40,6 +40,16 @@ local function show(slot, win)
 	end
 end
 
+function M.active()
+	return state().active
+end
+
+function M.remember()
+	for _, slot in pairs(state().slots) do
+		save(slot)
+	end
+end
+
 local function render(s)
 	for kind, slot in pairs(s.slots) do
 		if valid(slot.win) then
