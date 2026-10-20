@@ -100,6 +100,25 @@ chat:render()
 wait(function() return text():find("extra detail", 1, true) end)
 assert(marks()[1][1] == first_mark, "streaming rebuilt decorations for the unchanged transcript prefix")
 
+-- Following the tail stays bottom-aligned while focused, including edits above it.
+local log_win = api.nvim_get_current_win()
+vim.wo[log_win].scrolloff = 5
+api.nvim_win_set_cursor(log_win, { api.nvim_buf_line_count(s.buf), 0 })
+vim.cmd("normal! zb")
+vim.cmd("redraw")
+local tail_row = vim.fn.winline()
+-- The cursor can remain on the tail even when the viewport has shifted.
+vim.cmd("normal! zt")
+for i = 1, 4 do
+	chat.blocks[#chat.blocks].text = chat.blocks[#chat.blocks].text .. "\nstreamed detail " .. i
+	chat:render()
+	wait(function()
+		return text():find("streamed detail " .. i, 1, true)
+	end)
+	vim.cmd("redraw")
+	assert(vim.fn.winline() == tail_row, "focused transcript tail moved away from the bottom")
+end
+
 -- Permission options still map to the right lines and remain actionable.
 local outcome
 chat:on_request("session/request_permission", {

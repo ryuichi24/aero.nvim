@@ -185,7 +185,12 @@ function M.render(chat)
 		chat.lines = new
 		renderer.decorate(buf, new, chat.render_marks, first)
 		for _, win in ipairs(follow) do
-			api.nvim_win_set_cursor(win, { #new, 0 })
+			api.nvim_win_call(win, function()
+				api.nvim_win_set_cursor(win, { #new, 0 })
+				-- Edits above the tail can shift the focused window's viewport.
+				-- Keep following bottom-aligned rather than relying on cursor scrolling.
+				vim.cmd("normal! zb")
+			end)
 		end
 		chat:decorate_options()
 		if chat.pending_focus then
@@ -241,7 +246,10 @@ function M.setup(chat)
 	api.nvim_create_autocmd("BufWinEnter", {
 		buffer = buf,
 		callback = function()
-			options.apply(api.nvim_get_current_win(), vim.tbl_extend("force", options.transcript, options.line_numbers("transcript")))
+			options.apply(
+				api.nvim_get_current_win(),
+				vim.tbl_extend("force", options.transcript, options.line_numbers("transcript"))
+			)
 		end,
 	})
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
