@@ -745,7 +745,7 @@ end
 local actions = {}
 
 local function open_report(item, how)
-	if not enter_worktree(item.wt.path) then
+	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
 		return
 	end
 	local kind = item.kind == "export" and "exports" or item.kind == "reference_item" and "references" or "reports"
