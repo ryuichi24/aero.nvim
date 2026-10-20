@@ -285,8 +285,10 @@ vim.fn.writefile({ "api base" }, repo .. "/src/api/shared.lua")
 vim.fn.writefile({ "ui base" }, repo .. "/src/ui/shared.lua")
 vim.fn.writefile({ "rename me" }, repo .. "/src/api/original.lua")
 vim.fn.writefile({ "delete me" }, repo .. "/docs/deleted.md")
+vim.fn.writefile({ "delete first", "keep1", "old", "keep2", "delete middle", "keep3", "keep4", "delete last" }, repo .. "/src/signs.lua")
 git({ "-C", repo, "add", "src", "docs" })
 git({ "-C", repo, "commit", "-m", "nested review fixture" })
+vim.fn.writefile({ "keep1", "new", "keep2", "keep3", "insert", "keep4" }, repo .. "/src/signs.lua")
 vim.fn.writefile({ "api staged" }, repo .. "/src/api/shared.lua")
 git({ "-C", repo, "add", "src/api/shared.lua" })
 vim.fn.writefile({ "api working" }, repo .. "/src/api/shared.lua")
@@ -340,6 +342,39 @@ for _, case in ipairs({
 end
 local added_label, added_hl = require("aero.review.tree").status({ kind = "staged", status = "A" })
 assert(added_label == "Added" and added_hl == "AeroReviewAdd")
+
+local signs_ns = api.nvim_create_namespace("Aero.review.signs")
+local function code_signs()
+	local result = {}
+	for _, mark in ipairs(api.nvim_buf_get_extmarks(view.diff_buf, signs_ns, 0, -1, { details = true })) do
+		result[mark[2] + 1] = { vim.trim(mark[4].sign_text), mark[4].sign_hl_group }
+		assert(not mark[4].hl_group, "gutter signs should preserve code syntax colors")
+	end
+	return result
+end
+choose("src/signs.lua", "unstaged")
+assert(vim.wait(5000, function() return view.output and view.content end, 10))
+list_key("D")
+assert(vim.wo[view.diff_win].number and vim.wo[view.diff_win].signcolumn == "yes:1")
+assert(
+	vim.deep_equal(code_signs(), {
+		[1] = { "_", "AeroReviewDelete" },
+		[2] = { "~", "AeroReviewChange" },
+		[3] = { "_", "AeroReviewDelete" },
+		[5] = { "+", "AeroReviewAdd" },
+		[6] = { "_", "AeroReviewDelete" },
+	}),
+	vim.inspect(code_signs())
+)
+choose("docs/deleted.md", "unstaged")
+assert(vim.wait(5000, function() return view.output and view.content end, 10))
+assert(vim.deep_equal(code_signs(), { [1] = { "_", "AeroReviewDelete" } }))
+choose("src/new/helpers/new.lua", "untracked")
+assert(vim.wait(5000, function() return view.output and view.content end, 10))
+assert(vim.deep_equal(code_signs(), { [1] = { "+", "AeroReviewAdd" } }))
+list_key("D")
+assert(not vim.wo[view.diff_win].number and vim.wo[view.diff_win].signcolumn == "no")
+assert(next(code_signs()) == nil, "code signs remained in diff view")
 
 choose("src/api/shared.lua", "staged")
 assert(vim.wait(5000, function() return view.output and view.output:find("+api staged", 1, true) end, 10))

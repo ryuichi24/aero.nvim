@@ -25,6 +25,12 @@ while browsing and refreshing. Binary files and files larger than 1 MiB have no
 code preview. Tree-sitter highlighting is used when a parser is available, with
 regular syntax highlighting as a fallback.
 
+Code view includes line numbers and colored signs to their left: green `+` for
+added lines, yellow `~` for modified lines, and red `_` at the nearest surviving
+line for deletions. Deleted-file previews mark the old lines in red. Signs use
+the same `AeroReviewAdd`, `AeroReviewChange`, and `AeroReviewDelete` highlight
+groups as the review tree and diff.
+
 Local review labels **staged**, **unstaged**, and **untracked** entries separately.
 A file changed both in the index and on disk has two adjacent entries in the same
 folder. Renames appear at their destination with their original path shown;

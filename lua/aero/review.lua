@@ -6,6 +6,7 @@ local M = {}
 local active
 local diff_namespace = api.nvim_create_namespace("Aero.review.diff")
 local list_namespace = api.nvim_create_namespace("Aero.review.status")
+local signs_namespace = api.nvim_create_namespace("Aero.review.signs")
 
 function M.quote()
 	if active and not active.closed and api.nvim_get_current_buf() == active.diff_buf then
@@ -43,6 +44,7 @@ local function put(buf, lines)
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false
 	api.nvim_buf_clear_namespace(buf, diff_namespace, 0, -1)
+	api.nvim_buf_clear_namespace(buf, signs_namespace, 0, -1)
 	if vim.bo[buf].filetype == "diff" then
 		local in_hunk = false
 		for i, line in ipairs(lines) do
@@ -192,6 +194,12 @@ function M.open(path, base)
 		if #lines == 0 then lines = { "" } end
 		if not view.code_mode and view.truncated then table.insert(lines, "[Diff truncated at 1 MiB]") end
 		put(view.diff_buf, lines)
+		vim.wo[view.diff_win].number = view.code_mode == true
+		vim.wo[view.diff_win].relativenumber = false
+		vim.wo[view.diff_win].signcolumn = view.code_mode and "yes:1" or "no"
+		if view.code_mode and view.content then
+			require("aero.review.signs").render(view.diff_buf, signs_namespace, view.output, view.item.status:sub(1, 1) == "D")
+		end
 		if view.code_mode and view.content then pcall(vim.treesitter.start, view.diff_buf) end
 		api.nvim_win_set_config(view.diff_win, { footer = " " .. (view.code_mode and "Code" or "Diff") .. " · Tab tree/controls · gf file · a quote " })
 	end
