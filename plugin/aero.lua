@@ -34,6 +34,7 @@ local subcommands = {
 	end,
 	pull = function() require("aero").pull() end,
 	pick = function() require("aero").pick() end,
+	new = function() require("aero").new() end,
 	sessions = function() require("aero").sessions() end,
 	inbox = function() require("aero").inbox() end,
 	todos = function() require("aero.acp.todo_notifications").focus() end,

@@ -88,6 +88,11 @@ function M.pick()
 	ensure().pick()
 end
 
+--- Choose an agent and start a new session in the current worktree.
+function M.new()
+	ensure().new()
+end
+
 --- Search active sessions across worktrees in a live popup.
 function M.sessions()
 	ensure()

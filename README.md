@@ -110,6 +110,9 @@ Keep agents beside your code, monitor their activity, and expand any pane with
 `:Aero fullscreen`. Search active agents with `:Aero sessions`, review submitted
 prompts with `:Aero prompts`, and find permissions or completed turns in `:Aero inbox`.
 Use `:Aero worktrees` and `:Aero workspaces` to jump between checkouts.
+Run `:Aero new` to choose an agent and start a session in the current worktree
+without opening the sidebar. Map it with
+`vim.keymap.set("n", "<leader>an", function() require("aero").new() end, { desc = "New agent session" })`.
 
 [Panels, resizing, and fullscreen](docs/layout.md) · [Search and attention inbox](docs/workspaces.md#commands)
 

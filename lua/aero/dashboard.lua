@@ -586,12 +586,12 @@ local function start_agent(item, agent)
 	end)
 end
 
-local function choose_agent(item)
+local function choose_agent(item, label)
 	local names = vim.tbl_keys(config.options.agents)
 	table.sort(names)
 	table.insert(names, 1, "default")
 	vim.ui.select(names, {
-		prompt = "New agent for " .. wt_label(item.wt),
+		prompt = "New agent for " .. (label or wt_label(item.wt)),
 		format_item = function(name)
 			return name == "default" and ("default (" .. config.options.default_agent .. ")") or name
 		end,
@@ -603,6 +603,12 @@ local function choose_agent(item)
 			start_agent(item, choice)
 		end
 	end)
+end
+
+--- Choose an agent without requiring a sidebar selection.
+function M.new()
+	local path = vim.t.aero_worktree or vim.fn.getcwd()
+	choose_agent({ wt = { path = path } }, vim.fn.fnamemodify(path, ":~"))
 end
 
 function M.add_workspace(path)
