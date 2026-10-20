@@ -49,7 +49,8 @@ function M.code_window(kind)
 	return require("aero.reader").attach(win, kind)
 end
 
-function M.enter_worktree(path)
+function M.enter_worktree(path, opts)
+	opts = opts or {}
 	if not tabs.enabled() then
 		if not tabs.available(path) then
 			return false
@@ -61,9 +62,28 @@ function M.enter_worktree(path)
 		buffers.restore(path, M.code_window())
 		return true
 	end
+	local had_dashboard = opts.browse and dashboard.is_open and dashboard.is_open()
+	if
+		had_dashboard
+		and not vim.t.aero_worktree
+		and not vim.t.aero_fullscreen
+		and not vim.t.aero_board_path
+		and not vim.t.aero_removed_workspace
+		and not tabs.find(path)
+	then
+		if not tabs.available(path) then
+			return false
+		end
+		-- Browsing from the sidebar should claim the initial editor tab, even when
+		-- it contains a startup buffer or already has an agent panel alongside it.
+		vim.t.aero_worktree = path
+	end
 	local created = tabs.enter(path)
 	if created == nil then
 		return false
+	end
+	if had_dashboard and config.options.dashboard.position ~= "current" and not dashboard.is_open() then
+		dashboard.open()
 	end
 	return true
 end
@@ -92,8 +112,8 @@ function M.open_session(selected, how)
 	end
 end
 
-function M.open_worktree(path, opener)
-	if not M.enter_worktree(path) then
+function M.open_worktree(path, opener, opts)
+	if not M.enter_worktree(path, opts) then
 		return
 	end
 	local win = M.code_window()
@@ -117,7 +137,7 @@ function M.browse_worktree(path)
 		else
 			vim.cmd("keepalt hide edit " .. vim.fn.fnameescape(root))
 		end
-	end)
+	end, { browse = true })
 end
 
 return M
