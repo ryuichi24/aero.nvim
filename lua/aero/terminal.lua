@@ -11,14 +11,10 @@ local api = vim.api
 local bufs = {}
 
 --- The worktree the current tab works on.
-function M.current_worktree()
-	return vim.t.aero_worktree or vim.fn.getcwd()
-end
+function M.current_worktree() return vim.t.aero_worktree or vim.fn.getcwd() end
 
 local function alive(buf)
-	if not (buf and api.nvim_buf_is_valid(buf)) then
-		return false
-	end
+	if not (buf and api.nvim_buf_is_valid(buf)) then return false end
 	local job = vim.b[buf].terminal_job_id
 	return job ~= nil and vim.fn.jobwait({ job }, 0)[1] == -1
 end
@@ -26,15 +22,11 @@ end
 --- This tab's terminal window, if one is shown.
 function M.win()
 	for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do
-		if vim.b[api.nvim_win_get_buf(w)].aero_term then
-			return w
-		end
+		if vim.b[api.nvim_win_get_buf(w)].aero_term then return w end
 	end
 end
 
-function M.is_term_win(win)
-	return vim.b[api.nvim_win_get_buf(win)].aero_term ~= nil
-end
+function M.is_term_win(win) return vim.b[api.nvim_win_get_buf(win)].aero_term ~= nil end
 
 --- Show the worktree's terminal below `code_win` (starting a shell if needed) and focus it.
 function M.open(worktree, code_win)
@@ -47,9 +39,7 @@ function M.open(worktree, code_win)
 	end
 	local fresh = not alive(buf)
 	if fresh then
-		if buf and api.nvim_buf_is_valid(buf) then
-			api.nvim_buf_delete(buf, { force = true })
-		end
+		if buf and api.nvim_buf_is_valid(buf) then api.nvim_buf_delete(buf, { force = true }) end
 		buf = api.nvim_create_buf(false, true)
 		bufs[worktree] = buf
 	end
@@ -57,7 +47,11 @@ function M.open(worktree, code_win)
 		-- another worktree's terminal is showing: reuse its window
 		api.nvim_win_set_buf(win, buf)
 	else
-		win = api.nvim_open_win(buf, false, { split = "below", win = code_win, height = layout.terminal_height(worktree) })
+		win = api.nvim_open_win(
+			buf,
+			false,
+			{ split = "below", win = code_win, height = layout.terminal_height(worktree) }
+		)
 	end
 	vim.wo[win].winfixheight = true
 	vim.wo[win].number = false
@@ -65,7 +59,9 @@ function M.open(worktree, code_win)
 	vim.wo[win].signcolumn = "no"
 	api.nvim_set_current_win(win)
 	if fresh then
-		vim.fn.jobstart(config.options.terminal.cmd or { vim.o.shell }, { term = true, cwd = worktree })
+		local cmd, env =
+			require("aero.terminal_history").prepare(worktree, config.options.terminal.cmd or { vim.o.shell })
+		vim.fn.jobstart(cmd, { term = true, cwd = worktree, env = env })
 		vim.bo[buf].bufhidden = "hide"
 		vim.b[buf].aero_term = worktree
 		require("aero.fullscreen").bind(buf)
@@ -78,9 +74,7 @@ end
 
 --- Hide the terminal window in this tab (the shell keeps running).
 function M.hide()
-	if require("aero.fullscreen").close("terminal") then
-		return
-	end
+	if require("aero.fullscreen").close("terminal") then return end
 	local win = M.win()
 	if win and #api.nvim_tabpage_list_wins(0) > 1 then
 		layout.remember(win)
@@ -93,11 +87,60 @@ end
 
 --- Stop and forget the worktree's terminal (e.g. when the worktree is removed).
 function M.delete(worktree)
+	require("aero.terminal_history").delete(worktree)
 	local buf = bufs[worktree]
 	bufs[worktree] = nil
-	if buf and api.nvim_buf_is_valid(buf) then
-		api.nvim_buf_delete(buf, { force = true })
+	if buf and api.nvim_buf_is_valid(buf) then api.nvim_buf_delete(buf, { force = true }) end
+end
+
+--- Pick a command from this worktree's shell and submit it to the same terminal.
+function M.history()
+	local worktree = M.current_worktree()
+	local commands = require("aero.terminal_history").list(worktree)
+	if #commands == 0 then
+		vim.notify("Aero: no terminal commands recorded (requires an interactive Bash or Zsh shell)")
+		return
 	end
+	local items = {}
+	for i = #commands, 1, -1 do
+		items[#items + 1] = commands[i]
+	end
+	vim.ui.select(items, {
+		prompt = "Rerun terminal command:",
+		format_item = function(entry)
+			local status = entry.exit_code == nil and "?" or entry.exit_code == 0 and "✓" or "✗"
+			local cwd = entry.cwd or "unknown directory"
+			if cwd == worktree then
+				cwd = "."
+			elseif vim.startswith(cwd, worktree .. "/") then
+				cwd = cwd:sub(#worktree + 2)
+			end
+			local started = entry.started_at and os.date("%Y-%m-%d %H:%M", math.floor(entry.started_at))
+				or "unknown time"
+			local duration = entry.duration_seconds and string.format("%.2fs", entry.duration_seconds)
+				or "unfinished/unknown"
+			return string.format(
+				"%s %s  [%s · %s · %s]",
+				status,
+				entry.command:gsub("\n", " ↵ "),
+				cwd,
+				started,
+				duration
+			)
+		end,
+	}, function(entry)
+		if not entry then return end
+		local buf = bufs[worktree]
+		if not alive(buf) then
+			vim.notify("Aero: the original terminal has exited", vim.log.levels.WARN)
+			return
+		end
+		M.open(worktree, require("aero.navigation").code_window())
+		local command = entry.command
+		if entry.cwd then command = "cd -- " .. vim.fn.shellescape(entry.cwd) .. " && {\n" .. command .. "\n}" end
+		-- Bracketed paste preserves multiline commands and replaces any unfinished input.
+		api.nvim_chan_send(vim.b[buf].terminal_job_id, "\021\027[200~" .. command .. "\027[201~\r")
+	end)
 end
 
 return M

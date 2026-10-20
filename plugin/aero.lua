@@ -24,7 +24,10 @@ local subcommands = {
 	refresh = function() require("aero").refresh() end,
 	collapse = function(args)
 		if #args > 1 then
-			vim.notify("Aero: use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]", vim.log.levels.WARN)
+			vim.notify(
+				"Aero: use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]",
+				vim.log.levels.WARN
+			)
 			return
 		end
 		require("aero").collapse(args[1])
@@ -75,7 +78,14 @@ local subcommands = {
 		vim.notify("Aero: use :Aero tasks install", vim.log.levels.WARN)
 	end,
 	quote = function(_, opts) require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil) end,
-	term = function() require("aero").terminal() end,
+	term = function(args)
+		if args[1] == "history" and #args == 1 then return require("aero.terminal").history() end
+		if #args > 0 then
+			vim.notify("Aero: use :Aero term [history]", vim.log.levels.WARN)
+			return
+		end
+		require("aero").terminal()
+	end,
 	add = function(args) require("aero").add_workspace(args[1]) end,
 }
 
@@ -94,12 +104,21 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "term" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "history" })
+		end
 		if words[2] == "review" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
-			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "diff", "refresh", "base", "local" })
+			return vim.tbl_filter(
+				function(s) return vim.startswith(s, arglead) end,
+				{ "diff", "refresh", "base", "local" }
+			)
 		end
 		if words[2] == "reader" and (#words > 2 or cmdline:match("%s$")) then
-			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "tabs", "panes", "source", "exports", "references", "reports" })
+			return vim.tbl_filter(
+				function(s) return vim.startswith(s, arglead) end,
+				{ "tabs", "panes", "source", "exports", "references", "reports" }
+			)
 		end
 		if words[2] == "prompt" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
@@ -116,19 +135,29 @@ end, {
 			)
 		end
 		if words[2] == "companion" and (#words > 2 or cmdline:match("%s$")) then
-			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "install", "start", "stop", "pair", "devices", "revoke" })
+			return vim.tbl_filter(
+				function(s) return vim.startswith(s, arglead) end,
+				{ "install", "start", "stop", "pair", "devices", "revoke" }
+			)
 		end
 		if words[2] == "tasks" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "install" })
 		end
-		if words[2] == "board" and (words[3] == "markdown" or words[3] == "work") and (#words > 3 or cmdline:match("%s$")) then
+		if
+			words[2] == "board"
+			and (words[3] == "markdown" or words[3] == "work")
+			and (#words > 3 or cmdline:match("%s$"))
+		then
 			return require("aero.tasks.ui").board_ids(arglead)
 		end
 		if #words >= 2 and (words[2] == "board" or words[2] == "ticket") and (#words > 2 or cmdline:match("%s$")) then
-			local choices = words[2] == "board" and { "new", "markdown", "work" } or { "new", "move", "work", "removed", "recover" }
+			local choices = words[2] == "board" and { "new", "markdown", "work" }
+				or { "new", "move", "work", "removed", "recover" }
 			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, choices)
 		end
-		if #words >= 2 and words[2] == "add" and (#words > 2 or cmdline:match("%s$")) then return vim.fn.getcompletion(arglead, "dir") end
+		if #words >= 2 and words[2] == "add" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.fn.getcompletion(arglead, "dir")
+		end
 		return vim.tbl_filter(function(s) return s:find(arglead, 1, true) == 1 end, vim.tbl_keys(subcommands))
 	end,
 	desc = "Aero: workspaces, worktrees and agent sessions",
