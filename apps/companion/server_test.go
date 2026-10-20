@@ -206,8 +206,18 @@ func scanEvents(response *http.Response) *bufio.Scanner {
 
 func event(t *testing.T, scanner *bufio.Scanner) map[string]any {
 	t.Helper()
+	heartbeat := false
 	for scanner.Scan() {
+		if scanner.Text() == "" {
+			heartbeat = false
+		}
+		if scanner.Text() == "event: heartbeat" {
+			heartbeat = true
+		}
 		if text := scanner.Text(); strings.HasPrefix(text, "data: ") {
+			if heartbeat {
+				continue
+			}
 			var snapshot map[string]any
 			if err := json.Unmarshal([]byte(strings.TrimPrefix(text, "data: ")), &snapshot); err != nil {
 				t.Fatal(err)

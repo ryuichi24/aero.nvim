@@ -33,7 +33,7 @@ func (b *bridge) events(w http.ResponseWriter, r *http.Request, token string) {
 			if _, err := io.WriteString(w, "id: "+id+"\ndata: "+string(encoded)+"\n\n"); err != nil {
 				return
 			}
-		} else if _, err := io.WriteString(w, ": heartbeat\n\n"); err != nil {
+		} else if _, err := io.WriteString(w, "event: heartbeat\ndata: {}\n\n"); err != nil {
 			return
 		}
 		if err := controller.Flush(); err != nil {
