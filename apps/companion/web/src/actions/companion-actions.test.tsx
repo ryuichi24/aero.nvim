@@ -60,7 +60,7 @@ it('targets live permission choices and disables actions during disconnection', 
     option: 'deny',
   });
   connect({ ...initial, connected: false });
-  expect(screen.getByText('Neovim unavailable')).toBeTruthy();
+  expect(screen.getByText('Companion reached · Neovim unavailable · retrying')).toBeTruthy();
   expect((screen.getByRole('button', { name: 'Send prompt' }) as HTMLButtonElement).disabled).toBe(
     true,
   );

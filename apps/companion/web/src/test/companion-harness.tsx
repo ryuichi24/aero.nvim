@@ -8,6 +8,8 @@ export class FakeEvents {
   static instances: FakeEvents[] = [];
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: (() => unknown) | null = null;
+  onopen: (() => void) | null = null;
+  addEventListener = vi.fn();
   close = vi.fn();
   constructor() {
     FakeEvents.instances.push(this);
