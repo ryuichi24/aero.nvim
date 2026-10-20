@@ -7,7 +7,13 @@ local labels = { source = "Source", exports = "Exported logs", references = "Ref
 local changing = false
 
 local function valid(win)
-	return win and api.nvim_win_is_valid(win)
+	return win
+		and api.nvim_win_is_valid(win)
+		and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage()
+		and api.nvim_win_get_config(win).relative == ""
+		and vim.bo[api.nvim_win_get_buf(win)].filetype ~= "Aero"
+		and not require("aero.panel").owns(win)
+		and not require("aero.terminal").is_term_win(win)
 end
 
 local function state()
@@ -152,7 +158,7 @@ function M.setup()
 	api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 		group = group,
 		callback = function()
-			if changing or not vim.t.aero_worktree then
+			if changing or not vim.t.aero_worktree or not valid(api.nvim_get_current_win()) then
 				return
 			end
 			local s, win = state(), api.nvim_get_current_win()
