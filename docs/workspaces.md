@@ -32,6 +32,7 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero review [base-ref]` | Review local changes, or committed changes from an explicit base's merge-base |
 | `:Aero term` | Toggle the current worktree's shell |
+| `:Aero term history` | Pick and rerun a command from the worktree terminal |
 
 Collapse commands apply across registered workspaces, including sections hidden
 under collapsed parents, and preserve your current window focus. The matching Lua
@@ -221,3 +222,37 @@ A successful pull refreshes the dashboard and unmodified open files. Output/erro
 appear in notifications. Pulling does not change tabs or cwd, and duplicate concurrent
 pulls of a worktree are ignored. Divergent branches, missing upstreams, and changes Git
 cannot preserve are reported rather than merged automatically.
+
+## Terminal command history
+
+Use `:Aero term history` to list commands from the current worktree's terminal,
+newest first. Select a command to run it again in that terminal. Leave the shell
+at an idle prompt before rerunning a command. The picker shows success/failure,
+the working directory, start time, and duration. Reruns first change to the
+recorded directory; if that directory no longer exists, the command is not run.
+
+Commands are captured automatically for interactive Bash and Zsh shells launched
+by `:Aero term`, including repeated and multiline commands. Both shells record
+commands when execution begins and record the result when execution finishes.
+Your usual shell
+configuration is loaded. Custom `terminal.cmd` commands with arguments and other
+shells do not support automatic capture.
+
+History is saved separately for each worktree across terminal and Neovim restarts.
+Like reports and exported logs, it lives under Neovim's data directory:
+`stdpath("data")/Aero/workspaces/<workspace>/<worktree>/terminal-history/commands.jsonl`.
+Commands are appended as they are captured, without waiting for Neovim to exit.
+Saved history is available before opening a terminal; open one with `:Aero term`
+to rerun a command. Removing a worktree registration retains its saved history.
+Only temporary shell integration scripts are cleaned up when Neovim exits.
+
+Each JSON line contains `id`, `command`, `cwd`, `started_at` (Unix seconds),
+`exit_code`, and `duration_seconds`. A start record has `null` for the exit code
+and duration; a completion record with the same ID supplies those values. The
+picker combines these records into a single execution. Commands interrupted by
+an abrupt shell or Neovim exit can retain an unknown result. Timing uses
+microsecond-resolution shell clocks where available and whole seconds on older
+Bash versions. Output is not captured.
+
+Existing NUL-separated `commands` files remain readable alongside JSON history.
+Their entries show unknown metadata and rerun in the terminal's current directory.

@@ -90,6 +90,9 @@ an agent's draft for follow-up.
 Each worktree gets a tab with its own working directory, code windows, and agent panel.
 Switching restores the last file or directory and cursor position, including Oil buffers.
 Use `:Aero term` for a worktree-specific shell that keeps running when hidden.
+Use `:Aero term history` to browse and rerun commands recorded in that worktree's
+Bash or Zsh terminal. Command history is saved per worktree across Neovim restarts.
+See command status, start time, and duration, and rerun from the original directory.
 
 [Worktree tabs, buffers, and terminals](docs/workspaces.md#worktree-tabs-and-remembered-buffers)
 
