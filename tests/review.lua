@@ -15,7 +15,9 @@ local function git(args)
 end
 local function await(start)
 	local done, value, err, truncated
-	start(function(v, e, t) done, value, err, truncated = true, v, e, t end)
+	start(function(v, e, t)
+		done, value, err, truncated = true, v, e, t
+	end)
 	assert(vim.wait(5000, function() return done end, 10), "review query timed out")
 	return value, err, truncated
 end
@@ -74,6 +76,7 @@ assert(diff(snapshot, find(snapshot, "untracked", "binary.bin")):find("Binary fi
 local branch = collect("main")
 assert(#branch.items == 1 and branch.head == feature_head)
 assert(diff(branch, find(branch, "branch", "code.lua")):find("+branch committed", 1, true))
+assert(await(function(cb) service.content(branch, find(branch, "branch", "code.lua"), cb) end) == "branch committed\nkeep\n")
 local invalid, invalid_err = await(function(cb) service.collect(repo, "--not-a-ref", cb) end)
 assert(not invalid and invalid_err)
 -- Literal pathspecs must not interpret glob characters in names.
@@ -93,12 +96,17 @@ local renamed = find(snapshot, "staged", "renamed.lua")
 assert(renamed.old_path == "code.lua" and diff(snapshot, renamed):find("rename from code.lua", 1, true))
 vim.fn.delete(repo .. "/a.txt")
 assert(find(collect(), "unstaged", "a.txt").status == "D")
+local deleted_snapshot = collect()
+assert(await(function(cb) service.content(deleted_snapshot, find(deleted_snapshot, "unstaged", "a.txt"), cb) end) == "other\n")
 -- Frozen branch previews remain tied to the collected HEAD.
 assert(diff(branch, branch.items[1]):find("+branch committed", 1, true))
 
 local aero = require("aero")
 aero.setup({
-	state_file = dir .. "/state.json", animation = false, start_insert = false, persist_buffers = false,
+	state_file = dir .. "/state.json",
+	animation = false,
+	start_insert = false,
+	persist_buffers = false,
 	agents = { fixture = { type = "acp", cmd = { "python3", root .. "/tests/fixtures/acp.py", "save" } } },
 })
 vim.cmd.runtime("plugin/aero.lua")
@@ -109,6 +117,16 @@ local source_win = api.nvim_get_current_win()
 local view = aero.review()
 assert(vim.wait(5000, function() return view.snapshot and view.output end, 10))
 assert(view.path == repo and vim.bo[view.diff_buf].modifiable == false)
+for _, key in ipairs({ "b", "L", "R", "D" }) do
+	local function mapped(buf)
+		for _, mapping in ipairs(api.nvim_buf_get_keymap(buf, "n")) do
+			if mapping.lhs == key then return true end
+		end
+		return false
+	end
+	assert(mapped(view.list_buf), "missing tree control: " .. key)
+	assert(not mapped(view.diff_buf), "review control overrides Vim in diff panel: " .. key)
+end
 for i, row in ipairs(view.rows) do
 	local item = row.node.item
 	if item and item.kind == "unstaged" and item.path == "[abc].txt" then
@@ -139,10 +157,17 @@ assert(view.stale and vim.wo[view.diff_win].winbar:find("STALE", 1, true))
 local session = require("aero.session")
 local old_list, old_all, old_append = session.list, session.all, require("aero.compose").append
 local recipient = { name = "reviewer", agent = "opencode-acp", worktree = repo, chat = { state = "ready" } }
-session.list = function(path) assert(path == repo); return { recipient } end
+session.list = function(path)
+	assert(path == repo)
+	return { recipient }
+end
 session.all = function() return { recipient } end
 local appended
-require("aero.compose").append = function(s, text) assert(s == recipient); appended = text; return true end
+require("aero.compose").append = function(s, text)
+	assert(s == recipient)
+	appended = text
+	return true
+end
 api.nvim_set_current_win(view.diff_win)
 view.feedback(false)
 appended = table.concat(api.nvim_buf_get_lines(view.feedback_buf, 0, -1, false), "\n")
@@ -171,7 +196,9 @@ assert(api.nvim_get_current_buf() ~= view.list_buf)
 
 -- Real ACP composition preserves a draft and does not submit the quoted hunk.
 local content = {}
-for i = 1, 30 do content[i] = "original " .. i end
+for i = 1, 30 do
+	content[i] = "original " .. i
+end
 vim.fn.writefile(content, repo .. "/hunks.txt")
 git({ "-C", repo, "add", "hunks.txt" })
 git({ "-C", repo, "commit", "-m", "hunk fixture" })
@@ -186,7 +213,10 @@ local function hunk_view()
 	local result = aero.review(repo)
 	assert(vim.wait(5000, function() return result.snapshot end, 10))
 	for i, row in ipairs(result.rows) do
-		if row.node.item and row.node.item.path == "hunks.txt" then api.nvim_win_set_cursor(result.list_win, { i, 0 }); break end
+		if row.node.item and row.node.item.path == "hunks.txt" then
+			api.nvim_win_set_cursor(result.list_win, { i, 0 })
+			break
+		end
 	end
 	result.preview()
 	assert(vim.wait(5000, function() return result.output and result.output:find("+last change", 1, true) end, 10))
@@ -233,7 +263,11 @@ require("aero.quote").quote()
 assert(api.nvim_get_current_win() == view.feedback_win)
 assert(api.nvim_win_get_config(view.feedback_win).relative == "editor")
 local old_chansend, sent = vim.fn.chansend
-vim.fn.chansend = function(job, text) assert(job == 12345); sent = text; return #text end
+vim.fn.chansend = function(job, text)
+	assert(job == 12345)
+	sent = text
+	return #text
+end
 api.nvim_buf_set_lines(view.feedback_buf, -1, -1, false, { "/send" })
 api.nvim_win_set_cursor(view.feedback_win, { api.nvim_buf_line_count(view.feedback_buf), 0 })
 api.nvim_feedkeys(api.nvim_replace_termcodes("<CR>", true, false, true), "xt", false)
@@ -265,8 +299,7 @@ view = aero.review(repo)
 assert(vim.wait(5000, function() return view.snapshot and view.output end, 10))
 local function tree_row(path, kind)
 	for i, row in ipairs(view.rows) do
-		if row.node.path == path and (kind == "directory" and row.node.kind == kind
-			or row.node.item and row.node.item.kind == kind) then return i, row end
+		if row.node.path == path and (kind == "directory" and row.node.kind == kind or row.node.item and row.node.item.kind == kind) then return i, row end
 	end
 	error("missing tree entry: " .. path .. " " .. kind)
 end
@@ -313,12 +346,51 @@ assert(vim.wait(5000, function() return view.output and view.output:find("+api s
 choose("src/api/shared.lua", "unstaged")
 assert(vim.wait(5000, function() return view.output and view.output:find("+api working", 1, true) end, 10))
 assert(view.output:find("-api staged", 1, true) and not view.output:find("ui working", 1, true))
+assert(vim.wait(5000, function() return view.content ~= nil end, 10))
+list_key("D")
+assert(view.code_mode and vim.bo[view.diff_buf].filetype == "lua")
+assert(api.nvim_buf_get_lines(view.diff_buf, 0, -1, false)[1] == "api working")
+assert(#api.nvim_buf_get_extmarks(view.diff_buf, api.nvim_create_namespace("Aero.review.diff"), 0, -1, {}) == 0)
+choose("src/api/shared.lua", "staged")
+assert(vim.wait(5000, function() return view.content == "api staged\n" and view.output end, 10))
+assert(view.code_mode and api.nvim_buf_get_lines(view.diff_buf, 0, 1, false)[1] == "api staged")
+api.nvim_set_current_win(view.diff_win)
+vim.cmd("Aero review diff")
+assert(not view.code_mode and api.nvim_get_current_win() == view.diff_win)
+vim.cmd("Aero review diff")
+assert(view.code_mode)
+assert(vim.deep_equal(vim.fn.getcompletion("Aero review ", "cmdline"), { "diff", "refresh", "base", "local" }))
+local command_snapshot = view.snapshot
+vim.cmd("Aero review refresh")
+assert(vim.wait(5000, function() return view.snapshot and view.snapshot ~= command_snapshot and view.output and view.content end, 10))
+assert(view.code_mode and api.nvim_get_current_win() == view.diff_win)
+local old_select, base_picker = vim.ui.select, false
+vim.ui.select = function(_, opts, cb)
+	base_picker = opts.prompt:find("base branch", 1, true) ~= nil
+	cb(nil)
+end
+vim.cmd("Aero review base")
+assert(vim.wait(5000, function() return base_picker end, 10))
+vim.ui.select = old_select
+command_snapshot = view.snapshot
+vim.cmd("Aero review local")
+assert(vim.wait(5000, function() return view.snapshot and view.snapshot ~= command_snapshot and view.output and view.content end, 10))
+assert(view.base == nil and view.code_mode)
+api.nvim_set_current_win(view.diff_win)
+view.feedback(false)
+local code_feedback = table.concat(api.nvim_buf_get_lines(view.feedback_buf, 0, -1, false), "\n")
+assert(code_feedback:find("```lua\napi staged\n```", 1, true))
+api.nvim_win_close(view.feedback_win, true)
+list_key("D")
+assert(not view.code_mode and vim.bo[view.diff_buf].filetype == "diff")
 list_key("h")
 assert(view.rows[api.nvim_win_get_cursor(view.list_win)[1]].node.path == "src/api")
 assert(view.item == nil and view.output == nil)
 list_key("h")
 assert(view.collapsed["src/api"], "h should collapse an expanded directory")
-for _, row in ipairs(view.rows) do assert(not row.node.item or not row.node.path:match("^src/api/")) end
+for _, row in ipairs(view.rows) do
+	assert(not row.node.item or not row.node.path:match("^src/api/"))
+end
 local before_refresh = view.snapshot
 view.refresh()
 assert(vim.wait(5000, function() return view.snapshot and view.snapshot ~= before_refresh end, 10))
@@ -371,7 +443,10 @@ local dashboard_win = api.nvim_get_current_win()
 local other_row
 assert(vim.wait(5000, function()
 	for i, line in ipairs(api.nvim_buf_get_lines(api.nvim_win_get_buf(dashboard_win), 0, -1, false)) do
-		if line:find("review-other", 1, true) then other_row = i; return true end
+		if line:find("review-other", 1, true) then
+			other_row = i
+			return true
+		end
 	end
 end, 10))
 api.nvim_win_set_cursor(dashboard_win, { other_row, 0 })
@@ -388,4 +463,6 @@ vim.notify = old_notify
 
 require("aero.buffers").flush()
 vim.fn.delete(dir, "rf")
-print("Review tests passed (real Git, unborn HEAD, staged/unstaged, untracked/binary, literal paths, renames/deletions, merge-base, frozen HEAD, folder tree, collapse/navigation, refresh selection, feedback, cleanup).")
+print(
+	"Review tests passed (real Git, unborn HEAD, staged/unstaged, untracked/binary, literal paths, renames/deletions, merge-base, frozen HEAD, folder tree, collapse/navigation, refresh selection, feedback, cleanup)."
+)

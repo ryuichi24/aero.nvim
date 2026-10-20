@@ -19,8 +19,7 @@ local function run(path, args, callback, accepted)
 	}, function(result)
 		vim.schedule(function()
 			if result.code ~= 0 and not (accepted and accepted[result.code]) then
-				callback(nil, vim.trim(result.stderr or "") ~= "" and vim.trim(result.stderr)
-					or ("Git exited with code " .. result.code))
+				callback(nil, vim.trim(result.stderr or "") ~= "" and vim.trim(result.stderr) or ("Git exited with code " .. result.code))
 			else
 				callback(table.concat(chunks), nil, truncated)
 			end
@@ -65,12 +64,16 @@ function M.collect(path, base, callback)
 		local snapshot = { worktree = root, base = base, items = {}, refreshed = os.date("%Y-%m-%d %H:%M:%S") }
 		local function list_branch(merge_base)
 			snapshot.merge_base = merge_base
-			run(root, { "diff", "--no-ext-diff", "--no-textconv", "--name-status", "-z", "--find-renames", merge_base, snapshot.head, "--" }, function(out, list_err, truncated)
-				if not out or truncated then return callback(nil, list_err or "change list exceeds 1 MiB") end
-				snapshot.items, list_err = records(out, "branch")
-				if not snapshot.items then return callback(nil, list_err) end
-				callback(snapshot)
-			end)
+			run(
+				root,
+				{ "diff", "--no-ext-diff", "--no-textconv", "--name-status", "-z", "--find-renames", merge_base, snapshot.head, "--" },
+				function(out, list_err, truncated)
+					if not out or truncated then return callback(nil, list_err or "change list exceeds 1 MiB") end
+					snapshot.items, list_err = records(out, "branch")
+					if not snapshot.items then return callback(nil, list_err) end
+					callback(snapshot)
+				end
+			)
 		end
 		if base then
 			-- Resolve first: refs starting with '-' cannot become command options.
@@ -112,6 +115,20 @@ function M.collect(path, base, callback)
 		end
 		next_query(1)
 	end)
+end
+
+function M.content(snapshot, item, callback)
+	local deleted = item.status:sub(1, 1) == "D"
+	local ref = item.kind == "branch" and (deleted and snapshot.merge_base or snapshot.head)
+		or item.kind == "staged" and (deleted and "HEAD" or "")
+		or deleted and ""
+	if ref then return run(snapshot.worktree, { "show", ref .. ":" .. (deleted and (item.old_path or item.path) or item.path) }, callback) end
+	local path = vim.fs.joinpath(snapshot.worktree, item.path)
+	local stat = vim.uv.fs_stat(path)
+	if not stat or stat.type ~= "file" then return callback(nil, "file is missing or is not a regular file") end
+	if stat.size > limit then return callback(nil, "file exceeds 1 MiB") end
+	local ok, lines = pcall(vim.fn.readfile, path, "b")
+	callback(ok and table.concat(lines, "\n") or nil, not ok and tostring(lines) or nil)
 end
 
 function M.diff(snapshot, item, callback)

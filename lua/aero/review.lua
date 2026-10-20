@@ -27,8 +27,14 @@ api.nvim_create_autocmd("ColorScheme", {
 	callback = setup_highlights,
 })
 
-local function notify(text)
-	vim.notify("Aero: " .. text, vim.log.levels.WARN)
+local function notify(text) vim.notify("Aero: " .. text, vim.log.levels.WARN) end
+
+function M.command(action)
+	if not active or active.closed then return notify("open a review first with :Aero review") end
+	local actions = { diff = "toggle_diff", refresh = "refresh", base = "choose_base", ["local"] = "local_changes" }
+	local method = actions[action]
+	if not method then return notify("unknown review action: " .. tostring(action)) end
+	return active[method]()
 end
 
 local function put(buf, lines)
@@ -36,8 +42,8 @@ local function put(buf, lines)
 	vim.bo[buf].modifiable = true
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false
+	api.nvim_buf_clear_namespace(buf, diff_namespace, 0, -1)
 	if vim.bo[buf].filetype == "diff" then
-		api.nvim_buf_clear_namespace(buf, diff_namespace, 0, -1)
 		local in_hunk = false
 		for i, line in ipairs(lines) do
 			if line:match("^diff %-%-git ") then in_hunk = false end
@@ -54,9 +60,7 @@ local function put(buf, lines)
 	end
 end
 
-local function label(path)
-	return vim.fn.strtrans(path)
-end
+local function label(path) return vim.fn.strtrans(path) end
 
 local function geometry()
 	local width, height = vim.o.columns - 6, vim.o.lines - 7
@@ -74,8 +78,7 @@ function M.open(path, base)
 			notify("move the cursor to a workspace, worktree, or agent session first")
 			return
 		end
-		path = dashboard.selected_worktree() or ws and ws.root
-			or preferred and preferred.worktree or vim.t.aero_worktree or vim.fn.getcwd()
+		path = dashboard.selected_worktree() or ws and ws.root or preferred and preferred.worktree or vim.t.aero_worktree or vim.fn.getcwd()
 	end
 	if vim.o.columns < 50 or vim.o.lines < 14 then
 		notify("review needs at least 50 columns and 14 lines")
@@ -94,14 +97,26 @@ function M.open(path, base)
 		vim.b[buf].aero_review = true
 	end
 	view.list_win = api.nvim_open_win(view.list_buf, true, {
-		relative = "editor", row = 2, col = 2, width = left, height = height,
-		style = "minimal", border = "rounded", title = " Worktree changes ",
+		relative = "editor",
+		row = 2,
+		col = 2,
+		width = left,
+		height = height,
+		style = "minimal",
+		border = "rounded",
+		title = " Worktree changes ",
 		footer = " b base · L local · R refresh ",
 	})
 	view.diff_win = api.nvim_open_win(view.diff_buf, false, {
-		relative = "editor", row = 2, col = left + 4, width = width - left - 2, height = height,
-		style = "minimal", border = "rounded", title = " Diff ",
-		footer = " Tab pane · gf file · a quote ",
+		relative = "editor",
+		row = 2,
+		col = left + 4,
+		width = width - left - 2,
+		height = height,
+		style = "minimal",
+		border = "rounded",
+		title = " Diff ",
+		footer = " Tab tree/controls · gf file · a quote ",
 	})
 	vim.wo[view.list_win].cursorline = true
 	vim.wo[view.list_win].wrap = false
@@ -144,7 +159,9 @@ function M.open(path, base)
 			if row.node.item then
 				local _, highlight = tree.status(row.node.item)
 				api.nvim_buf_set_extmark(view.list_buf, list_namespace, i - 1, row.depth * 2 + 2, {
-					end_col = #lines[i], hl_group = highlight, priority = 200,
+					end_col = #lines[i],
+					hl_group = highlight,
+					priority = 200,
 				})
 			end
 		end
@@ -157,8 +174,46 @@ function M.open(path, base)
 		api.nvim_win_set_config(view.diff_win, { title = " " .. comparison .. " " })
 		vim.wo[view.diff_win].winbar = (stale and "STALE — R refresh | " or "")
 			.. (view.base and ("BASE: " .. label(view.base):gsub("%%", "%%%%")) or "LOCAL")
-			.. " | Refreshed " .. (view.snapshot and view.snapshot.refreshed or "—")
+			.. " | Refreshed "
+			.. (view.snapshot and view.snapshot.refreshed or "—")
 		view.stale = stale
+	end
+
+	function view.render_preview()
+		if not view.output then return end
+		pcall(vim.treesitter.stop, view.diff_buf)
+		local text = view.output
+		if view.code_mode then text = view.content end
+		local ft = view.code_mode and (vim.filetype.match({ filename = view.item.path }) or "text") or "diff"
+		vim.bo[view.diff_buf].filetype = ft
+		vim.bo[view.diff_buf].syntax = ft
+		local lines = vim.split(text or "Code unavailable: " .. (view.content_error or "loading…"), "\n", { plain = true })
+		if lines[#lines] == "" then table.remove(lines) end
+		if #lines == 0 then lines = { "" } end
+		if not view.code_mode and view.truncated then table.insert(lines, "[Diff truncated at 1 MiB]") end
+		put(view.diff_buf, lines)
+		if view.code_mode and view.content then pcall(vim.treesitter.start, view.diff_buf) end
+		api.nvim_win_set_config(view.diff_win, { footer = " " .. (view.code_mode and "Code" or "Diff") .. " · Tab tree/controls · gf file · a quote " })
+	end
+
+	function view.toggle_diff()
+		local cursor = api.nvim_win_get_cursor(view.diff_win)[1]
+		local target, line = 1, nil
+		if view.output then
+			for i, text in ipairs(vim.split(view.output, "\n", { plain = true })) do
+				local start = text:match("^@@ .* %+(%d+)")
+				if start then
+					line = tonumber(start)
+				elseif line and (text:sub(1, 1) == "+" or text:sub(1, 1) == " ") then
+					if view.code_mode and line <= cursor then target = i end
+					if not view.code_mode and i <= cursor then target = line end
+					line = line + 1
+				end
+			end
+		end
+		view.code_mode = not view.code_mode
+		view.render_preview()
+		api.nvim_win_set_cursor(view.diff_win, { math.max(1, math.min(target, api.nvim_buf_line_count(view.diff_buf))), 0 })
 	end
 
 	function view.preview()
@@ -168,25 +223,38 @@ function M.open(path, base)
 		if node == view.preview_node and view.preview_snapshot == view.snapshot then return end
 		view.preview_node = node
 		view.preview_snapshot = view.snapshot
-		view.item, view.output = item, nil
+		view.item, view.output, view.content, view.content_error = item, nil, nil, nil
+		pcall(vim.treesitter.stop, view.diff_buf)
+		vim.bo[view.diff_buf].filetype = "diff"
 		view.preview_generation = view.preview_generation + 1
 		local generation = view.preview_generation
 		put(view.diff_buf, {
 			item and "Loading diff…" or (node and ("Folder: " .. label(node.path) .. "/") or "No changes in this comparison."),
-			"", "Enter toggle folder / focus diff  h collapse / parent  l expand / child",
-			"R refresh  b base ref  L local changes  q close", "gf open file  a quote hunk  Visual a quote selection",
-			"", "Git reads files on disk; unsaved editor changes are not included.",
+			"",
+			"Enter toggle folder / focus diff  h collapse / parent  l expand / child",
+			"R refresh  b base ref  L local changes  q close",
+			"gf open file  a quote hunk  Visual a quote selection",
+			"",
+			"Git reads files on disk; unsaved editor changes are not included.",
 		})
 		if not item then return end
+		git.content(view.snapshot, item, function(out, err, truncated)
+			if view.closed or generation ~= view.preview_generation then return end
+			if out and out:find("\0", 1, true) then
+				out, err = nil, "binary file"
+			end
+			if truncated then
+				out, err = nil, "file exceeds 1 MiB"
+			end
+			view.content, view.content_error = out, err
+			if view.code_mode then view.render_preview() end
+		end)
 		git.diff(view.snapshot, item, function(out, err, truncated)
 			if view.closed or generation ~= view.preview_generation then return end
 			if not out then return put(view.diff_buf, { "Could not read diff: " .. err, "Press R to refresh." }) end
 			view.output = out
-			local lines = vim.split(out, "\n", { plain = true })
-			if lines[#lines] == "" then table.remove(lines) end
-			if #lines == 0 then lines = { "No diff remains; press R to refresh the file list." } end
-			if truncated then table.insert(lines, "[Diff truncated at 1 MiB]") end
-			put(view.diff_buf, lines)
+			view.truncated = truncated
+			view.render_preview()
 		end)
 	end
 
@@ -257,8 +325,8 @@ function M.open(path, base)
 		if not item or not view.snapshot then return end
 		local file = vim.fs.joinpath(view.path, item.path)
 		if not vim.uv.fs_stat(file) then return notify("file is deleted or missing; read its diff instead") end
-		local line
-		if view.output and item == view.item then
+		local line = view.code_mode and api.nvim_win_get_cursor(view.diff_win)[1] or nil
+		if not view.code_mode and view.output and item == view.item then
 			local cursor = api.nvim_win_get_cursor(view.diff_win)[1]
 			for i, text in ipairs(api.nvim_buf_get_lines(view.diff_buf, 0, cursor, false)) do
 				local start = text:match("^@@ .* %+(%d+)")
@@ -283,17 +351,28 @@ function M.open(path, base)
 
 	function view.feedback(visual)
 		if not view.item or not view.output or view.output == "" then return end
+		if view.code_mode and not view.content then return notify("code is unavailable; switch to the diff to quote it") end
 		local lines = api.nvim_buf_get_lines(view.diff_buf, 0, -1, false)
 		if visual then
 			lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = vim.fn.mode(), exclusive = vim.o.selection == "exclusive" })
 			vim.cmd("normal! " .. api.nvim_replace_termcodes("<Esc>", true, false, true))
-		else
+		elseif not view.code_mode then
 			local row = api.nvim_win_get_cursor(view.diff_win)[1]
 			local first, last
-			for i = row, 1, -1 do if lines[i]:match("^@@") then first = i; break end end
+			for i = row, 1, -1 do
+				if lines[i]:match("^@@") then
+					first = i
+					break
+				end
+			end
 			if first then
 				last = #lines
-				for i = first + 1, #lines do if lines[i]:match("^@@") then last = i - 1; break end end
+				for i = first + 1, #lines do
+					if lines[i]:match("^@@") then
+						last = i - 1
+						break
+					end
+				end
 				lines = vim.list_slice(lines, first, last)
 			end
 		end
@@ -302,10 +381,18 @@ function M.open(path, base)
 			if #ticks >= #fence then fence = string.rep("`", #ticks + 1) end
 		end
 		local snapshot, item = view.snapshot, view.item
-		local text = ("Review feedback for worktree %s\nFile: %s%s\nComparison: %s; refreshed %s%s\n\n%sdiff\n%s\n%s\n\nFeedback: "):format(
-			vim.json.encode(view.path), vim.json.encode(item.path), item.old_path and (" (from " .. vim.json.encode(item.old_path) .. ")") or "",
+		local text = ("Review feedback for worktree %s\nFile: %s%s\nComparison: %s; refreshed %s%s\n\n%s%s\n%s\n%s\n\nFeedback: "):format(
+			vim.json.encode(view.path),
+			vim.json.encode(item.path),
+			item.old_path and (" (from " .. vim.json.encode(item.old_path) .. ")") or "",
 			item.kind == "branch" and ("merge-base(" .. vim.json.encode(snapshot.base) .. ") " .. snapshot.merge_base .. " → " .. snapshot.head) or item.kind,
-			snapshot.refreshed, view.stale and " (may be stale)" or "", fence, table.concat(lines, "\n"), fence)
+			snapshot.refreshed,
+			view.stale and " (may be stale)" or "",
+			fence,
+			view.code_mode and vim.bo[view.diff_buf].filetype or "diff",
+			table.concat(lines, "\n"),
+			fence
+		)
 		local candidates = require("aero.session").list(view.path)
 		local function append(s)
 			if not s or view.closed then return end
@@ -333,7 +420,10 @@ function M.open(path, base)
 							s.chat:prompt(message)
 						else
 							local ok, err = pcall(vim.fn.chansend, s.job, "\027[200~" .. message .. "\027[201~\r")
-							if not ok then notify(tostring(err)); return true end
+							if not ok then
+								notify(tostring(err))
+								return true
+							end
 						end
 						api.nvim_buf_set_lines(buf, 0, -1, false, {})
 						vim.cmd.stopinsert()
@@ -357,7 +447,11 @@ function M.open(path, base)
 					end, { buffer = buf })
 				end
 				local draft = api.nvim_buf_get_lines(buf, 0, -1, false)
-				if #draft == 1 and draft[1] == "" then draft = {} else table.insert(draft, "") end
+				if #draft == 1 and draft[1] == "" then
+					draft = {}
+				else
+					table.insert(draft, "")
+				end
 				vim.list_extend(draft, vim.split(text, "\n", { plain = true }))
 				api.nvim_buf_set_lines(buf, 0, -1, false, draft)
 				if view.feedback_win and api.nvim_win_is_valid(view.feedback_win) then
@@ -366,9 +460,16 @@ function M.open(path, base)
 					local w = math.min(vim.o.columns - 10, 100)
 					local h = math.max(4, math.floor((vim.o.lines - 7) * 0.5))
 					view.feedback_win = api.nvim_open_win(buf, true, {
-						relative = "editor", row = math.floor((vim.o.lines - h) / 2), col = math.floor((vim.o.columns - w) / 2),
-						width = w, height = h, style = "minimal", border = "rounded", zindex = 60,
-						title = " Review feedback · " .. s.name .. " ", footer = " /send then Enter · q keep draft and return ",
+						relative = "editor",
+						row = math.floor((vim.o.lines - h) / 2),
+						col = math.floor((vim.o.columns - w) / 2),
+						width = w,
+						height = h,
+						style = "minimal",
+						border = "rounded",
+						zindex = 60,
+						title = " Review feedback · " .. s.name .. " ",
+						footer = " /send then Enter · q keep draft and return ",
 					})
 				end
 				api.nvim_win_set_cursor(view.feedback_win, { #draft, #draft[#draft] })
@@ -383,31 +484,39 @@ function M.open(path, base)
 		vim.ui.select(candidates, { prompt = "Review feedback to agent", format_item = function(s) return s.name .. " (" .. s.agent .. ")" end }, append)
 	end
 
+	function view.choose_base()
+		git.branches(view.path, function(branches, err)
+			if view.closed then return end
+			if not branches then return notify(err) end
+			if #branches == 0 then return notify("no branches available for review") end
+			vim.ui.select(branches, { prompt = "Review committed changes against base branch:" }, function(ref)
+				if view.closed or not ref then return end
+				view.base = ref
+				view.refresh()
+			end)
+		end)
+	end
+
+	function view.local_changes()
+		view.base = nil
+		view.refresh()
+	end
+
 	for _, buf in ipairs({ view.list_buf, view.diff_buf }) do
-		local function map(key, fn, desc, mode)
-			vim.keymap.set(mode or "n", key, fn, { buffer = buf, nowait = true, desc = "Aero review: " .. desc })
-		end
+		local function map(key, fn, desc, mode) vim.keymap.set(mode or "n", key, fn, { buffer = buf, nowait = true, desc = "Aero review: " .. desc }) end
 		map("q", view.close, "close")
 		map("<Esc>", view.close, "close")
-		map("R", view.refresh, "refresh")
 		map("gf", view.open_file, "open file")
-		map("b", function()
-			git.branches(view.path, function(branches, err)
-				if view.closed then return end
-				if not branches then return notify(err) end
-				if #branches == 0 then return notify("no branches available for review") end
-				vim.ui.select(branches, { prompt = "Review committed changes against base branch:" }, function(ref)
-					if view.closed or not ref then return end
-					view.base = ref
-					view.refresh()
-				end)
-			end)
-		end, "choose branch base")
-		map("L", function() view.base = nil; view.refresh() end, "local changes")
 		map("<Tab>", function()
 			view.preview()
 			api.nvim_set_current_win(api.nvim_get_current_win() == view.list_win and view.diff_win or view.list_win)
 		end, "switch pane")
+		if buf == view.list_buf then
+			map("R", view.refresh, "refresh")
+			map("D", view.toggle_diff, "toggle diff/code")
+			map("b", view.choose_base, "choose branch base")
+			map("L", view.local_changes, "local changes")
+		end
 	end
 	vim.keymap.set("n", "<CR>", function()
 		local node = selected_node()
@@ -421,19 +530,21 @@ function M.open(path, base)
 	for _, key in ipairs({ "a", require("aero.config").options.quote_key or "a" }) do
 		vim.keymap.set("x", key, function() view.feedback(true) end, { buffer = view.diff_buf, desc = "Aero review: quote selection" })
 	end
-	api.nvim_create_autocmd("CursorMoved", { group = view.group, buffer = view.list_buf, callback = function()
-		view.cursor_generation = (view.cursor_generation or 0) + 1
-		local generation = view.cursor_generation
-		vim.defer_fn(function()
-			if not view.closed and generation == view.cursor_generation then view.preview() end
-		end, 60)
-	end })
+	api.nvim_create_autocmd("CursorMoved", {
+		group = view.group,
+		buffer = view.list_buf,
+		callback = function()
+			view.cursor_generation = (view.cursor_generation or 0) + 1
+			local generation = view.cursor_generation
+			vim.defer_fn(function()
+				if not view.closed and generation == view.cursor_generation then view.preview() end
+			end, 60)
+		end,
+	})
 	api.nvim_create_autocmd({ "BufWritePost", "FocusGained" }, {
 		group = view.group,
 		callback = function(event)
-			if view.snapshot and (event.event == "FocusGained" or require("aero.storage").inside(event.file, view.path)) then
-				title(true)
-			end
+			if view.snapshot and (event.event == "FocusGained" or require("aero.storage").inside(event.file, view.path)) then title(true) end
 		end,
 	})
 	api.nvim_create_autocmd("WinClosed", {
@@ -442,12 +553,15 @@ function M.open(path, base)
 			if tonumber(event.match) == view.list_win or tonumber(event.match) == view.diff_win then view.close() end
 		end,
 	})
-	api.nvim_create_autocmd("VimResized", { group = view.group, callback = function()
-		if vim.o.columns < 50 or vim.o.lines < 14 then return view.close() end
-		local w, h, l = geometry()
-		api.nvim_win_set_config(view.list_win, { width = l, height = h })
-		api.nvim_win_set_config(view.diff_win, { col = l + 4, width = w - l - 2, height = h })
-	end })
+	api.nvim_create_autocmd("VimResized", {
+		group = view.group,
+		callback = function()
+			if vim.o.columns < 50 or vim.o.lines < 14 then return view.close() end
+			local w, h, l = geometry()
+			api.nvim_win_set_config(view.list_win, { width = l, height = h })
+			api.nvim_win_set_config(view.diff_win, { col = l + 4, width = w - l - 2, height = h })
+		end,
+	})
 	view.refresh()
 	return view
 end
