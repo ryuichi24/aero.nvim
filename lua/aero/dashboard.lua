@@ -355,7 +355,7 @@ local function get_buf()
 	return buf
 end
 
-function M.open()
+function M.open(focus_worktree)
 	local cur = api.nvim_get_current_win()
 	if is_open() then
 		api.nvim_set_current_win(state.win)
@@ -386,8 +386,31 @@ function M.open()
 	-- git state (and other nvim instances' changes) may have changed while the dashboard was hidden
 	store.load()
 	state.worktrees = {}
+	local selected_path
+	if focus_worktree then
+		local path = vim.fs.normalize(vim.fn.resolve(vim.t.aero_worktree or vim.fn.getcwd()))
+		for _, ws in ipairs(store.data.workspaces) do
+			for _, wt in ipairs(worktrees(ws).list or {}) do
+				local root = vim.fs.normalize(vim.fn.resolve(wt.path))
+				if root == path or (not vim.t.aero_worktree and path:sub(1, #root + 1) == root .. "/") then
+					if not selected_path or #wt.path > #selected_path then
+						ws.expanded = true
+						selected_path = wt.path
+					end
+				end
+			end
+		end
+	end
 	load_worktrees()
 	M.render()
+	if selected_path then
+		for row, item in pairs(state.items) do
+			if item.kind == "worktree" and item.wt.path == selected_path then
+				api.nvim_win_set_cursor(state.win, { row, 0 })
+				break
+			end
+		end
+	end
 	require("aero.events").emit(
 		"dashboard_opened",
 		{ win = state.win, buf = state.buf, tab = api.nvim_get_current_tabpage() }
@@ -434,7 +457,8 @@ function M.toggle()
 	if is_open() then
 		M.close()
 	else
-		M.open()
+		local win = api.nvim_get_current_win()
+		M.open(not panel.owns(win) and not terminal.is_term_win(win))
 	end
 end
 
