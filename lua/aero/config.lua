@@ -136,6 +136,8 @@ M.defaults = {
 		return vim.fs.joinpath(parent, vim.fs.basename(ws.root) .. ".worktrees", (branch:gsub("/", "-")))
 	end,
 	dashboard = {
+		remote_refresh_interval = 60000, -- milliseconds between automatic remote checks per workspace
+		remote_concurrency = 2, -- maximum simultaneous background fetches
 		position = "left", -- "left" | "right" | "current"
 		width = 40,
 	},
@@ -238,7 +240,9 @@ M.options = vim.deepcopy(M.defaults)
 function M.setup(opts)
 	opts = vim.tbl_extend("force", {}, opts or {})
 	-- Accept earlier configuration names; canonical properties take precedence.
-	if opts.reference_finder == nil then opts.reference_finder = opts.context end
+	if opts.reference_finder == nil then
+		opts.reference_finder = opts.context
+	end
 	opts.context = nil
 	if type(opts.companion) == "table" then
 		opts.companion = vim.tbl_extend("force", {}, opts.companion)

@@ -62,33 +62,41 @@ local status_hl = {
 	stopped = "AeroStopped",
 }
 
+local remote_render_pending = false
+local function remote_changed()
+	if remote_render_pending then
+		return
+	end
+	remote_render_pending = true
+	vim.schedule(function()
+		remote_render_pending = false
+		M.render()
+	end)
+end
+
 local function worktrees(ws, force)
 	local cache = state.worktrees[ws.root]
 	if force or not cache then
 		local list, err = git.list(ws.root)
 		cache = { list = list, err = err }
 		state.worktrees[ws.root] = cache
-		if list then
-			cache.checking = true
-			git.remote_status(ws.root, function(statuses, fetch_err)
-				if state.worktrees[ws.root] ~= cache then
-					return
-				end
-				cache.checking = false
-				cache.statuses, cache.fetch_err = statuses, fetch_err
-				M.render()
-			end)
-		end
 	end
 	return cache
 end
 
 -- Loading is explicit: rendering never initiates Git listing or remote requests.
 local function load_worktrees()
+	local roots = {}
 	for _, workspace in ipairs(store.data.workspaces) do
 		if workspace.expanded ~= false then
 			worktrees(workspace)
+			if state.worktrees[workspace.root].list then
+				table.insert(roots, workspace.root)
+			end
 		end
+	end
+	for _, root in ipairs(roots) do
+		require("aero.remote_status").request(root, remote_changed)
 	end
 end
 
@@ -140,10 +148,17 @@ local function reference_children(entries)
 				if scan then
 					while true do
 						local name, kind = vim.uv.fs_scandir_next(scan)
-						if not name then break end
-						table.insert(entry.children, { name = name, kind = kind, path = vim.fs.joinpath(entry.path, name) })
+						if not name then
+							break
+						end
+						table.insert(
+							entry.children,
+							{ name = name, kind = kind, path = vim.fs.joinpath(entry.path, name) }
+						)
 					end
-					table.sort(entry.children, function(a, b) return a.name < b.name end)
+					table.sort(entry.children, function(a, b)
+						return a.name < b.name
+					end)
 					reference_children(entry.children)
 				end
 			end
@@ -159,6 +174,11 @@ local function build()
 		table.insert(snapshot.workspaces, workspace)
 		if ws.expanded ~= false then
 			workspace.cache = state.worktrees[ws.root] or { list = {} }
+			if workspace.cache.list then
+				local remote = require("aero.remote_status").peek(ws.root)
+				workspace.cache.checking = remote.checking
+				workspace.cache.statuses, workspace.cache.fetch_err = remote.statuses, remote.fetch_err
+			end
 			for _, wt in ipairs(workspace.cache.list or {}) do
 				local sessions = session.list(wt.path)
 				local tree = {
@@ -173,17 +193,14 @@ local function build()
 				table.insert(workspace.worktrees, tree)
 				if tree.expanded then
 					for _, selected in ipairs(sessions) do
-						table.insert(
-							tree.sessions,
-							{
-								session = selected,
-								status = session.status(selected),
-								icon = session.icon(selected),
-								activity = session.activity(selected),
-								usage = require("aero.acp.usage").summary(selected.chat),
-								assignment = require("aero.tasks.status").label(selected),
-							}
-						)
+						table.insert(tree.sessions, {
+							session = selected,
+							status = session.status(selected),
+							icon = session.icon(selected),
+							activity = session.activity(selected),
+							usage = require("aero.acp.usage").summary(selected.chat),
+							assignment = require("aero.tasks.status").label(selected),
+						})
 					end
 					tree.exports = require("aero.exports").list(wt.path)
 					tree.exports_open = state.exports_expanded[wt.path] ~= false
@@ -191,7 +208,9 @@ local function build()
 					tree.reports_open = state.reports_expanded[wt.path] ~= false
 					tree.references, tree.reference_err = require("aero.reference").list(wt.path)
 					tree.reference_open = state.reference_expanded[wt.path] ~= false
-					if tree.reference_open then reference_children(tree.references) end
+					if tree.reference_open then
+						reference_children(tree.references)
+					end
 				end
 			end
 			local boards
@@ -199,16 +218,13 @@ local function build()
 			workspace.boards_open = state.boards_expanded[ws.root] ~= false
 			workspace.removed_count = workspace.boards_open and #require("aero.tasks").list_removed(ws) or 0
 			for _, board in ipairs(boards) do
-				table.insert(
-					workspace.boards,
-					{
-						board = board,
-						label = tostring((board.metadata or {}).title or vim.fs.basename(vim.fs.dirname(board.path))):gsub(
-							"[%c]",
-							" "
-						),
-					}
-				)
+				table.insert(workspace.boards, {
+					board = board,
+					label = tostring((board.metadata or {}).title or vim.fs.basename(vim.fs.dirname(board.path))):gsub(
+						"[%c]",
+						" "
+					),
+				})
 			end
 		end
 	end
@@ -239,13 +255,25 @@ end
 --- Collapse all existing sidebar nodes of a type, including hidden descendants.
 function M.collapse(kind)
 	kind = kind or "all"
-	if kind == "context" then kind = "reference" end -- legacy command alias
-	local valid = { all = true, workspaces = true, worktrees = true, reports = true, exports = true, boards = true, reference = true }
+	if kind == "context" then
+		kind = "reference"
+	end -- legacy command alias
+	local valid = {
+		all = true,
+		workspaces = true,
+		worktrees = true,
+		reports = true,
+		exports = true,
+		boards = true,
+		reference = true,
+	}
 	if not valid[kind] then
 		notify("use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]", vim.log.levels.WARN)
 		return
 	end
-	if kind == "all" or kind == "reference" then state.reference_folders_expanded = {} end
+	if kind == "all" or kind == "reference" then
+		state.reference_folders_expanded = {}
+	end
 	for _, ws in ipairs(store.data.workspaces) do
 		if kind == "all" or kind == "boards" then
 			state.boards_expanded[ws.root] = false
@@ -464,6 +492,7 @@ end
 
 function M.refresh()
 	store.load()
+	require("aero.remote_status").invalidate()
 	state.worktrees = {}
 	load_worktrees()
 	M.render()
@@ -718,7 +747,10 @@ local function add_worktree(ws)
 					end
 				end
 				if #available == 0 then
-					return notify("No available local branches; create a new branch or choose a remote branch", vim.log.levels.WARN)
+					return notify(
+						"No available local branches; create a new branch or choose a remote branch",
+						vim.log.levels.WARN
+					)
 				end
 				vim.ui.select(available, { prompt = "Existing branch:" }, function(branch)
 					create(branch)
@@ -814,7 +846,8 @@ function actions.toggle()
 	elseif item.kind == "reference" then
 		state.reference_expanded[item.wt.path] = state.reference_expanded[item.wt.path] == false
 	elseif item.kind == "reference_item" and item.reference.kind == "directory" then
-		state.reference_folders_expanded[item.reference.path] = not state.reference_folders_expanded[item.reference.path]
+		state.reference_folders_expanded[item.reference.path] =
+			not state.reference_folders_expanded[item.reference.path]
 	elseif item.kind == "boards" then
 		state.boards_expanded[item.ws.root] = state.boards_expanded[item.ws.root] == false
 	end
@@ -979,11 +1012,17 @@ function actions.rename()
 		local entry = item.reference
 		local stem = entry.kind ~= "directory" and entry.name:match("^(.+)%.[^.]+$")
 		require("aero.input").input({
-			prompt = "Rename reference item: ", default = entry.name, select_length = stem and #stem or nil,
+			prompt = "Rename reference item: ",
+			default = entry.name,
+			select_length = stem and #stem or nil,
 		}, function(name)
-			if not name or vim.trim(name) == "" then return end
+			if not name or vim.trim(name) == "" then
+				return
+			end
 			local renamed, err = require("aero.reference").rename(entry, name)
-			if not renamed then return notify(err, vim.log.levels.WARN) end
+			if not renamed then
+				return notify(err, vim.log.levels.WARN)
+			end
 			local expanded = {}
 			for path, value in pairs(state.reference_folders_expanded) do
 				if path == entry.path or vim.startswith(path, entry.path .. "/") then
@@ -1211,6 +1250,7 @@ function M.pull(path)
 	return git.pull(path, function(ok, output)
 		state.pulling[path] = nil
 		-- Git may have fetched new refs even if it could not fast-forward the checkout.
+		require("aero.remote_status").invalidate()
 		state.worktrees = {}
 		load_worktrees()
 		M.render()
@@ -1240,7 +1280,8 @@ function actions.switch_branch()
 		vim.ui.select(branches, {
 			prompt = "Switch branch (" .. wt_label(item.wt) .. "):",
 			format_item = function(branch)
-				return branch.name .. (branch.remote and " (remote)" or branch.name == item.wt.branch and " (current)" or "")
+				return branch.name
+					.. (branch.remote and " (remote)" or branch.name == item.wt.branch and " (current)" or "")
 			end,
 		}, function(branch)
 			if not branch then
