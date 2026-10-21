@@ -46,7 +46,11 @@ require("aero").setup({
   worktree_path = function(ws, branch)
     return vim.fs.joinpath(vim.fs.dirname(ws.root), vim.fs.basename(ws.root) .. ".worktrees", (branch:gsub("/", "-")))
   end,
-  dashboard = { position = "left", width = 40 }, -- left | right | current
+  dashboard = {
+    position = "left", width = 40, -- left | right | current
+    remote_refresh_interval = 60000, -- milliseconds between automatic remote checks
+    remote_concurrency = 2, -- maximum simultaneous background fetches
+  },
   panel = { position = "right", width = 80 }, -- left | right; false uses last window
   worktree_tabs = true,
   terminal = { height = 12, cmd = nil }, -- nil uses { vim.o.shell }

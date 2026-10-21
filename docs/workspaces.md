@@ -34,6 +34,14 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero term` | Toggle the current worktree's shell |
 | `:Aero term history` | Pick and rerun a command from the worktree terminal |
 
+The dashboard displays local worktrees before starting background remote checks.
+Remote results are cached for 60 seconds per workspace, with at most two fetches
+running simultaneously. Reopening the dashboard reuses recent results; stale
+results remain visible while a new check runs. `:Aero refresh` bypasses the
+freshness interval. Configure `dashboard.remote_refresh_interval` (milliseconds)
+and `dashboard.remote_concurrency` to tune this behavior. Failed checks also wait
+for the freshness interval before an automatic retry.
+
 Collapse commands apply across registered workspaces, including sections hidden
 under collapsed parents, and preserve your current window focus. The matching Lua
 API is `require("aero").collapse(kind)`, where `kind` defaults to `"all"`.
