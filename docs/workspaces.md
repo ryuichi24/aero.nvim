@@ -32,7 +32,7 @@ terminal or ACP sessions. See [agents](agents.md) for session controls.
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero review [base-ref]` | Review local changes, or committed changes from an explicit base's merge-base |
 | `:Aero term` | Toggle the current worktree's shell |
-| `:Aero term history` | Pick and rerun a command from the worktree terminal |
+| `:Aero term history` | Copy or paste a command from the worktree terminal history |
 
 The dashboard displays local worktrees before starting background remote checks.
 Remote results are cached for 60 seconds per workspace, with at most two fetches
@@ -234,10 +234,17 @@ cannot preserve are reported rather than merged automatically.
 ## Terminal command history
 
 Use `:Aero term history` to list commands from the current worktree's terminal,
-newest first. Select a command to run it again in that terminal. Leave the shell
-at an idle prompt before rerunning a command. The picker shows success/failure,
-the working directory, start time, and duration. Reruns first change to the
-recorded directory; if that directory no longer exists, the command is not run.
+newest first. The picker shows success/failure, working directory, start time,
+and duration. Use `j`/`k` to select and `i` to filter (Escape returns to normal mode).
+
+- **Enter:** paste just the command into the current terminal session.
+- **`r` (normal mode):** paste the command prefixed with a change to its recorded directory.
+- **`y` (normal mode):** copy just the command to the system clipboard.
+
+Neither paste action submits the command. Review or edit it, then press Enter in
+the terminal to execute it. Leave the shell at an idle prompt before pasting;
+pasting replaces unfinished input. With `r`, if the recorded directory no longer
+exists, the command will not run when submitted.
 
 Commands are captured automatically for interactive Bash and Zsh shells launched
 by `:Aero term`, including repeated and multiline commands. Both shells record

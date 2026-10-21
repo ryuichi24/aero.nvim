@@ -116,13 +116,28 @@ local ok, err = xpcall(function()
 			send("pwd > " .. vim.fn.shellescape(output), 2)
 			vim.fn.delete(output)
 			send("cd -- " .. vim.fn.shellescape(root), 3)
-			local select = vim.ui.select
-			vim.ui.select = function(items, opts, callback)
-				assert(opts.format_item(items[2]):find("✓", 1, true), "picker omitted command status")
-				callback(items[2])
+			local picker = require("aero.picker")
+			local open = picker.open
+			local selected
+			picker.open = function(opts)
+				selected = opts
+				assert(opts.label(opts.items()[2]):find("✓", 1, true), "picker omitted command status")
 			end
 			terminal.history()
-			vim.ui.select = select
+			picker.open = open
+			selected.select(selected.items()[2])
+			vim.wait(200, function() return false end)
+			assert(vim.fn.filereadable(output) == 0, "paste executed the command")
+			send("", 4)
+			assert(
+				vim.uv.fs_realpath(vim.fn.readfile(output)[1]) == vim.uv.fs_realpath(root),
+				"paste changed directory"
+			)
+			vim.fn.delete(output)
+			selected.actions.r(selected.items()[2])
+			vim.wait(200, function() return false end)
+			assert(vim.fn.filereadable(output) == 0, "replay paste executed the command")
+			vim.api.nvim_chan_send(job, "\r")
 			assert(
 				vim.wait(5000, function() return vim.fn.filereadable(output) == 1 end, 20),
 				"rerun produced no output"

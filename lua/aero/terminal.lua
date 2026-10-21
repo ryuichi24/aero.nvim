@@ -93,7 +93,7 @@ function M.delete(worktree)
 	if buf and api.nvim_buf_is_valid(buf) then api.nvim_buf_delete(buf, { force = true }) end
 end
 
---- Pick a command from this worktree's shell and submit it to the same terminal.
+--- Pick a command to copy or paste into this worktree's terminal without submitting it.
 function M.history()
 	local worktree = M.current_worktree()
 	local commands = require("aero.terminal_history").list(worktree)
@@ -103,11 +103,30 @@ function M.history()
 	end
 	local items = {}
 	for i = #commands, 1, -1 do
+		commands[i].key = tostring(i)
 		items[#items + 1] = commands[i]
 	end
-	vim.ui.select(items, {
-		prompt = "Rerun terminal command:",
-		format_item = function(entry)
+	local picker = require("aero.picker")
+	local function paste(entry, replay)
+		picker.close()
+		local buf = bufs[worktree]
+		if not alive(buf) then
+			vim.notify("Aero: the original terminal has exited", vim.log.levels.WARN)
+			return
+		end
+		M.open(worktree, require("aero.navigation").code_window())
+		local command = entry.command
+		if replay and entry.cwd then
+			command = "cd -- " .. vim.fn.shellescape(entry.cwd) .. " && {\n" .. command .. "\n}"
+		end
+		-- Bracketed paste preserves multiline commands and replaces any unfinished input.
+		api.nvim_chan_send(vim.b[buf].terminal_job_id, "\021\027[200~" .. command .. "\027[201~")
+	end
+	picker.open({
+		title = "term history",
+		items = function() return items end,
+		footer = " j/k: select · i: filter · Enter: paste · r: paste with cd · y: copy · q: close ",
+		label = function(entry)
 			local status = entry.exit_code == nil and "?" or entry.exit_code == 0 and "✓" or "✗"
 			local cwd = entry.cwd or "unknown directory"
 			if cwd == worktree then
@@ -128,19 +147,15 @@ function M.history()
 				duration
 			)
 		end,
-	}, function(entry)
-		if not entry then return end
-		local buf = bufs[worktree]
-		if not alive(buf) then
-			vim.notify("Aero: the original terminal has exited", vim.log.levels.WARN)
-			return
-		end
-		M.open(worktree, require("aero.navigation").code_window())
-		local command = entry.command
-		if entry.cwd then command = "cd -- " .. vim.fn.shellescape(entry.cwd) .. " && {\n" .. command .. "\n}" end
-		-- Bracketed paste preserves multiline commands and replaces any unfinished input.
-		api.nvim_chan_send(vim.b[buf].terminal_job_id, "\021\027[200~" .. command .. "\027[201~\r")
-	end)
+		select = function(entry) paste(entry, false) end,
+		actions = {
+			r = function(entry) paste(entry, true) end,
+			y = function(entry)
+				picker.close()
+				vim.fn.setreg("+", entry.command)
+			end,
+		},
+	})
 end
 
 return M

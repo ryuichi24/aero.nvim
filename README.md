@@ -92,7 +92,9 @@ Switching restores the last file or directory and cursor position, including Oil
 Use `:Aero term` for a worktree-specific shell that keeps running when hidden.
 Use `:Aero term history` to browse and rerun commands recorded in that worktree's
 Bash or Zsh terminal. Command history is saved per worktree across Neovim restarts.
-See command status, start time, and duration, and rerun from the original directory.
+See command status, start time, and duration. Enter pastes without changing directories,
+`r` pastes with the original directory, and `y` copies to the system clipboard.
+Pasted commands wait for you to submit them.
 
 [Worktree tabs, buffers, and terminals](docs/workspaces.md#worktree-tabs-and-remembered-buffers)
 
