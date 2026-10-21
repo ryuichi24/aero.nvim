@@ -68,9 +68,10 @@ function M.enter_worktree(path, opts)
 		end
 		return true
 	end
-	local had_dashboard = opts.browse and dashboard.is_open and dashboard.is_open()
+	local had_dashboard = dashboard.is_open and dashboard.is_open()
 	if
-		had_dashboard
+		opts.browse
+		and had_dashboard
 		and not vim.t.aero_worktree
 		and not vim.t.aero_fullscreen
 		and not vim.t.aero_board_path
