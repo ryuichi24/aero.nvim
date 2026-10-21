@@ -124,7 +124,25 @@ function M.history()
 	end
 	picker.open({
 		title = "term history",
+		width = math.floor(vim.o.columns * 0.9),
 		items = function() return items end,
+		preview_title = " Full command · Ctrl-d/u: scroll ",
+		preview = function(entry)
+			return table.concat({
+				"Directory: " .. (entry.cwd or "unknown directory"),
+				"Started: "
+					.. (
+						entry.started_at and os.date("%Y-%m-%d %H:%M:%S", math.floor(entry.started_at)) or "unknown time"
+					),
+				"Exit code: " .. (entry.exit_code == nil and "unfinished/unknown" or tostring(entry.exit_code)),
+				"Duration: "
+					.. (
+						entry.duration_seconds and string.format("%.2fs", entry.duration_seconds) or "unfinished/unknown"
+					),
+				"",
+				entry.command,
+			}, "\n")
+		end,
 		footer = " j/k: select · i: filter · Enter: paste · r: paste with cd · y: copy · q: close ",
 		label = function(entry)
 			local status = entry.exit_code == nil and "?" or entry.exit_code == 0 and "✓" or "✗"

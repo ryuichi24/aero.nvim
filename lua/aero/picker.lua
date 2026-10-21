@@ -15,15 +15,11 @@ local function initial_mode(opts)
 	end
 end
 
-local function clean(text)
-	return (text:gsub("[%c]", " "))
-end
+local function clean(text) return (text:gsub("[%c]", " ")) end
 
 function M.close()
 	local p = popup
-	if not p then
-		return
-	end
+	if not p then return end
 	popup = nil
 	if p.timer then
 		p.timer:stop()
@@ -31,16 +27,12 @@ function M.close()
 	end
 	vim.cmd.stopinsert()
 	for _, win in ipairs({ p.search_win, p.list_win, p.preview_win }) do
-		if api.nvim_win_is_valid(win) then
-			api.nvim_win_close(win, true)
-		end
+		if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
 	end
 end
 
 local function preview(p)
-	if not p.preview then
-		return
-	end
+	if not p.preview then return end
 	local item = p.items[p.index]
 	local text = item and p.opts.preview(item) or ""
 	vim.bo[p.preview].modifiable = true
@@ -51,9 +43,7 @@ end
 
 local function render()
 	local p = popup
-	if not p then
-		return
-	end
+	if not p then return end
 	local previous = p.items[p.index]
 	local query = table.concat(api.nvim_buf_get_lines(p.search, 0, -1, false), " "):lower()
 	local items = {}
@@ -66,19 +56,13 @@ local function render()
 				break
 			end
 		end
-		if matches then
-			table.insert(items, s)
-		end
+		if matches then table.insert(items, s) end
 	end
-	if p.opts.sort then
-		table.sort(items, p.opts.sort)
-	end
+	if p.opts.sort then table.sort(items, p.opts.sort) end
 	p.items = items
 	p.index = math.max(1, math.min(p.index, #items))
 	for i, s in ipairs(items) do
-		if previous and s.key == previous.key then
-			p.index = i
-		end
+		if previous and s.key == previous.key then p.index = i end
 	end
 	local lines = {}
 	local headings = {}
@@ -87,9 +71,7 @@ local function render()
 	for i, s in ipairs(items) do
 		local heading = p.opts.group and p.opts.group(s)
 		if heading and heading ~= group then
-			if group then
-				table.insert(lines, "")
-			end
+			if group then table.insert(lines, "") end
 			group = heading
 			table.insert(lines, clean(heading))
 			table.insert(headings, #lines - 1)
@@ -122,12 +104,10 @@ function M.open(opts)
 		vim.notify("Aero: no " .. opts.title, vim.log.levels.INFO)
 		return
 	end
-	local width = math.max(1, math.min(100, vim.o.columns - 4))
+	local width = math.max(1, math.min(opts.width or 100, vim.o.columns - 4))
 	local height = math.max(1, math.min(12, vim.o.lines - 8))
 	local preview_height = opts.preview and math.max(1, math.min(12, math.floor((vim.o.lines - 10) / 2))) or 0
-	if opts.preview then
-		height = math.max(1, math.min(8, vim.o.lines - preview_height - 10))
-	end
+	if opts.preview then height = math.max(1, math.min(8, vim.o.lines - preview_height - 10)) end
 	local row = math.max(0, math.floor((vim.o.lines - height - preview_height - 8) / 2))
 	local col = math.max(0, math.floor((vim.o.columns - width - 2) / 2))
 	local p = { items = {}, index = 1, opts = opts }
@@ -166,17 +146,24 @@ function M.open(opts)
 		vim.bo[p.preview].bufhidden = "wipe"
 		vim.bo[p.preview].filetype = "markdown"
 		p.preview_win = api.nvim_open_win(p.preview, false, {
-			relative = "editor", row = row + height + 5, col = col,
-			width = width, height = preview_height, style = "minimal", border = "rounded",
-			title = " Full prompt · Ctrl-d/u: scroll ", focusable = false,
+			relative = "editor",
+			row = row + height + 5,
+			col = col,
+			width = width,
+			height = preview_height,
+			style = "minimal",
+			border = "rounded",
+			title = opts.preview_title or " Full prompt · Ctrl-d/u: scroll ",
+			focusable = false,
 		})
 		vim.wo[p.preview_win].wrap = true
 		for _, mode in ipairs({ "n", "i" }) do
 			for _, key in ipairs({ "<C-d>", "<C-u>" }) do
 				vim.keymap.set(mode, key, function()
-					api.nvim_win_call(p.preview_win, function()
-						vim.cmd("normal! " .. api.nvim_replace_termcodes(key, true, false, true))
-					end)
+					api.nvim_win_call(
+						p.preview_win,
+						function() vim.cmd("normal! " .. api.nvim_replace_termcodes(key, true, false, true)) end
+					)
 				end, { buffer = p.search })
 			end
 		end
@@ -190,23 +177,17 @@ function M.open(opts)
 	end
 	local function select()
 		local s = p.items[p.index]
-		if not s then
-			return
-		end
+		if not s then return end
 		M.close()
 		opts.select(s)
 	end
 	local function bind_navigation()
 		for _, mode in ipairs({ "n", "i" }) do
 			for _, key in ipairs({ "<Down>", "<C-n>" }) do
-				vim.keymap.set(mode, key, function()
-					move(1)
-				end, { buffer = p.search })
+				vim.keymap.set(mode, key, function() move(1) end, { buffer = p.search })
 			end
 			for _, key in ipairs({ "<Up>", "<C-p>" }) do
-				vim.keymap.set(mode, key, function()
-					move(-1)
-				end, { buffer = p.search })
+				vim.keymap.set(mode, key, function() move(-1) end, { buffer = p.search })
 			end
 			vim.keymap.set(mode, "<CR>", select, { buffer = p.search })
 		end
@@ -225,27 +206,19 @@ function M.open(opts)
 		buffer = p.search,
 		callback = function()
 			vim.schedule(function()
-				if popup == p and api.nvim_buf_is_valid(p.search) then
-					protect_navigation()
-				end
+				if popup == p and api.nvim_buf_is_valid(p.search) then protect_navigation() end
 			end)
 		end,
 	})
 	vim.keymap.set("n", "q", M.close, { buffer = p.search })
-	vim.keymap.set("n", "j", function()
-		move(1)
-	end, { buffer = p.search })
-	vim.keymap.set("n", "k", function()
-		move(-1)
-	end, { buffer = p.search })
+	vim.keymap.set("n", "j", function() move(1) end, { buffer = p.search })
+	vim.keymap.set("n", "k", function() move(-1) end, { buffer = p.search })
 	for key, action in pairs(opts.actions or {}) do
 		vim.keymap.set("n", key, function()
 			local item = p.items[p.index]
 			if item then
 				action(item)
-				if popup == p then
-					render()
-				end
+				if popup == p then render() end
 			end
 		end, { buffer = p.search })
 	end
@@ -256,9 +229,7 @@ function M.open(opts)
 		pattern = tostring(p.search_win),
 		once = true,
 		callback = function()
-			if popup == p then
-				M.close()
-			end
+			if popup == p then M.close() end
 		end,
 	})
 	if opts.live then
@@ -267,9 +238,7 @@ function M.open(opts)
 			200,
 			200,
 			vim.schedule_wrap(function()
-				if popup == p then
-					render()
-				end
+				if popup == p then render() end
 			end)
 		)
 	end

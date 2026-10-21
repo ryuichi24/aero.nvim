@@ -236,6 +236,8 @@ cannot preserve are reported rather than merged automatically.
 Use `:Aero term history` to list commands from the current worktree's terminal,
 newest first. The picker shows success/failure, working directory, start time,
 and duration. Use `j`/`k` to select and `i` to filter (Escape returns to normal mode).
+The wrapped preview below the list shows the full command and its metadata;
+use Ctrl-d/Ctrl-u to scroll long entries.
 
 - **Enter:** paste just the command into the current terminal session.
 - **`r` (normal mode):** paste the command prefixed with a change to its recorded directory.
