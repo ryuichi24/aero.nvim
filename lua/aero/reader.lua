@@ -73,6 +73,9 @@ function M.attach(win, kind)
 	changing = true
 	local previous = s.slots[s.active]
 	save(previous)
+	if previous and valid(previous.win) and api.nvim_win_get_buf(previous.win) == previous.buf then
+		require("aero.buffers").remember(previous.win)
+	end
 	if not next(s.slots) then
 		s.slots.source = { buf = api.nvim_win_get_buf(win), win = win }
 		previous = s.slots.source
@@ -93,8 +96,10 @@ function M.attach(win, kind)
 		win = api.nvim_open_win(slot.buf, false, { split = "below", win = previous.win })
 	end
 	s.win, s.active = win, kind
-	vim.w[win].aero_reader_kind = kind
+	-- Buffer events during the swap must not record the outgoing document as Source.
+	vim.w[win].aero_reader_kind = "switching"
 	show(slot, win)
+	vim.w[win].aero_reader_kind = kind
 	render(s)
 	changing = false
 	return win

@@ -13,7 +13,7 @@ if not phase then
 	end
 	vim.fn.writefile(lines, dir .. "/a/alpha.lua")
 	vim.fn.writefile(lines, dir .. "/b/beta.lua")
-	for _, step in ipairs({ "save", "restore", "shared", "missing", "disabled" }) do
+	for _, step in ipairs({ "save", "restore", "shared", "report", "missing", "disabled" }) do
 		local result = vim.system({ vim.v.progpath, "--headless", "-u", "NONE", "-l", "tests/worktree_buffers.lua" }, {
 			env = { AERO_BUFFER_PHASE = step, AERO_BUFFER_DIR = dir },
 			text = true,
@@ -37,6 +37,7 @@ aero.setup({
 	start_insert = false,
 	persist_buffers = phase ~= "disabled",
 	worktree_tabs = phase ~= "shared",
+	reports = { directory = dir .. "/reports" },
 	terminal = { cmd = { "cat" } },
 	agents = { pty = { cmd = { "cat" }, resume = { "cat" } } },
 })
@@ -75,6 +76,28 @@ end
 local function saved(worktree)
 	store.load()
 	return store.data.worktree_buffers[worktree]
+end
+
+if phase == "report" then
+	local report = assert(require("aero.reports").create_file(a, nil, "regression", "Report text"))
+	-- Older state can contain a report as the last Source buffer.
+	store.set_worktree_buffers({ [a] = { kind = "file", path = report.path, cursor = { 1, 0 } } })
+	aero.open_worktree(a)
+	assert(vim.uv.fs_realpath(path()) ~= vim.uv.fs_realpath(report.path), "a persisted report was restored as Source")
+	edit(alpha, 4, 0)
+	local reader = require("aero.reader")
+	reader.select("reports")
+	edit(report.path, 1, 0)
+	reader.select("source")
+	assert(path() == alpha, "switching from Reports lost Source")
+	buffers.flush()
+	assert(saved(a).path == alpha, "switching reader slots saved a report as Source")
+	-- Opening a report directly in Source must not poison its saved buffer either.
+	edit(report.path, 1, 0)
+	assert(not buffers.remember(), "a report was remembered as Source")
+	buffers.flush()
+	assert(saved(a).path == alpha)
+	return
 end
 
 if phase == "save" then

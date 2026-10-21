@@ -4,10 +4,28 @@ local config = require("aero.config")
 local store = require("aero.store")
 local M = {}
 local live, pending = {}, {}
+local report_directories = {}
 local scheduled, restoring, state_file = false, false, nil
 
 local function key(path)
 	return vim.fs.normalize(vim.fn.resolve(path))
+end
+
+local function report_path(path, worktree)
+	if not path:match("%.md$") then
+		return false
+	end
+	local setting = config.options.reports.directory
+	local cached = report_directories[worktree]
+	if not cached or cached.setting ~= setting then
+		cached = { setting = setting, path = require("aero.reports").directory(worktree) }
+		report_directories[worktree] = cached
+	end
+	return cached.path
+		and require("aero.storage").inside(
+			vim.uv.fs_realpath(path) or path,
+			vim.uv.fs_realpath(cached.path) or cached.path
+		)
 end
 
 local function usable(win)
@@ -89,6 +107,10 @@ function M.remember(win)
 		return false
 	end
 	local buf = api.nvim_win_get_buf(win)
+	local path = api.nvim_buf_get_name(buf)
+	if path ~= "" and report_path(path, worktree) then
+		return false
+	end
 	local data = describe(buf, win)
 	-- A fresh empty startup buffer must not replace the saved file. Unsaved buffers can
 	-- still be remembered within this Neovim instance without serializing their contents.
@@ -130,6 +152,12 @@ function M.restore(worktree, win)
 	if not record and config.options.persist_buffers then
 		store.load()
 		data = store.data.worktree_buffers[key(worktree)]
+	end
+	-- Discard reports saved as Source by older versions or opened directly in it.
+	if record and api.nvim_buf_is_valid(record.buf) and report_path(api.nvim_buf_get_name(record.buf), worktree) then
+		record, data = nil, nil
+	elseif type(data) == "table" and type(data.path) == "string" and report_path(data.path, worktree) then
+		record, data = nil, nil
 	end
 	restoring = true
 	local ok, err = pcall(api.nvim_win_call, win, function()
@@ -194,6 +222,7 @@ function M.forget(worktree)
 end
 
 function M.setup()
+	report_directories = {}
 	if state_file ~= config.options.state_file then
 		live, pending = {}, {}
 		state_file = config.options.state_file
