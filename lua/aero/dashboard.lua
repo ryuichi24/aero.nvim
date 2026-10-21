@@ -1528,12 +1528,19 @@ end
 
 --- Pick any session across all workspaces with vim.ui.select and open it in the panel
 --- (or the current window when the panel is disabled).
-function M.pick()
+function M.pick(scope)
 	local choices = {}
-	for _, ws in ipairs(store.data.workspaces) do
-		for _, wt in ipairs(worktrees(ws).list or {}) do
-			for _, s in ipairs(session.list(wt.path)) do
-				table.insert(choices, { ws = ws, wt = wt, session = s })
+	if scope == "current" then
+		local path = vim.t.aero_worktree or vim.fn.getcwd()
+		for _, s in ipairs(session.list(path)) do
+			table.insert(choices, { session = s })
+		end
+	else
+		for _, ws in ipairs(store.data.workspaces) do
+			for _, wt in ipairs(worktrees(ws).list or {}) do
+				for _, s in ipairs(session.list(wt.path)) do
+					table.insert(choices, { ws = ws, wt = wt, session = s })
+				end
 			end
 		end
 	end
@@ -1545,6 +1552,14 @@ function M.pick()
 		prompt = "Agent session",
 		format_item = function(c)
 			local what = session.activity(c.session)
+			if scope == "current" then
+				return ("%s %s [%s]%s"):format(
+					session.icon(c.session),
+					c.session.name,
+					c.session.agent,
+					what and "  " .. what or ""
+				)
+			end
 			return ("%s %s / %s / %s%s"):format(
 				session.icon(c.session),
 				c.ws.name,

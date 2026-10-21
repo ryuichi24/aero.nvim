@@ -33,7 +33,13 @@ local subcommands = {
 		require("aero").collapse(args[1])
 	end,
 	pull = function() require("aero").pull() end,
-	pick = function() require("aero").pick() end,
+	pick = function(args)
+		if #args > 1 or args[1] and args[1] ~= "current" then
+			vim.notify("Aero: use :Aero pick [current]", vim.log.levels.WARN)
+			return
+		end
+		require("aero").pick(args[1])
+	end,
 	new = function() require("aero").new() end,
 	sessions = function() require("aero").sessions() end,
 	inbox = function() require("aero").inbox() end,
@@ -105,6 +111,10 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "pick" and (#words > 2 or cmdline:match("%s$")) then
+			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
+			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "current" })
+		end
 		if words[2] == "term" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "history" })
 		end

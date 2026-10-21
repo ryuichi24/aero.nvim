@@ -113,6 +113,9 @@ Use `:Aero worktrees` and `:Aero workspaces` to jump between checkouts.
 Run `:Aero new` to choose an agent and start a session in the current worktree
 without opening the sidebar. Map it with
 `vim.keymap.set("n", "<leader>an", function() require("aero").new() end, { desc = "New agent session" })`.
+Use `:Aero pick current` or `require("aero").pick("current")` to select an existing
+session in the current worktree, including stopped sessions that can be resumed.
+With no scope, `:Aero pick` lists sessions across all registered workspaces.
 
 [Panels, resizing, and fullscreen](docs/layout.md) · [Search and attention inbox](docs/workspaces.md#commands)
 

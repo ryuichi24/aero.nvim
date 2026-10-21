@@ -84,8 +84,9 @@ function M.review(path, base)
 	return require("aero.review").open(path, base)
 end
 
-function M.pick()
-	ensure().pick()
+--- Pick saved sessions; scope = "current" limits the list to the current worktree.
+function M.pick(scope)
+	ensure().pick(scope)
 end
 
 --- Choose an agent and start a new session in the current worktree.
