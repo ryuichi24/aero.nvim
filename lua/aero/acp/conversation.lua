@@ -659,7 +659,9 @@ function M.start(s, buf, agent, resume, session_id, opts)
 			for _, line in ipairs(saved.draft) do
 				valid = valid and type(line) == "string" and not line:find("\n", 1, true)
 			end
-			if valid then chat.draft = saved.draft end
+			if valid then
+				chat.draft = saved.draft
+			end
 		end
 		usage.restore(chat, saved.usage)
 		chat.saved_session_id = type(saved.session_id) == "string" and saved.session_id ~= "" and saved.session_id
@@ -793,6 +795,9 @@ function M.omnifunc(findstart, base)
 	if ("/report"):sub(1, #base) == base then
 		table.insert(out, { word = "/report", menu = "Attach a worktree report to the draft" })
 	end
+	if ("/reading"):sub(1, #base) == base then
+		table.insert(out, { word = "/reading", menu = "Draft a named source-code walkthrough request" })
+	end
 	if ("/prompt"):sub(1, #base) == base then
 		table.insert(out, { word = "/prompt", menu = "Insert a custom prompt snippet into the draft" })
 	end
@@ -818,6 +823,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/export"
 			and word ~= "/mode"
 			and word ~= "/report"
+			and word ~= "/reading"
 			and word ~= "/prompt"
 			and word ~= "/history"
 			and word ~= "/send"

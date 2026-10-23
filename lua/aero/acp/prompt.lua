@@ -19,6 +19,29 @@ function M.command(chat)
 	end
 	local row = api.nvim_win_get_cursor(0)[1]
 	local text = vim.trim(api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
+	if text == "/reading" or text:match("^/reading%s") then
+		local function insert(title)
+			if not title or vim.trim(title) == "" or not api.nvim_buf_is_valid(buf) then
+				return
+			end
+			-- Do not overwrite a draft edited while the title input was open.
+			if vim.trim(api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "") ~= text then
+				return
+			end
+			local template = require("aero.config").options.reading.prompt
+			local request = template:gsub("{title}", function()
+				return vim.json.encode(vim.trim(title))
+			end)
+			api.nvim_buf_set_lines(buf, row - 1, row, false, vim.split(request, "\n", { plain = true }))
+		end
+		local title = vim.trim(text:sub(#"/reading" + 1))
+		if title == "" then
+			vim.ui.input({ prompt = "Reading list title: " }, insert)
+		else
+			insert(title)
+		end
+		return true
+	end
 	if text == "/send" then
 		api.nvim_buf_set_lines(buf, row - 1, row, false, {})
 		M.send(chat, true)
@@ -58,6 +81,9 @@ function M.send(chat, submitting)
 		return
 	end
 	local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
+	if not text:find("\n", 1, true) and (text == "/reading" or text:match("^/reading%s")) then
+		return M.command(chat)
+	end
 	if text == "" then
 		vim.bo[buf].modified = false
 		return
