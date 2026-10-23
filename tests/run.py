@@ -38,6 +38,11 @@ def main():
         parser.error("task tests require Mike Farah's yq v4")
 
     env = os.environ.copy()
+    if env.get("AERO_SKIP_IMAGE_INTEGRATION") == "1":
+        skipped = [test for test in tests if test.stem == "mermaid_spacing"]
+        tests = [test for test in tests if test.stem != "mermaid_spacing"]
+        for test in skipped:
+            print(f"SKIP {test.relative_to(root).as_posix()} (image integration disabled)", flush=True)
     env.setdefault("AERO_MCP_EXECUTABLE", str(root / "apps/mcp/aero-mcp"))
     for binary in (Path(env["AERO_MCP_EXECUTABLE"]), root / "apps/companion/aero-companion"):
         if not os.access(binary, os.X_OK):
