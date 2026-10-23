@@ -41,7 +41,13 @@ for line in sys.stdin:
         rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "acp-fixture", "version": "1"}})
         adapter.stdin.write(json.dumps(dict(jsonrpc="2.0", method="notifications/initialized")) + "\n")
         adapter.stdin.flush()
-        assert len(rpc("tools/list", {})["tools"]) == 8
+        tools = {tool["name"] for tool in rpc("tools/list", {})["tools"]}
+        assert {
+            "aero_list_boards", "aero_get_board", "aero_get_ticket",
+            "aero_create_report", "aero_create_ticket", "aero_move_ticket",
+            "aero_update_ticket_body", "aero_update_ticket_metadata",
+            "aero_reading_list_publish",
+        } <= tools, tools
         send({"id": request["id"], "result": {"sessionId": "task-fixture"}})
     elif method == "session/prompt":
         def tool(name, arguments):
