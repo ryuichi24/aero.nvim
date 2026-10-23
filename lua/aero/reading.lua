@@ -296,6 +296,14 @@ local function selected()
 	end
 end
 
+local function jump(index, kind)
+	local context = vim.fn.getqflist({ context = 0 }).context
+	if type(context) == "table" and context.aero_reading then
+		require("aero.reader").select(kind or "reading")
+	end
+	vim.cmd("cc " .. index)
+end
+
 function M.command(action)
 	if action == "new" then
 		local worktree = current_worktree()
@@ -328,16 +336,18 @@ function M.command(action)
 			project(worktree, list, qid)
 		elseif action == "note" then
 			vim.notify(list.items[index].note or list.items[index].label)
+		elseif action == "source" then
+			return jump(index, "source")
 		elseif action == "next" then
 			for offset = 1, #list.items do
 				local next_index = (index + offset - 1) % #list.items + 1
 				if not list.items[next_index].read then
-					return vim.cmd("cc " .. next_index)
+					return jump(next_index)
 				end
 			end
 			vim.notify("Aero: all items read")
 		else
-			vim.notify("Aero: use :Aero reading [new|add|edit|next|toggle|note]", vim.log.levels.WARN)
+			vim.notify("Aero: use :Aero reading [new|add|edit|next|source|toggle|note]", vim.log.levels.WARN)
 		end
 		return
 	end
@@ -345,6 +355,9 @@ function M.command(action)
 	pick(worktree, function(list)
 		project(worktree, list)
 		vim.cmd.copen()
+		vim.keymap.set("n", "<CR>", function()
+			jump(vim.fn.line("."))
+		end, { buffer = true, desc = "Open reading item in reader" })
 		vim.keymap.set("n", "x", function()
 			M.command("toggle")
 		end, { buffer = true, desc = "Toggle reading item" })

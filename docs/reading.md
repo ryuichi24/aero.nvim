@@ -83,7 +83,11 @@ do not conflict and are preserved on save.
 ## Navigation and progress
 
 - `:Aero reading`: choose a saved list in the current worktree and open quickfix.
-- Enter, `:cnext`, and `:cprevious`: standard quickfix navigation.
+- Enter opens the selected stop in the reader panel's **Reading** tab, preserving
+  the **Source** tab and agent panel. `:Aero reading next` uses the same tab.
+- `:cnext` and `:cprevious`: standard quickfix navigation.
+- `:Aero reading source`: open the current quickfix stop in **Source**, keeping
+  the **Reading** slot intact. Lua: `require("aero").reading("source")`.
 - `x` in the reading quickfix window, or `:Aero reading toggle`: mark/unmark a stop.
 - `K` in the reading quickfix window, or `:Aero reading note`: show its explanation.
 - `:Aero reading next`: jump to the next unread stop, wrapping at the end.
