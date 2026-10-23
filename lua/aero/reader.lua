@@ -2,8 +2,14 @@
 local api = vim.api
 local M = {}
 local states = {}
-local kinds = { "source", "exports", "references", "reports" }
-local labels = { source = "Source", exports = "Exported logs", references = "References", reports = "Reports" }
+local kinds = { "source", "exports", "references", "reports", "reading" }
+local labels = {
+	source = "Source",
+	exports = "Exported logs",
+	references = "References",
+	reports = "Reports",
+	reading = "Reading",
+}
 local changing = false
 
 local function valid(win)
@@ -11,6 +17,7 @@ local function valid(win)
 		and api.nvim_win_is_valid(win)
 		and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage()
 		and api.nvim_win_get_config(win).relative == ""
+		and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix"
 		and vim.bo[api.nvim_win_get_buf(win)].filetype ~= "Aero"
 		and not require("aero.panel").owns(win)
 		and not require("aero.terminal").is_term_win(win)
@@ -58,7 +65,11 @@ local function render(s)
 				local hl = name == kind and "TabLineSel" or "TabLine"
 				bar[#bar + 1] = "%#" .. hl .. "#%" .. index .. "@v:lua.AeroReaderClick@ " .. labels[name] .. " %T"
 			end
-			bar[#bar + 1] = "%#TabLineFill#%=%#TabLine#%5@v:lua.AeroReaderClick@ " .. s.mode .. " ⇄ %T"
+			bar[#bar + 1] = "%#TabLineFill#%=%#TabLine#%"
+				.. (#kinds + 1)
+				.. "@v:lua.AeroReaderClick@ "
+				.. s.mode
+				.. " ⇄ %T"
 			vim.wo[slot.win].winbar = table.concat(bar)
 		end
 	end
@@ -117,7 +128,10 @@ function M.mode(mode)
 	local s = state()
 	mode = mode or (s.mode == "tabs" and "panes" or "tabs")
 	if mode ~= "tabs" and mode ~= "panes" then
-		return vim.notify("Aero: use :Aero reader [tabs|panes|source|exports|references|reports]", vim.log.levels.WARN)
+		return vim.notify(
+			"Aero: use :Aero reader [tabs|panes|source|exports|references|reports|reading]",
+			vim.log.levels.WARN
+		)
 	end
 	if not next(s.slots) then
 		require("aero.navigation").code_window()
@@ -163,7 +177,7 @@ end
 
 function M.setup()
 	_G.AeroReaderClick = function(index)
-		if index == 5 then
+		if index == #kinds + 1 then
 			M.mode()
 		else
 			M.select(kinds[index])

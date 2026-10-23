@@ -131,11 +131,11 @@ function M.panel()
 end
 
 --- Select a reader slot or display mode; nil toggles tabs/panes.
----@param action? "source"|"exports"|"references"|"reports"|"tabs"|"panes"
+---@param action? "source"|"exports"|"references"|"reports"|"reading"|"tabs"|"panes"
 function M.reader(action)
 	ensure()
 	local reader = require("aero.reader")
-	if vim.tbl_contains({ "source", "exports", "references", "reports" }, action) then
+	if vim.tbl_contains({ "source", "exports", "references", "reports", "reading" }, action) then
 		return reader.select(action)
 	end
 	return reader.mode(action)
