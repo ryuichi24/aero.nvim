@@ -129,9 +129,14 @@ require("aero").setup({
   resize = {
     prefix = "<C-w>",
     keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+    steps = { grow = 1, shrink = 1, narrow = 1, widen = 1 },
   }, -- false disables these mappings everywhere
 })
 ```
+
+`resize.steps` sets positive rows (`grow`/`shrink`) or columns (`narrow`/`widen`)
+per keypress, including repeat keys. Each direction defaults to `1`; for example,
+`steps = { narrow = 5, widen = 5 }` changes horizontal resizing to five columns.
 
 The legacy `resize_keys` table of full shortcuts is supported; `acp.resize_keys`
 can override full shortcuts specifically for prompts.

@@ -39,13 +39,26 @@ end
 dashboard.open()
 local dw = api.nvim_get_current_win()
 local collapse, expand = mapping("h").callback, mapping("l").callback
+-- Custom steps apply to both the initial shortcut and repeat keys.
+local steps = require("aero.config").options.resize.steps
+steps.narrow, steps.widen = 2, 3
+keys("<C-w>hh<Esc>")
+assert(api.nvim_win_get_width(dw) == 16, "custom narrow step was not repeated")
+keys("<C-w>ll<Esc>")
+assert(api.nvim_win_get_width(dw) == 22, "custom widen step was not repeated")
+steps.narrow, steps.widen = 1, 1
+keys("<C-w>hh<Esc>")
 keys("<C-w>hhh<Esc>")
 assert(api.nvim_win_get_width(dw) == 17, "dashboard repeat resizing failed")
-assert(mapping("h").callback == collapse and mapping("l").callback == expand,
-	"resize mode replaced dashboard navigation")
+assert(
+	mapping("h").callback == collapse and mapping("l").callback == expand,
+	"resize mode replaced dashboard navigation"
+)
 dashboard.close()
-assert(require("aero.layout").dashboard_width() == 17,
-	"stored dashboard width after close: " .. require("aero.layout").dashboard_width())
+assert(
+	require("aero.layout").dashboard_width() == 17,
+	"stored dashboard width after close: " .. require("aero.layout").dashboard_width()
+)
 dashboard.open()
 dw = api.nvim_get_current_win()
 assert(api.nvim_win_get_width(dw) == 17, "dashboard width was not remembered: " .. api.nvim_win_get_width(dw))
@@ -62,12 +75,10 @@ assert(mapping("<C-w>k").callback ~= original_navigation)
 -- The same code buffer in an ordinary tab retains its original mappings.
 vim.cmd.tabnew()
 api.nvim_set_current_buf(code_buf)
-assert(mapping("<C-w>k").callback == original_navigation,
-	"Aero resizing leaked into a non-Aero tab")
+assert(mapping("<C-w>k").callback == original_navigation, "Aero resizing leaked into a non-Aero tab")
 vim.cmd.tabclose()
 api.nvim_set_current_win(code)
-assert(mapping("<C-w>k").callback ~= original_navigation,
-	"returning to the Aero code pane did not restore resizing")
+assert(mapping("<C-w>k").callback ~= original_navigation, "returning to the Aero code pane did not restore resizing")
 
 local shell = terminal.open(cwd, code)
 vim.cmd.stopinsert()
@@ -96,8 +107,10 @@ local height = api.nvim_win_get_height(transcript)
 keys("<C-w>jjj<Esc>")
 assert(api.nvim_win_get_height(transcript) == height - 3, "transcript repeat resizing failed")
 assert(api.nvim_win_get_height(prompt) == 8, "resizing transcript did not adjust the prompt")
-assert(require("aero.layout").prompt_height(acp.key) == 8,
-	"resizing transcript did not remember the adjusted prompt height")
+assert(
+	require("aero.layout").prompt_height(acp.key) == 8,
+	"resizing transcript did not remember the adjusted prompt height"
+)
 
 local pty = sessions.create(cwd, "pty")
 assert(panel.show(pty))

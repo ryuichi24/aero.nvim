@@ -178,6 +178,7 @@ M.defaults = {
 	resize = {
 		prefix = "<C-w>",
 		keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+		steps = { grow = 1, shrink = 1, narrow = 1, widen = 1 }, -- positive rows/columns per keypress
 	},
 	-- remember sessions across restarts so they can be resumed
 	persist_sessions = true,

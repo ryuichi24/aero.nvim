@@ -63,6 +63,7 @@ require("aero").setup({
   resize = { -- false disables
     prefix = "<C-w>",
     keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+    steps = { grow = 1, shrink = 1, narrow = 1, widen = 1 }, -- positive rows/columns per keypress
   },
   persist_sessions = true,
   prompt_session_name = true, -- ask for a name with `a` or agent shortcuts; false uses automatic names

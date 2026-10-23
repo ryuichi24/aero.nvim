@@ -15,6 +15,13 @@ local directions = {
 	widen = { 1, "width" },
 }
 
+local function resize_direction(name)
+	local direction = directions[name]
+	local options = config.options.resize or config.defaults.resize
+	local step = options.steps[name]
+	M.resize(direction[1] * step, direction[2])
+end
+
 local function stop_resize()
 	if not resize_mode then
 		return
@@ -270,7 +277,7 @@ function M.resize(delta, axis)
 	stop_resize()
 	resize_mode = { win = win, buf = buf, saved = {}, keys = {}, allowed = {} }
 	local repeat_keys = config.options.resize and config.options.resize.keys or config.defaults.resize.keys
-	for name, resize in pairs(directions) do
+	for name in pairs(directions) do
 		local key = repeat_keys[name]
 		if key then
 			table.insert(resize_mode.keys, key)
@@ -280,7 +287,7 @@ function M.resize(delta, axis)
 				resize_mode.saved[key] = saved
 			end
 			vim.keymap.set("n", key, function()
-				M.resize(resize[1], resize[2])
+				resize_direction(name)
 			end, { buffer = buf, nowait = true, desc = "Aero: resize pane (any other key exits)" })
 		end
 	end
@@ -329,12 +336,12 @@ function M.bind(buf, code)
 	bindings[buf] = maps
 	updating = true
 	api.nvim_buf_call(buf, function()
-		for name, size in pairs(directions) do
+		for name in pairs(directions) do
 			local key = keys[name]
 			if key then
 				local previous = vim.fn.maparg(key, "n", false, true)
 				local callback = function()
-					M.resize(size[1], size[2])
+					resize_direction(name)
 				end
 				table.insert(maps, {
 					key = key,
