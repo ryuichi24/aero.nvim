@@ -3,6 +3,8 @@ local M = {}
 local api = vim.api
 
 local function truncate(text, width)
+	-- Each suggestion occupies one buffer line; keep full descriptions on the original items.
+	text = text:gsub("[\r\n]+", " ")
 	width = math.max(0, width)
 	if vim.fn.strdisplaywidth(text) <= width then return text end
 	if width == 0 then return "" end

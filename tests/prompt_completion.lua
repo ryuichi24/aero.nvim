@@ -104,7 +104,13 @@ for _, wrapped in ipairs({ false, true }) do
 end
 vim.fn.screenpos = screenpos
 -- Selected slash descriptions retain their full text in a wrapped popup.
-local description = string.rep("A detailed command explanation. ", 8)
+local description = "First line.\nSecond line.\r\n" .. string.rep("A detailed command explanation. ", 8)
+local multiline = { { word = "/first", abbr = "/first\nlabel", kind = "command\nkind", menu = description } }
+local fitted = completion.fit(multiline, 80)
+for _, field in ipairs({ "abbr", "kind", "menu" }) do
+	assert(not fitted[1][field]:find("[\r\n]"), "multiline suggestion field: " .. field)
+end
+assert(multiline[1].menu == description, "fitting changed the full description")
 menu.show(buf, 1, {
 	{ word = "/first", menu = description },
 	{ word = "/second", menu = "Second explanation" },
