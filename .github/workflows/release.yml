@@ -1,24 +1,87 @@
 name: Release
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish using its CI artifacts
+        required: true
+        type: string
 permissions:
   contents: read
+  actions: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 jobs:
-  check:
-    uses: ./.github/workflows/host-tools.yml
   release:
-    needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 65
     permissions:
       contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - name: Validate release manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path('release.json').read_text())
+          if not manifest['published'] or os.environ['RELEASE_TAG'] != 'v' + manifest['version']:
+              raise SystemExit('Release tag must match a published root release.json')
+          PY
+      # A branch push and tag push can arrive together. Wait for CI rather than
+      # running the same validation and cross-platform builds a second time.
+      - name: Wait for successful CI on the tagged commit
+        id: ci
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { stdout } = await exec.getExecOutput('git', ['rev-parse', 'HEAD']);
+            const sha = stdout.trim();
+            const deadline = Date.now() + 60 * 60 * 1000;
+            while (Date.now() < deadline) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                ...context.repo,
+                workflow_id: 'ci.yml',
+                head_sha: sha,
+                event: 'push',
+                per_page: 100,
+              });
+              const success = data.workflow_runs.find(run => run.conclusion === 'success');
+              if (success) {
+                core.setOutput('run-id', String(success.id));
+                core.info(`Using CI artifacts from ${success.html_url}`);
+                return;
+              }
+              const latest = data.workflow_runs[0];
+              if (latest?.status === 'completed') {
+                throw new Error(`CI ${latest.conclusion}: ${latest.html_url}. Rerun CI, then rerun this release.`);
+              }
+              core.info(`Waiting for CI on ${sha}: ${latest?.status ?? 'not started'}`);
+              await new Promise(resolve => setTimeout(resolve, 15000));
+            }
+            throw new Error(`Timed out waiting for push CI on ${sha}. Push the tagged commit to a branch and rerun this release.`);
       - uses: actions/download-artifact@v4
         with:
           name: aero-host-tools
           path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.ci.outputs.run-id }}
+      - name: Verify release checksums
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS
       - name: Upload unified release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+        run: gh release upload "$RELEASE_TAG" dist/* --clobber

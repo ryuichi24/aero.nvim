@@ -1,9 +1,11 @@
 # Developing and releasing Aero's host tools
 
-The [Aero host tools workflow](../.github/workflows/release.yml) tests, builds,
-and uploads both `aero-mcp` and `aero-companion` when a Git tag matching `v*`
-is pushed. Pull requests and branch pushes affecting host tools, Lua integration,
-tests, or build tooling run checks without publishing.
+The [CI workflow](../.github/workflows/ci.yml) validates and packages both
+`aero-mcp` and `aero-companion` on pull requests and branch pushes affecting host
+tools, Lua integration, tests, or build tooling. When a Git tag matching `v*` is
+pushed, the [Release workflow](../.github/workflows/release.yml) uploads the
+artifacts from successful branch-push CI for that exact commit. It does not
+repeat the tests or builds.
 
 ## Monorepo development
 
@@ -84,8 +86,10 @@ the workflow; the draft release should be created before the upload job runs.
 
 ## Verify and publish
 
-Watch **Aero host tools** in the repository's Actions tab, or use `gh run list`
-and `gh run watch <run-id>`.
+Watch **CI** and **Release** in the repository's Actions tab, or use `gh run list`
+and `gh run watch <run-id>`. These are separate runs: CI performs the build;
+Release waits up to one hour for CI, verifies binary checksums, and uploads its
+artifacts. Branch and tag pushes can happen together.
 
 CI runs race-enabled Go tests and vet for both modules, managed companion
 Neovim tests, the MCP installer test, and frontend tests/format checks. It builds:
@@ -127,7 +131,17 @@ binary from that same release; see
 - **Asset upload fails because the release is missing:** create the GitHub
   Release for the existing tag, then rerun the failed job in GitHub Actions.
 - **Checks or builds fail:** fix the underlying issue before publishing. Release
-  assets are uploaded only after the check job succeeds.
+  assets are uploaded only after CI succeeds for the tagged commit. For a transient
+  failure, rerun CI first, then rerun Release.
+- **Release times out waiting for CI:** ensure the tagged commit was pushed to a
+  branch and triggered CI. A pull-request run alone is not used for publishing.
+- **CI artifacts have expired or been deleted:** rerun CI for the tagged commit to
+  recreate them, then rerun Release.
 
 Rerunning the release job uploads with `--clobber`, replacing assets with matching
-names on that release.
+names on that release. You can also retry an existing tag from the Release
+workflow's **Run workflow** button, or with:
+
+```sh
+gh workflow run release.yml -f tag=v0.1.0
+```
