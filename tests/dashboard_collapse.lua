@@ -85,7 +85,12 @@ assert(
 vim.cmd("Aero collapse workspaces")
 assert(not line("main"))
 local completions = vim.fn.getcompletion("Aero collapse ", "cmdline")
-assert(#completions == 7 and vim.tbl_contains(completions, "exports") and vim.tbl_contains(completions, "reference"))
+assert(
+	#completions == 8
+		and vim.tbl_contains(completions, "exports")
+		and vim.tbl_contains(completions, "reference")
+		and vim.tbl_contains(completions, "reading")
+)
 expand("One")
 api.nvim_win_set_cursor(win, { assert(line("main")), 0 })
 require("aero.git").list = function()

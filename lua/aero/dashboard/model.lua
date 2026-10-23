@@ -114,16 +114,13 @@ function M.build(snapshot)
 							{ kind = "session", id = "s:" .. selected.key, ws = ws, wt = wt, session = selected },
 							details
 						)
-						add(
-							{ { "       " .. entry.assignment, "AeroDim" } },
-							{
-								kind = "session",
-								id = "assignment:" .. selected.key,
-								ws = ws,
-								wt = wt,
-								session = selected,
-							}
-						)
+						add({ { "       " .. entry.assignment, "AeroDim" } }, {
+							kind = "session",
+							id = "assignment:" .. selected.key,
+							ws = ws,
+							wt = wt,
+							session = selected,
+						})
 					end
 					add(
 						{
@@ -141,6 +138,36 @@ function M.build(snapshot)
 							)
 						end
 					end
+					local reading_lists = tree.reading_lists or {}
+					add(
+						{
+							{ "     " .. (tree.reading_open and icons.expanded or icons.collapsed) .. " " },
+							{ "Reading lists", "AeroWorkspace" },
+						},
+						{ kind = "reading", id = "reading:" .. wt.path, ws = ws, wt = wt },
+						{ { " " .. #reading_lists, "AeroDim" } }
+					)
+					if tree.reading_open then
+						for _, list in ipairs(reading_lists) do
+							local read = 0
+							for _, stop in ipairs(list.items) do
+								if stop.read then
+									read = read + 1
+								end
+							end
+							add({ { "       " }, { list.title:gsub("[%c]", " "), "AeroSession" } }, {
+								kind = "reading_list",
+								id = "reading-list:" .. wt.path .. ":" .. list.id,
+								ws = ws,
+								wt = wt,
+								reading = list,
+							}, { { (" %d/%d read"):format(read, #list.items), "AeroDim" } })
+						end
+						add(
+							{ { "       New reading list +", "AeroDim" } },
+							{ kind = "reading_new", id = "reading-new:" .. wt.path, ws = ws, wt = wt }
+						)
+					end
 					local references = tree.references or {}
 					add(
 						{
@@ -157,14 +184,25 @@ function M.build(snapshot)
 						local function add_references(entries, indent, parent)
 							for _, entry in ipairs(entries) do
 								local directory = entry.kind == "directory"
-								local prefix = directory and ((entry.expanded and icons.expanded or icons.collapsed) .. " ") or ""
+								local prefix = directory
+										and ((entry.expanded and icons.expanded or icons.collapsed) .. " ")
+									or ""
 								local id = "reference-item:" .. entry.path
-								add(
-									{ { indent .. prefix }, { entry.name:gsub("[%c]", " ") .. (directory and "/" or ""), "AeroSession" } },
-									{ kind = "reference_item", id = id, parent = parent, ws = ws, wt = wt, reference = entry }
-								)
+								add({
+									{ indent .. prefix },
+									{ entry.name:gsub("[%c]", " ") .. (directory and "/" or ""), "AeroSession" },
+								}, {
+									kind = "reference_item",
+									id = id,
+									parent = parent,
+									ws = ws,
+									wt = wt,
+									reference = entry,
+								})
 								if directory and entry.expanded then
-									if entry.err then add({ { indent .. "  ! " .. entry.err:gsub("[%c]", " "), "AeroExited" } }) end
+									if entry.err then
+										add({ { indent .. "  ! " .. entry.err:gsub("[%c]", " "), "AeroExited" } })
+									end
 									add_references(entry.children or {}, indent .. "  ", id)
 								end
 							end
@@ -200,14 +238,10 @@ function M.build(snapshot)
 					end
 				end
 			end
-			add(
-				{
-					{ "   " .. (workspace.boards_open and icons.expanded or icons.collapsed) .. " " },
-					{ "Boards", "AeroWorkspace" },
-				},
-				{ kind = "boards", id = "boards:" .. ws.root, ws = ws },
-				{ { " " .. #workspace.boards, "AeroDim" } }
-			)
+			add({
+				{ "   " .. (workspace.boards_open and icons.expanded or icons.collapsed) .. " " },
+				{ "Boards", "AeroWorkspace" },
+			}, { kind = "boards", id = "boards:" .. ws.root, ws = ws }, { { " " .. #workspace.boards, "AeroDim" } })
 			if workspace.boards_open then
 				for _, entry in ipairs(workspace.boards) do
 					local board, data = entry.board, entry.board.metadata or {}

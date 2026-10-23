@@ -42,7 +42,7 @@ local subcommands = {
 	collapse = function(args)
 		if #args > 1 then
 			vim.notify(
-				"Aero: use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]",
+				"Aero: use :Aero collapse [all|workspaces|worktrees|reading|reports|exports|boards|reference]",
 				vim.log.levels.WARN
 			)
 			return
@@ -222,7 +222,7 @@ end, {
 		if words[2] == "collapse" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "all", "workspaces", "worktrees", "reports", "exports", "boards", "reference" })
+			end, { "all", "workspaces", "worktrees", "reading", "reports", "exports", "boards", "reference" })
 		end
 		if words[2] == "companion" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)

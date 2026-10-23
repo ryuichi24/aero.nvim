@@ -22,6 +22,7 @@ local state = {
 	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
 	reports_expanded = {}, -- worktree path -> report section expanded
+	reading_expanded = {}, -- worktree path -> reading lists section expanded
 	reference_expanded = {}, -- worktree path -> reference section expanded
 	reference_folders_expanded = {}, -- reference directory path -> expanded
 	exports_expanded = {}, -- worktree path -> exported logs section expanded
@@ -206,6 +207,8 @@ local function build()
 					tree.exports_open = state.exports_expanded[wt.path] ~= false
 					tree.reports, tree.report_err = reports.list(wt.path, ws)
 					tree.reports_open = state.reports_expanded[wt.path] ~= false
+					tree.reading_lists = require("aero.reading").list(wt.path)
+					tree.reading_open = state.reading_expanded[wt.path] ~= false
 					tree.references, tree.reference_err = require("aero.reference").list(wt.path)
 					tree.reference_open = state.reference_expanded[wt.path] ~= false
 					if tree.reference_open then
@@ -263,12 +266,16 @@ function M.collapse(kind)
 		workspaces = true,
 		worktrees = true,
 		reports = true,
+		reading = true,
 		exports = true,
 		boards = true,
 		reference = true,
 	}
 	if not valid[kind] then
-		notify("use :Aero collapse [all|workspaces|worktrees|reports|exports|boards|reference]", vim.log.levels.WARN)
+		notify(
+			"use :Aero collapse [all|workspaces|worktrees|reading|reports|exports|boards|reference]",
+			vim.log.levels.WARN
+		)
 		return
 	end
 	if kind == "all" or kind == "reference" then
@@ -278,10 +285,20 @@ function M.collapse(kind)
 		if kind == "all" or kind == "boards" then
 			state.boards_expanded[ws.root] = false
 		end
-		if kind == "all" or kind == "worktrees" or kind == "reports" or kind == "exports" or kind == "reference" then
+		if
+			kind == "all"
+			or kind == "worktrees"
+			or kind == "reports"
+			or kind == "exports"
+			or kind == "reference"
+			or kind == "reading"
+		then
 			local cache = state.worktrees[ws.root]
 			local list = cache and cache.list or git.list(ws.root)
 			for _, wt in ipairs(list or {}) do
+				if kind == "all" or kind == "reading" then
+					state.reading_expanded[wt.path] = false
+				end
 				if kind == "all" or kind == "worktrees" then
 					state.expanded[wt.path] = false
 				end
@@ -776,6 +793,19 @@ end
 
 local actions = {}
 
+local function open_reading(item, create)
+	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
+		return
+	end
+	api.nvim_set_current_win(navigation.code_window())
+	if create then
+		state.reading_expanded[item.wt.path] = true
+		require("aero.reading").command("new", item.wt.path)
+	else
+		require("aero.reading").open(item.wt.path, item.reading.id)
+	end
+end
+
 local function open_report(item, how)
 	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
 		return
@@ -824,6 +854,8 @@ function actions.open(how)
 		require("aero.reference").open(item.wt.path)
 	elseif item.kind == "report_new" then
 		new_report(item)
+	elseif item.kind == "reading_list" or item.kind == "reading_new" then
+		open_reading(item, item.kind == "reading_new")
 	else
 		actions.toggle()
 	end
@@ -843,6 +875,8 @@ function actions.toggle()
 		state.exports_expanded[item.wt.path] = state.exports_expanded[item.wt.path] == false
 	elseif item.kind == "reports" then
 		state.reports_expanded[item.wt.path] = state.reports_expanded[item.wt.path] == false
+	elseif item.kind == "reading" then
+		state.reading_expanded[item.wt.path] = state.reading_expanded[item.wt.path] == false
 	elseif item.kind == "reference" then
 		state.reference_expanded[item.wt.path] = state.reference_expanded[item.wt.path] == false
 	elseif item.kind == "reference_item" and item.reference.kind == "directory" then
@@ -864,6 +898,8 @@ function actions.expand()
 		or item.kind == "export"
 		or item.kind == "report"
 		or item.kind == "report_new"
+		or item.kind == "reading_list"
+		or item.kind == "reading_new"
 		or item.kind == "reference_item" and item.reference.kind ~= "directory"
 		or item.kind == "reference_new"
 		or item.kind == "board"
@@ -879,6 +915,8 @@ function actions.expand()
 		expanded = state.exports_expanded[item.wt.path] ~= false
 	elseif item.kind == "reports" then
 		expanded = state.reports_expanded[item.wt.path] ~= false
+	elseif item.kind == "reading" then
+		expanded = state.reading_expanded[item.wt.path] ~= false
 	elseif item.kind == "reference" then
 		expanded = state.reference_expanded[item.wt.path] ~= false
 	elseif item.kind == "reference_item" and item.reference.kind == "directory" then
@@ -908,6 +946,7 @@ function actions.collapse()
 	local is_header = item.id:match("^ws:")
 		or item.id:match("^wt:")
 		or item.kind == "reports"
+		or item.kind == "reading"
 		or item.kind == "reference"
 		or item.kind == "reference_item" and item.reference.kind == "directory"
 		or item.kind == "boards"
@@ -915,6 +954,7 @@ function actions.collapse()
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
 		or item.kind == "reports" and state.reports_expanded[item.wt.path] ~= false
+		or item.kind == "reading" and state.reading_expanded[item.wt.path] ~= false
 		or item.kind == "reference" and state.reference_expanded[item.wt.path] ~= false
 		or item.kind == "reference_item" and state.reference_folders_expanded[item.reference.path] == true
 		or item.kind == "exports" and state.exports_expanded[item.wt.path] ~= false
@@ -928,6 +968,8 @@ function actions.collapse()
 		or item.kind == "export" and "exports:" .. item.wt.path
 		or item.kind == "exports" and "wt:" .. item.wt.path
 		or (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
+		or (item.kind == "reading_list" or item.kind == "reading_new") and "reading:" .. item.wt.path
+		or item.kind == "reading" and "wt:" .. item.wt.path
 		or item.kind == "reference_item" and item.parent
 		or (item.kind == "reference_item" or item.kind == "reference_new") and "reference:" .. item.wt.path
 		or item.kind == "reference" and "wt:" .. item.wt.path
@@ -955,6 +997,8 @@ function actions.add()
 		add_worktree(item.ws)
 	elseif item.kind == "reports" or item.kind == "report" or item.kind == "report_new" then
 		new_report(item)
+	elseif item.kind == "reading" or item.kind == "reading_list" or item.kind == "reading_new" then
+		open_reading(item, true)
 	elseif item.kind == "reference" or item.kind == "reference_item" or item.kind == "reference_new" then
 		require("aero.reference").open(item.wt.path)
 	else
@@ -1638,6 +1682,9 @@ session.on_change(function()
 end)
 
 require("aero.events").on("reports_changed", function()
+	M.render()
+end)
+require("aero.events").on("reading_changed", function()
 	M.render()
 end)
 require("aero.events").on("reference_changed", function()

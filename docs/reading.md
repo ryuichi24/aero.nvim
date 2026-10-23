@@ -82,6 +82,13 @@ do not conflict and are preserved on save.
 
 ## Navigation and progress
 
+Each expanded worktree in the Aero sidebar includes a **Reading lists** section.
+Lists show their title and read progress. Use Enter or `l` on a list to open its
+quickfix entries in that worktree, or on **New reading list +** to create a manual list there.
+Use `h`/`l` to collapse or expand the section; `h` on a list returns to its section.
+The sidebar updates automatically when lists are published, edited, or marked read.
+`:Aero collapse reading` collapses all reading-list sections.
+
 - `:Aero reading`: choose a saved list in the current worktree and open quickfix.
 - Enter opens the selected stop in the reader panel's **Reading** tab, preserving
   the **Source** tab and agent panel. `:Aero reading next` uses the same tab.
