@@ -98,6 +98,18 @@ Pasted commands wait for you to submit them.
 
 [Worktree tabs, buffers, and terminals](docs/workspaces.md#worktree-tabs-and-remembered-buffers)
 
+### Agent reading lists
+
+Agents can also publish ordered source walkthroughs and findings checklists to
+quickfix. Use `:Aero reading` to open a saved list, jump between stops, and mark
+items read with progress preserved across restarts.
+
+Build your own lists with `:Aero reading new`, capture source locations with
+`:Aero reading add`, and edit titles, notes, or item order with `:Aero reading edit`.
+Manual lists do not require an agent connection.
+
+[Agent reading lists and setup](docs/reading.md)
+
 ### Reader panel
 
 Keep source files, exported logs, references, and reports in independent reading
