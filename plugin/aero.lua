@@ -2,6 +2,7 @@ if vim.g.loaded_Aero then return end
 vim.g.loaded_Aero = true
 
 local subcommands = {
+	reading = function(args) require("aero").reading(args[1]) end,
 	reader = function(args) require("aero").reader(args[1]) end,
 	review = function(args)
 		if vim.tbl_contains({ "diff", "refresh", "base", "local" }, args[1]) then
@@ -111,6 +112,12 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+		if words[2] == "reading" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(
+				function(s) return vim.startswith(s, arglead) end,
+				{ "new", "add", "edit", "next", "toggle", "note" }
+			)
+		end
 		if words[2] == "pick" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then return {} end
 			return vim.tbl_filter(function(s) return vim.startswith(s, arglead) end, { "current" })

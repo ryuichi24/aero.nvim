@@ -116,14 +116,15 @@ function M.attach(session, binding, executable)
 	end
 	session.task_transport = transport
 	session.runtime_env = { AERO_TASK_SOCKET = transport.socket, AERO_TASK_CREDENTIAL = transport.credential }
-	session.mcp_servers = {
-		{
-			name = "aero-tasks",
-			command = executable,
-			args = { "serve", "--socket", transport.socket },
-			env = { { name = "AERO_TASK_CREDENTIAL", value = transport.credential } },
-		},
-	}
+	session.mcp_servers = vim.tbl_filter(function(server)
+		return server.name ~= "aero-tasks"
+	end, session.mcp_servers or {})
+	table.insert(session.mcp_servers, {
+		name = "aero-tasks",
+		command = executable,
+		args = { "serve", "--socket", transport.socket },
+		env = { { name = "AERO_TASK_CREDENTIAL", value = transport.credential } },
+	})
 	return true
 end
 

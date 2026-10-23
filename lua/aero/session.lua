@@ -229,6 +229,13 @@ function M.start(s, win, resume, session_id, opts)
 			return false
 		end
 	end
+	if agent.type == "acp" then
+		local attached, err = require("aero.reading_agent").attach(s)
+		if not attached then
+			vim.notify("Aero: cannot attach reading tools: " .. tostring(err), vim.log.levels.ERROR)
+			return false
+		end
+	end
 	local old = s.buf
 	local buf = vim.api.nvim_create_buf(true, false)
 	if win then
@@ -500,6 +507,7 @@ function M.delete(s)
 	if s.task_transport then
 		require("aero.tasks.bridge").unbind(s.task_transport.credential)
 	end
+	require("aero.reading_agent").detach(s)
 	local data = events.session(s)
 	M.stop(s)
 	if is_acp(s) then

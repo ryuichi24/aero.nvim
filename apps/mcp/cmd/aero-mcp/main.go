@@ -72,6 +72,19 @@ func (c client) call(ctx context.Context, method string, params any) (json.RawMe
 }
 
 type readArgs struct{}
+type readingItem struct {
+	ID      string `json:"id" jsonschema:"Stable unique step ID; preserve when updating a walkthrough"`
+	Path    string `json:"path" jsonschema:"Existing source file relative to the session worktree"`
+	Lnum    int    `json:"lnum" jsonschema:"One-based source line"`
+	EndLnum *int   `json:"end_lnum,omitempty"`
+	Label   string `json:"label" jsonschema:"Short explanation of this stop"`
+	Note    string `json:"note,omitempty" jsonschema:"What to understand here and how it connects to the next stop"`
+}
+type readingArgs struct {
+	ID    string        `json:"id,omitempty" jsonschema:"Omit to create; reuse returned list ID to update while preserving read progress"`
+	Title string        `json:"title"`
+	Items []readingItem `json:"items" jsonschema:"Curated stops in execution or data-flow order from entry point to outcome; not raw search matches"`
+}
 type reportArgs struct {
 	OperationID string `json:"operation_id" jsonschema:"Unique retry identifier; reuse only for identical arguments"`
 	Name        string `json:"name" jsonschema:"Report filename without directory separators; .md is appended if omitted"`
@@ -123,6 +136,7 @@ func run() error {
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ContinueOnError)
 	socket := flags.String("socket", os.Getenv("AERO_TASK_SOCKET"), "Aero instance socket")
+	readingOnly := flags.Bool("reading-only", false, "Expose only reading-list tools")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -151,6 +165,10 @@ func run() error {
 		return err
 	case "serve":
 		server := mcp.NewServer(&mcp.Implementation{Name: "aero-mcp", Version: version}, nil)
+		addTool[readingArgs](server, c, "reading_list_publish", "Publish an ordered source-code walkthrough or findings checklist for the user to navigate in Neovim quickfix. Verify files and line numbers first. Include meaningful labels and explanations. Publishing never marks items read.")
+		if *readingOnly {
+			return server.Run(context.Background(), &mcp.StdioTransport{})
+		}
 		addTool[readArgs](server, c, "list_boards", "List committed board summaries in the assigned workspace")
 		addTool[readArgs](server, c, "get_board", "Read assigned board states, placements, revision and draft indicators")
 		addTool[readArgs](server, c, "get_ticket", "Read assigned committed ticket and revisions before making changes")

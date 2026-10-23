@@ -67,12 +67,12 @@ local function version_matches(path, release, configured)
 	return true
 end
 
-function M.resolve()
+function M.resolve(executable)
 	local release, release_err = manifest()
 	if not release then
 		return nil, release_err
 	end
-	local path = require("aero.config").options.tasks.agent.executable
+	local path = executable or require("aero.config").options.tasks.agent.executable
 	local configured = type(path) == "string" and path ~= ""
 	if type(path) ~= "string" or path == "" then
 		if not release.published then

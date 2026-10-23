@@ -141,6 +141,11 @@ function M.reader(action)
 	return reader.mode(action)
 end
 
+function M.reading(action)
+	ensure()
+	return require("aero.reading").command(action)
+end
+
 --- Toggle fullscreen for the focused pane, including the code window.
 function M.fullscreen()
 	ensure()
@@ -155,7 +160,9 @@ end
 --- Jump to the panel session's prompt (or terminal), opening the panel if needed.
 function M.prompt(action)
 	ensure()
-	if action == "send" then return require("aero.commands").send_prompt() end
+	if action == "send" then
+		return require("aero.commands").send_prompt()
+	end
 	require("aero.panel").prompt()
 end
 

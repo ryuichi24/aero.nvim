@@ -93,6 +93,11 @@ M.defaults = {
 		-- Text appended to agent drafts; {path} becomes the JSON-quoted absolute report path.
 		prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
 	},
+	reading = {
+		-- {title} becomes the JSON-quoted list title in the /reading draft.
+		prompt = "Create a new reading list titled {title} for this walkthrough. Use aero_reading_list_publish, omitting the list id to create a separate list. Trace the relevant code from its entry point to the outcome in execution or data-flow order. Verify source paths and line numbers, and include a short label and an explanation of what to understand at each stop and how it connects to the next one.",
+		agent = { enabled = false, executable = false }, -- ACP reading-list tool; uses aero-mcp
+	},
 	tasks = {
 		directory = "data", -- workspace scoped; "worktree" means the main checkout
 		states = { "todos", "working", "waiting", "done" },

@@ -28,6 +28,7 @@ local function send(client, response)
 end
 
 local methods = {
+	reading_list_publish = true,
 	list_boards = true,
 	get_board = true,
 	get_ticket = true,
@@ -55,11 +56,15 @@ local function pump()
 				err = { code = "NOT_FOUND", message = "binding expired or credential invalid" }
 			elseif not methods[request.method] then
 				err = { code = "INVALID_ARGUMENT", message = "unknown method" }
+			elseif binding.reading_only and request.method ~= "reading_list_publish" then
+				err = { code = "INVALID_ARGUMENT", message = "this binding only supports reading lists" }
 			elseif vim.fn.getcmdwintype() ~= "" then
 				err = { code = "EDITOR_BUSY", message = "close the command window and retry" }
 			else
 				local ok
-				ok, result, err = pcall(require("aero.tasks.operations")[request.method], binding, request.params or {})
+				local operation = request.method == "reading_list_publish" and require("aero.reading").publish
+					or require("aero.tasks.operations")[request.method]
+				ok, result, err = pcall(operation, binding, request.params or {})
 				if not ok then
 					err, result = { code = "IO_ERROR", message = tostring(result) }, nil
 				end
