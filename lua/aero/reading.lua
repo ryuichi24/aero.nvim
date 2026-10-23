@@ -26,6 +26,7 @@ local function save(worktree, list)
 	local tmp = target .. "." .. vim.fn.getpid() .. ".tmp"
 	vim.fn.writefile({ vim.json.encode(list) }, tmp)
 	assert(vim.uv.fs_rename(tmp, target))
+	require("aero.events").emit("reading_changed", { worktree = worktree, id = list.id })
 end
 
 local function project(worktree, list, id)
@@ -152,7 +153,7 @@ local function current_worktree()
 	return storage.canonical(vim.t.aero_worktree or vim.fn.getcwd())
 end
 
-local function pick(worktree, callback)
+function M.list(worktree)
 	local lists = {}
 	if vim.fn.isdirectory(directory(worktree)) == 1 then
 		for name, kind in vim.fs.dir(directory(worktree)) do
@@ -164,12 +165,17 @@ local function pick(worktree, callback)
 			end
 		end
 	end
+	table.sort(lists, function(a, b)
+		return a.title == b.title and a.id < b.id or a.title < b.title
+	end)
+	return lists
+end
+
+local function pick(worktree, callback)
+	local lists = M.list(worktree)
 	if #lists == 0 then
 		return vim.notify("Aero: no reading lists in this worktree; use :Aero reading new")
 	end
-	table.sort(lists, function(a, b)
-		return a.title < b.title
-	end)
 	vim.ui.select(lists, {
 		prompt = "Reading lists",
 		format_item = function(list)
@@ -304,9 +310,27 @@ local function jump(index, kind)
 	vim.cmd("cc " .. index)
 end
 
-function M.command(action)
+function M.open(worktree, id)
+	local list = M.load(worktree, id)
+	if not list then
+		return vim.notify("Aero: reading list no longer exists", vim.log.levels.WARN)
+	end
+	project(worktree, list)
+	vim.cmd.copen()
+	vim.keymap.set("n", "<CR>", function()
+		jump(vim.fn.line("."))
+	end, { buffer = true, desc = "Open reading item in reader" })
+	vim.keymap.set("n", "x", function()
+		M.command("toggle")
+	end, { buffer = true, desc = "Toggle reading item" })
+	vim.keymap.set("n", "K", function()
+		M.command("note")
+	end, { buffer = true, desc = "Reading item explanation" })
+end
+
+function M.command(action, worktree)
+	worktree = worktree or current_worktree()
 	if action == "new" then
-		local worktree = current_worktree()
 		return vim.ui.input({ prompt = "Reading list title: " }, function(title)
 			if not title or vim.trim(title) == "" then
 				return
@@ -318,9 +342,8 @@ function M.command(action)
 			edit(worktree, M.load(worktree, result.id))
 		end)
 	elseif action == "add" then
-		return add(current_worktree())
+		return add(worktree)
 	elseif action == "edit" then
-		local worktree = current_worktree()
 		return pick(worktree, function(list)
 			edit(worktree, list)
 		end)
@@ -351,19 +374,8 @@ function M.command(action)
 		end
 		return
 	end
-	local worktree = current_worktree()
 	pick(worktree, function(list)
-		project(worktree, list)
-		vim.cmd.copen()
-		vim.keymap.set("n", "<CR>", function()
-			jump(vim.fn.line("."))
-		end, { buffer = true, desc = "Open reading item in reader" })
-		vim.keymap.set("n", "x", function()
-			M.command("toggle")
-		end, { buffer = true, desc = "Toggle reading item" })
-		vim.keymap.set("n", "K", function()
-			M.command("note")
-		end, { buffer = true, desc = "Reading item explanation" })
+		M.open(worktree, list.id)
 	end)
 end
 
