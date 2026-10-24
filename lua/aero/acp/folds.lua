@@ -1,10 +1,19 @@
--- Window-local transcript folds. Keys refer to source blocks, never persisted history.
+-- Let Neovim shift/extend manual folds with text edits. Only replace folds whose
+-- boundaries are overwritten, and create folds for newly rendered sections.
 local api = vim.api
 local M = {}
 
-local function state(view, section)
-	view.closed[section.kind] = view.closed[section.kind] or {}
-	return view.closed[section.kind]
+local function index(sections)
+	local result = {}
+	for _, section in ipairs(sections) do
+		result[section.kind] = result[section.kind] or {}
+		result[section.kind][section.key] = section
+	end
+	return result
+end
+
+local function lookup(indexed, section)
+	return (indexed[section.kind] or {})[section.key]
 end
 
 function M.text()
@@ -12,102 +21,156 @@ function M.text()
 		.. ("  · %d lines"):format(vim.v.foldend - vim.v.foldstart)
 end
 
-function M.capture(chat)
-	for win, view in pairs(chat.fold_views or {}) do
-		if api.nvim_win_is_valid(win) and api.nvim_win_get_buf(win) == chat.buf then
-			api.nvim_win_call(win, function()
-				local position, closed_folds = vim.fn.winsaveview(), {}
-				for _, section in ipairs(view.sections) do
-					local closed = vim.fn.foldclosed(section.first)
-					state(view, section)[section.key] = closed == section.first
-					if closed == section.first then
-						-- Inspect nested folds too: the user may have opened a call and
-						-- closed its parent since the last render. No redraw occurs here.
-						table.insert(closed_folds, section.first)
-						api.nvim_win_set_cursor(win, { section.first, 0 })
-						vim.cmd("silent! normal! zo")
-					end
-				end
-				for i = #closed_folds, 1, -1 do
-					api.nvim_win_set_cursor(win, { closed_folds[i], 0 })
-					vim.cmd("silent! normal! zc")
-				end
-				vim.fn.winrestview(position)
-			end)
-		else
-			chat.fold_views[win] = nil
-		end
-	end
-end
-
-local function same(a, b)
-	if #a ~= #b then
+-- Fold boundaries strictly outside a replacement move automatically, including
+-- enclosing folds. A replaced boundary or an insertion beyond a fold's tail
+-- needs an explicit replacement instead.
+local function retained(old, new, edit)
+	if not new then
 		return false
 	end
-	for i, section in ipairs(a) do
-		local other = b[i]
-		if
-			section.key ~= other.key
-			or section.kind ~= other.kind
-			or section.first ~= other.first
-			or section.last ~= other.last
-			or section.critical ~= other.critical
-		then
+	local first, last = old.first, old.last
+	if edit then
+		local delta = edit.new_last - edit.old_last
+		if first > edit.old_last then
+			first, last = first + delta, last + delta
+		elseif last < edit.first then
+			-- This fold is entirely before the edit.
+		elseif first < edit.first and last > edit.old_last then
+			last = last + delta
+		else
 			return false
 		end
 	end
-	return true
+	return first == new.first and last == new.last
 end
 
-function M.apply(chat)
+local function plan(view, sections, edit)
+	local old_index, new_index = index(view.sections), index(sections)
+	local pending = { remove = {}, create = {}, restore = {}, alerts = {}, old_index = old_index }
+	for _, old in ipairs(view.sections) do
+		if not retained(old, lookup(new_index, old), edit) then
+			table.insert(pending.remove, old)
+		end
+	end
+	for _, section in ipairs(sections) do
+		local old = lookup(old_index, section)
+		if not old or not retained(old, section, edit) then
+			table.insert(pending.create, section)
+		end
+		if section.critical and (not old or old.critical ~= section.critical) then
+			table.insert(pending.alerts, section)
+		end
+	end
+	return pending
+end
+
+local function expose(row)
+	while vim.fn.foldclosed(row) ~= -1 do
+		api.nvim_win_set_cursor(0, { vim.fn.foldclosed(row), 0 })
+		vim.cmd("silent! normal! zo")
+	end
+end
+
+-- Called before changing buffer text. Inspect only folds being replaced and the
+-- closed ancestors hiding them, never walk/open all the historical folds.
+function M.prepare(chat, edit)
+	for win, view in pairs(chat.fold_views or {}) do
+		if not api.nvim_win_is_valid(win) or api.nvim_win_get_buf(win) ~= chat.buf then
+			chat.fold_views[win] = nil
+		else
+			local pending = plan(view, chat.sections or {}, edit)
+			view.pending = pending
+			if #pending.remove > 0 then
+				api.nvim_win_call(win, function()
+					local position = vim.fn.winsaveview()
+					local by_line = {}
+					for _, old in ipairs(view.sections) do
+						by_line[old.first] = old
+					end
+					for i = #pending.remove, 1, -1 do
+						local section = pending.remove[i]
+						local row = vim.fn.foldclosed(section.first)
+						while row ~= -1 and row ~= section.first do
+							local ancestor = by_line[row]
+							if ancestor then
+								pending.restore[ancestor] = true
+							end
+							api.nvim_win_set_cursor(0, { row, 0 })
+							vim.cmd("silent! normal! zo")
+							row = vim.fn.foldclosed(section.first)
+						end
+						if pending.restore[section] == nil then
+							pending.restore[section] = row == section.first
+						end
+						api.nvim_win_set_cursor(0, { section.first, 0 })
+						vim.cmd("silent! normal! zd")
+					end
+					vim.fn.winrestview(position)
+				end)
+			end
+		end
+	end
+end
+
+function M.apply(chat, abort)
 	chat.fold_views = chat.fold_views or {}
 	for _, win in ipairs(vim.fn.win_findbuf(chat.buf)) do
 		local view = chat.fold_views[win]
-		if not view then
-			view = { sections = {}, closed = {}, previous = {} }
+		local fresh = not view
+		if fresh then
+			view = { sections = {} }
 			chat.fold_views[win] = view
 		end
-		local sections = chat.sections or {}
-		if not same(view.sections, sections) then
+		local sections = abort and view.sections or chat.sections or {}
+		local pending = view.pending or plan(view, sections)
+		if abort then
+			pending.create, pending.alerts = pending.remove, {}
+		end
+		local new_index = index(sections)
+		if fresh or #pending.create > 0 or next(pending.restore) or #pending.alerts > 0 then
 			api.nvim_win_call(win, function()
 				local position = vim.fn.winsaveview()
-				vim.wo.foldmethod, vim.wo.foldenable, vim.wo.foldlevel = "manual", true, 99
-				vim.wo.foldtext = "v:lua.require'aero.acp.folds'.text()"
-				vim.cmd("silent! normal! zE")
-				-- Create children first; subsequent containing folds become their parents.
-				for i = #sections, 1, -1 do
-					local section = sections[i]
+				if fresh then
+					vim.wo.foldmethod, vim.wo.foldenable, vim.wo.foldlevel = "manual", true, 99
+					vim.wo.foldtext = "v:lua.require'aero.acp.folds'.text()"
+					vim.cmd("silent! normal! zE")
+				end
+				for i = #pending.create, 1, -1 do
+					local section = pending.create[i]
 					if section.last > section.first then
+						-- Creating a containing fold preserves the existing child folds.
 						vim.cmd(("%d,%dfold"):format(section.first, section.last))
+						api.nvim_win_set_cursor(0, { section.first, 0 })
+						vim.cmd("silent! normal! zo")
 					end
 				end
-				vim.cmd("silent! normal! zR")
+				local closed = {}
+				for old, value in pairs(pending.restore) do
+					local section = lookup(new_index, old)
+					if section then
+						closed[section] = value
+					end
+				end
+				for _, section in ipairs(pending.create) do
+					if closed[section] == nil then
+						closed[section] = section.closed == true
+					end
+				end
+				-- Close children before parents, without resetting unrelated folds.
 				for i = #sections, 1, -1 do
 					local section = sections[i]
-					local closed = state(view, section)
-					if closed[section.key] == nil then
-						closed[section.key] = section.closed == true
-					end
-					-- Expose a newly failed call or pending permission, but allow users to
-					-- close it again after it has been shown once.
-					local previous = (view.previous[section.kind] or {})[section.key]
-					if section.critical and (not previous or previous.critical ~= section.critical) then
-						closed[section.key] = false
-					end
-					if closed[section.key] and section.last > section.first then
-						api.nvim_win_set_cursor(win, { section.first, 0 })
+					if closed[section] and section.last > section.first then
+						api.nvim_win_set_cursor(0, { section.first, 0 })
 						vim.cmd("silent! normal! zc")
 					end
 				end
-				view.sections = sections
-				view.previous = {}
-				for _, section in ipairs(sections) do
-					view.previous[section.kind] = view.previous[section.kind] or {}
-					view.previous[section.kind][section.key] = section
+				for _, section in ipairs(pending.alerts) do
+					expose(section.first)
 				end
 				vim.fn.winrestview(position)
 			end)
 		end
+		view.sections, view.pending = sections, nil
 	end
 end
 

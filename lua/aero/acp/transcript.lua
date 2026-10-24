@@ -137,6 +137,17 @@ function M.goto_block(chat, block, permission)
 	end, 32)
 end
 
+local function decorate(chat, first)
+	local enabled = require("aero.config").options.acp.decorations ~= false
+	if chat.decorations_enabled ~= enabled then
+		first = 1
+	elseif not first then
+		return
+	end
+	chat.decorations_enabled = enabled
+	renderer.decorate(chat.buf, chat.lines, chat.render_marks, first)
+end
+
 function M.render(chat)
 	if chat.render_pending then
 		return
@@ -157,7 +168,6 @@ function M.render(chat)
 				table.insert(follow, win)
 			end
 		end
-		folds.capture(chat)
 		local old, new = chat.lines, chat:build_lines()
 		require("aero.acp.todos").update(chat)
 		if not old or #old ~= api.nvim_buf_line_count(buf) then
@@ -169,8 +179,9 @@ function M.render(chat)
 		end
 		if first > #old and first > #new then
 			chat.lines = new
-			renderer.decorate(buf, new, chat.render_marks)
+			decorate(chat)
 			chat:decorate_options()
+			folds.prepare(chat)
 			folds.apply(chat)
 			return
 		end
@@ -178,18 +189,20 @@ function M.render(chat)
 		while old_last >= first and new_last >= first and old[old_last] == new[new_last] do
 			old_last, new_last = old_last - 1, new_last - 1
 		end
+		folds.prepare(chat, { first = first, old_last = old_last, new_last = new_last })
 		require("aero.acp.images").before_edit(buf, first)
 		vim.bo[buf].modifiable = true
 		local ok, err =
 			pcall(api.nvim_buf_set_lines, buf, first - 1, old_last, false, vim.list_slice(new, first, new_last))
 		vim.bo[buf].modifiable, vim.bo[buf].modified = false, false
 		if not ok then
+			folds.apply(chat, true)
 			chat.lines = nil
 			vim.notify("Aero: failed to render transcript: " .. tostring(err), vim.log.levels.ERROR)
 			return
 		end
 		chat.lines = new
-		renderer.decorate(buf, new, chat.render_marks, first)
+		decorate(chat, first)
 		folds.apply(chat)
 		for _, win in ipairs(follow) do
 			if api.nvim_win_is_valid(win) and api.nvim_win_get_buf(win) == buf then
