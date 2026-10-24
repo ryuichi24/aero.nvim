@@ -46,6 +46,10 @@ for _, variant in ipairs(variants) do
 	end
 	assert(panel.show(s))
 	api.nvim_set_current_win(panel.win())
+	if variant:find("load", 1, true) then
+		assert(s.chat.state == "exited" and not s.chat.client)
+		s.chat:prompt("/resume")
+	end
 	wait(function()
 		return s.chat.state == "ready"
 	end)

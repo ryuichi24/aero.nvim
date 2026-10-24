@@ -109,6 +109,10 @@ if phase == "fail" then
 	end)
 end
 assert(sessions.show(acp, 0))
+if phase ~= "save" then
+	assert(acp.chat.state == "exited" and not acp.chat.client)
+	acp.chat:prompt("/resume")
+end
 if phase == "fail" then
 	acp.chat:prompt("queued before load failed")
 	wait(function()
@@ -164,14 +168,20 @@ if phase == "save" then
 	vim.api.nvim_buf_set_lines(acp.chat:get_prompt_buf(), 0, -1, false, draft_lines)
 elseif phase == "replay" then
 	local buf = acp.chat:get_prompt_buf()
-	assert(vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), draft_lines),
-		"draft was not restored across Neovim processes")
+	assert(
+		vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), draft_lines),
+		"draft was not restored across Neovim processes"
+	)
 	acp.chat:send_prompt_buf()
 	assert(vim.deep_equal(acp.chat.draft, { "" }), "submitting did not clear the saved draft")
-	wait(function() return not acp.chat.busy end)
+	wait(function()
+		return not acp.chat.busy
+	end)
 elseif phase == "recover-id" then
-	assert(vim.deep_equal(vim.api.nvim_buf_get_lines(acp.chat:get_prompt_buf(), 0, -1, false), { "" }),
-		"submitted draft reappeared after restarting Neovim")
+	assert(
+		vim.deep_equal(vim.api.nvim_buf_get_lines(acp.chat:get_prompt_buf(), 0, -1, false), { "" }),
+		"submitted draft reappeared after restarting Neovim"
+	)
 end
 if phase == "save" then
 	acp.chat:prompt("old question")

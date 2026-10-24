@@ -44,6 +44,10 @@ for _, mode in ipairs(modes) do
 	end
 	assert(panel.show(s))
 	api.nvim_set_current_win(panel.win())
+	if mode == "config-load" then
+		assert(s.chat.state == "exited" and not s.chat.client)
+		s.chat:prompt("/resume")
+	end
 	wait(function()
 		return s.chat.state == "ready"
 	end)
