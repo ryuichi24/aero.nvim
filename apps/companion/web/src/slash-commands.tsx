@@ -9,6 +9,7 @@ const builtins = [
   { name: 'model', description: 'Choose the session model' },
   { name: 'mode', description: 'Choose the session mode' },
   { name: 'cancel', description: 'Cancel the current turn and discard queued prompts' },
+  { name: 'resume', description: 'Resume the stopped session' },
   { name: 'export', description: 'Save the conversation as Markdown on the host' },
   { name: 'new-ticket', description: 'Create a ticket on the assigned Aero board' },
 ];

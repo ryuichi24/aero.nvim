@@ -824,6 +824,9 @@ function M.omnifunc(findstart, base)
 	if ("/cancel"):sub(1, #base) == base then
 		table.insert(out, { word = "/cancel", menu = "Cancel the current turn and discard queued prompts" })
 	end
+	if ("/resume"):sub(1, #base) == base then
+		table.insert(out, { word = "/resume", menu = "Resume the stopped session" })
+	end
 	if ("/new-ticket"):sub(1, #base) == base then
 		table.insert(out, { word = "/new-ticket", menu = "Create an Aero ticket with initial content through MCP" })
 	end
@@ -840,6 +843,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/send"
 			and word ~= "/reference"
 			and word ~= "/cancel"
+			and word ~= "/resume"
 			and word ~= "/new-ticket"
 			and word:find(base, 1, true) == 1
 		then
