@@ -42,7 +42,8 @@ require("aero").setup({
 
 Transcripts are read-only Markdown with native highlighting and virtual borders:
 
-- Separate user/agent headings and muted thinking sections.
+- Numbered prompt turns with a preview of your prompt, labeled agent Messages, and muted Thinking sections.
+- Consecutive tool calls grouped into compact, expandable summaries between messages.
 - Typed tool cards with status, locations, output, and diffs.
 - Command cards with shell input, working directory when available, and output.
 - Compact Session cards for model changes and session events.
@@ -52,6 +53,17 @@ Transcripts are read-only Markdown with native highlighting and virtual borders:
 Streaming preserves the earlier transcript view. Borders and shell `$` decorations
 are excluded from yanks/quotes. No Markdown renderer is needed; disable decorations
 with `acp = { decorations = false }`.
+
+Prompt turns start expanded; tool groups and individual tool details start folded.
+Use `za`, `zo`, and `zc` to toggle, open, and close the section under the cursor;
+`zM` collapses the conversation into a prompt outline, and `zR` expands everything.
+Opening a tool group shows one-line call summaries; open a call to inspect its output.
+Failed calls and new permission requests automatically expose their containing sections.
+Fold choices and your reading position are retained while output streams. Folds are
+window-local presentation state and do not change saved history or `/export` output.
+Existing saved histories receive the same grouping; events before the first prompt
+appear under **Session setup**. Agent Messages show the explanations and decisions
+the agent sends; Thinking sections appear only when reported by the agent.
 
 The transcript's top bar shows the latest **todo progress** and what the agent is
 working on, alongside the panel's session details. It stays visible while you
@@ -89,6 +101,10 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero todos<CR>", { desc = "Focus agent t
 | `gY` | Toggle auto yes for this conversation |
 | `<C-g>` | Toggle the input panel, keeping the draft |
 | `<C-c>` | Cancel the turn and pending request |
+| `]]` / `[[` | Jump to the next / previous prompt turn |
+| `za` / `zo` / `zc` | Toggle / open / close the current turn or tool section |
+| `zM` / `zR` | Collapse the conversation outline / expand everything |
+| `gP` | Search prompt history and jump to a prompt |
 
 Permission requests with an allow option also offer **Auto yes for this conversation**,
 including in the companion. Selecting it approves the pending requests and automatically

@@ -83,21 +83,6 @@ function M.markdown(chat)
 		"",
 	}
 	vim.list_extend(header, lines)
-	-- Preserve structured inputs/outputs and full old/new diff text as well as the readable rendering.
-	for _, block in ipairs(copy) do
-		if block.kind == "tool" then
-			local data = vim.json.encode(block)
-			local length = 3
-			for ticks in data:gmatch("`+") do
-				length = math.max(length, #ticks + 1)
-			end
-			local fence = string.rep("`", length)
-			vim.list_extend(
-				header,
-				{ "", "### Tool protocol data · " .. tostring(block.id or ""), "", fence .. "json", data, fence }
-			)
-		end
-	end
 	return table.concat(header, "\n")
 end
 

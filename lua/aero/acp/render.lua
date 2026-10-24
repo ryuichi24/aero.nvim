@@ -167,8 +167,10 @@ function M.build(chat, opts)
 	local function tool(block)
 		local entries = todos.block(block)
 		if entries then
-			header("Agent todos", "AeroChatTool")
-			for _, row in ipairs(todos.rows(entries)) do push(row.text, row.group, "body") end
+			header("Agent todos", "AeroChatTool", "#### ")
+			for _, row in ipairs(todos.rows(entries)) do
+				push(row.text, row.group, "body")
+			end
 			finish("AeroChatTool")
 			return
 		end
@@ -190,8 +192,13 @@ function M.build(chat, opts)
 		local status_group = status == "failed" and "AeroChatError"
 			or status == "completed" and "AeroChatSuccess"
 			or "AeroChatPending"
-		header(icon .. " " .. kind .. " · " .. status:gsub("_", " "), group)
+		local title = block.title and (" · " .. vim.fn.strcharpart(one_line(block.title), 0, 100)) or ""
+		header(icon .. " " .. kind .. " · " .. status:gsub("_", " "), group, "#### ")
 		marks[#marks].status_group = status_group
+		-- Keep the established status/timestamp prefix, with a useful collapsed-call label.
+		if title ~= "" then
+			lines[#lines] = lines[#lines] .. title
+		end
 		if block.title and block.title ~= command then
 			push(one_line(block.title), group, "body")
 		end
@@ -247,48 +254,163 @@ function M.build(chat, opts)
 		end
 		finish(group)
 	end
-	local speaker, index = nil, 1
-	local block_lines = {}
+	local index = 1
+	local block_lines, sections = {}, {}
+	local turn, turn_count, tools = nil, 0, nil
+	local function close_tools()
+		if not tools then
+			return
+		end
+		if opts.export then
+			push("</details>")
+			push("")
+		end
+		tools.last = #lines
+		local summary = ("Tools · %d call%s"):format(tools.count, tools.count == 1 and "" or "s")
+		local counts = {}
+		for _, kind in ipairs(tools.order) do
+			table.insert(counts, tools.counts[kind] .. " " .. kind)
+		end
+		summary = summary .. " · " .. table.concat(counts, ", ")
+		if tools.failed > 0 then
+			summary = summary .. (" · %d failed"):format(tools.failed)
+		end
+		lines[tools.first] = "### " .. summary
+		tools = nil
+	end
+	local function close_turn()
+		if turn then
+			turn.last = #lines
+		end
+	end
+	local function alert(block)
+		if turn then
+			turn.critical = (turn.critical or "") .. tostring(block) .. ";"
+		end
+	end
+	if chat.blocks[1] and chat.blocks[1].kind ~= "user" then
+		header("Session setup", "AeroChatMeta", "## ")
+		push("")
+	end
 	while index <= #chat.blocks do
 		local block = chat.blocks[index]
+		if block.kind ~= "tool" then
+			close_tools()
+		end
 		timestamp = block.timestamp
+		local previous = chat.blocks[index - 1]
+		if
+			block.kind == "user" and (not previous or previous.kind ~= "user" or not (previous.image or block.image))
+		then
+			close_turn()
+			turn_count = turn_count + 1
+			local preview = one_line(block.image and "[image]" or block.text):gsub("%s+", " ")
+			preview = vim.fn.strcharpart(preview, 0, 80) .. (vim.fn.strchars(preview) > 80 and "…" or "")
+			turn = { kind = "turn", key = block, first = #lines + 1 }
+			table.insert(sections, turn)
+			header(("Turn %d — %s"):format(turn_count, preview), "AeroChatUser", "## ")
+			push("")
+		end
+		if block.kind == "permission" and not block.answer then
+			alert(block)
+		end
+		if block.kind == "tool" then
+			if not tools then
+				tools = {
+					kind = "tools",
+					key = block,
+					first = #lines + 1,
+					closed = true,
+					count = 0,
+					failed = 0,
+					counts = {},
+					order = {},
+				}
+				table.insert(sections, tools)
+				push("### Tools", "AeroChatTool", "header")
+				push("")
+				if opts.export then
+					push("<details>")
+					push("<summary>Tool calls and results</summary>")
+					push("")
+				end
+			end
+			local kind = tool_names[block.tool_kind] or "Tool"
+			if not tools.counts[kind] then
+				tools.counts[kind] = 0
+				table.insert(tools.order, kind)
+			end
+			tools.counts[kind], tools.count = tools.counts[kind] + 1, tools.count + 1
+			if block.status == "failed" then
+				tools.failed = tools.failed + 1
+				tools.critical = (tools.critical or "") .. tostring(block) .. ";"
+				alert(block)
+			end
+		end
 		block_lines[block] = #lines + 1
 		if block.kind == "info" then
 			local category = info_kind(block)
 			local group = category == "error" and "AeroChatError" or "AeroChatMeta"
 			header(category == "error" and "Error" or "Session", group)
 			repeat
+				if category == "error" then
+					alert(block)
+				end
 				block_lines[block] = #lines + 1
 				body(split(vim.trim(block.text)), group)
 				index = index + 1
 				block = chat.blocks[index]
-			until not block or block.kind ~= "info" or (info_kind(block) == "error") ~= (category == "error") or block.timestamp ~= timestamp
+			until not block
+				or block.kind ~= "info"
+				or (info_kind(block) == "error") ~= (category == "error")
+				or block.timestamp ~= timestamp
 			finish(group)
 		else
 			if block.kind == "user" then
-				header("You", "AeroChatUser", "## ")
+				header("You", "AeroChatUser")
 				push("")
-				body(block.image and { images.markdown(block.image, opts.export) } or text_lines(block), nil, "AeroChatUser")
+				body(
+					block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
+					nil,
+					"AeroChatUser"
+				)
 				finish("AeroChatUser")
-				speaker = "user"
 			else
-				if block.kind == "agent" and speaker == "agent" and timestamp then
-					header("Message", "AeroChatAgent")
-				end
-				if speaker ~= "agent" then
-					header(chat:agent_title(), "AeroChatAgent", "## ")
-					push("")
-					speaker = "agent"
-				end
 				if block.kind == "agent" then
-					body(block.image and { images.markdown(block.image, opts.export) } or text_lines(block), nil, "AeroChatAgent")
+					header("Message · " .. chat:agent_title(), "AeroChatAgent")
+					push("")
+					body(
+						block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
+						nil,
+						"AeroChatAgent"
+					)
 					finish("AeroChatAgent")
 				elseif block.kind == "thought" then
 					header("Thinking", "AeroChatThinking")
-					body(block.image and { images.markdown(block.image, opts.export) } or text_lines(block), "AeroChatThinking")
+					body(
+						block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
+						"AeroChatThinking"
+					)
 					finish("AeroChatThinking")
 				elseif block.kind == "tool" then
+					local section = {
+						kind = "tool",
+						key = block,
+						first = #lines + 1,
+						closed = true,
+						critical = block.status == "failed",
+					}
+					table.insert(sections, section)
 					tool(block)
+					if opts.export then
+						local data = vim.deepcopy(block)
+						data.cache, data.cache_src, data.shown = nil, nil, nil
+						push("#### Tool protocol data · " .. one_line(block.id), "AeroChatMeta")
+						push("")
+						fenced({ vim.json.encode(data) }, "json", "AeroChatTool")
+						push("")
+					end
+					section.last = #lines
 				elseif block.kind == "plan" then
 					header("Plan", "AeroChatTool")
 					for _, row in ipairs(todos.rows(todos.block(block) or {})) do
@@ -315,6 +437,8 @@ function M.build(chat, opts)
 			index = index + 1
 		end
 	end
+	close_tools()
+	close_turn()
 	timestamp = nil
 	for _, text in ipairs(chat.queue) do
 		header("You (queued)", "AeroChatPending", "## ")
@@ -337,7 +461,7 @@ function M.build(chat, opts)
 	elseif chat.state == "ready" and #chat.blocks == 0 then
 		push("Press i to write a prompt, :w or <C-s> to send it.", "AeroChatMeta")
 	end
-	return lines, marks, options, block_lines
+	return lines, marks, options, block_lines, sections
 end
 
 function M.decorate(buf, lines, marks, first)
@@ -376,7 +500,9 @@ function M.decorate(buf, lines, marks, first)
 			end
 			if mark.timestamp_col then
 				api.nvim_buf_set_extmark(buf, ns, mark.line - 1, mark.timestamp_col, {
-					end_col = #text, hl_group = "AeroChatMeta", priority = 170,
+					end_col = #text,
+					hl_group = "AeroChatMeta",
+					priority = 170,
 				})
 			end
 		end

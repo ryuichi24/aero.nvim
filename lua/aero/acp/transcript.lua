@@ -2,6 +2,7 @@
 local api = vim.api
 local renderer = require("aero.acp.render")
 local options = require("aero.acp.editor_options")
+local folds = require("aero.acp.folds")
 local M = {}
 local option_ns = api.nvim_create_namespace("Aero.acp.options")
 local select_ns = api.nvim_create_namespace("Aero.acp.option_select")
@@ -13,8 +14,9 @@ local option_hl = {
 }
 
 function M.build_lines(chat)
-	local lines, marks, options, blocks = renderer.build(chat)
+	local lines, marks, options, blocks, sections = renderer.build(chat)
 	chat.render_marks, chat.option_lines, chat.block_lines = marks, options, blocks
+	chat.sections = sections
 	return lines
 end
 
@@ -97,6 +99,7 @@ function M.goto_permission(chat, focus, block)
 			api.nvim_win_set_cursor(win, { math.min(last + 2, count), 0 })
 			vim.cmd("normal! zb")
 			api.nvim_win_set_cursor(win, { first, 0 })
+			vim.cmd("silent! normal! zv")
 		end)
 		if focus and api.nvim_win_get_tabpage(win) == tab then
 			api.nvim_set_current_win(win)
@@ -126,6 +129,7 @@ function M.goto_block(chat, block, permission)
 			if api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage() then
 				api.nvim_win_set_cursor(win, { math.min(row or 1, api.nvim_buf_line_count(chat.buf)), 0 })
 				api.nvim_win_call(win, function()
+					vim.cmd("silent! normal! zv")
 					vim.cmd("normal! zz")
 				end)
 			end
@@ -153,6 +157,7 @@ function M.render(chat)
 				table.insert(follow, win)
 			end
 		end
+		folds.capture(chat)
 		local old, new = chat.lines, chat:build_lines()
 		require("aero.acp.todos").update(chat)
 		if not old or #old ~= api.nvim_buf_line_count(buf) then
@@ -166,6 +171,7 @@ function M.render(chat)
 			chat.lines = new
 			renderer.decorate(buf, new, chat.render_marks)
 			chat:decorate_options()
+			folds.apply(chat)
 			return
 		end
 		local old_last, new_last = #old, #new
@@ -184,6 +190,7 @@ function M.render(chat)
 		end
 		chat.lines = new
 		renderer.decorate(buf, new, chat.render_marks, first)
+		folds.apply(chat)
 		for _, win in ipairs(follow) do
 			if api.nvim_win_is_valid(win) and api.nvim_win_get_buf(win) == buf then
 				api.nvim_win_call(win, function()
@@ -234,6 +241,12 @@ function M.setup(chat)
 	map("gP", function()
 		require("aero.prompts").open(chat)
 	end, "view session prompt history")
+	map("]]", function()
+		folds.jump(chat, 1)
+	end, "next prompt turn")
+	map("[[", function()
+		folds.jump(chat, -1)
+	end, "previous prompt turn")
 	map("<C-c>", function()
 		chat:cancel()
 	end, "cancel turn")
@@ -252,6 +265,7 @@ function M.setup(chat)
 				api.nvim_get_current_win(),
 				vim.tbl_extend("force", options.transcript, options.line_numbers("transcript"))
 			)
+			folds.apply(chat)
 		end,
 	})
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do

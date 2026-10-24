@@ -34,6 +34,13 @@ The export includes all transcript blocks Aero has recorded, full tool output,
 thinking, plans, permissions, usage, and structured tool data. It captures a snapshot
 at invocation, excluding queued prompts and the export/formatting exchange.
 
+Exports follow the transcript's numbered prompt turns, with agent Messages kept
+separate from consecutive tool groups in chronological order. Tool groups use
+Markdown `<details>` sections containing full output, diffs, and structured protocol
+data beside the relevant call. All content is exported regardless of which sections
+are folded in Neovim, including from stopped sessions without resuming the agent.
+The history format is unchanged, and previously exported Markdown remains readable.
+
 Aero then offers **Create AI-formatted copy**. This starts a separate conversation
 with the same agent and consumes tokens. The resulting `-readable.md` file is an
 edited document; the original archive remains intact. Formatting failures leave the

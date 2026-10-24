@@ -1,7 +1,7 @@
 -- Window-local ACP options must be applied in the window displaying the buffer.
 local api = vim.api
 local M = {}
-M.transcript = { wrap = true, linebreak = true, conceallevel = 2 }
+M.transcript = { wrap = true, linebreak = true, conceallevel = 2, foldenable = true, foldmethod = "manual" }
 
 function M.line_numbers(kind)
 	local config = require("aero.config").options.acp.line_numbers[kind]
