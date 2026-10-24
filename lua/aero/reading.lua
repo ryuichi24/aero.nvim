@@ -324,16 +324,7 @@ function M.open(worktree, id)
 		return vim.notify("Aero: reading list no longer exists", vim.log.levels.WARN)
 	end
 	project(worktree, list)
-	local win = require("aero.navigation").code_window("reading")
 	vim.cmd.copen()
-	local buf = vim.api.nvim_get_current_buf()
-	if vim.t.aero_worktree then
-		if vim.api.nvim_get_current_win() ~= win then
-			vim.cmd.cclose()
-		end
-		vim.api.nvim_set_current_win(win)
-		vim.api.nvim_win_set_buf(win, buf)
-	end
 	vim.keymap.set("n", "<CR>", function()
 		jump(vim.fn.line("."))
 	end, { buffer = true, desc = "Open reading item in reader" })
