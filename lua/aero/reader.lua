@@ -17,7 +17,7 @@ local function valid(win)
 		and api.nvim_win_is_valid(win)
 		and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage()
 		and api.nvim_win_get_config(win).relative == ""
-		and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix"
+		and (vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix" or vim.w[win].aero_reader_kind == "reading")
 		and vim.bo[api.nvim_win_get_buf(win)].filetype ~= "Aero"
 		and not require("aero.panel").owns(win)
 		and not require("aero.terminal").is_term_win(win)

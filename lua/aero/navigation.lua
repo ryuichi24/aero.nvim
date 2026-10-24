@@ -20,7 +20,7 @@ function M.code_window(kind)
 	local function usable(win)
 		return win ~= state.win
 			and api.nvim_win_get_config(win).relative == ""
-			and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix"
+			and (vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix" or vim.w[win].aero_reader_kind == "reading")
 			and not (panel.enabled() and panel.owns(win))
 			and not terminal.is_term_win(win)
 	end
