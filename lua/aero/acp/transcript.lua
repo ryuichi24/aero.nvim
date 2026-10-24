@@ -185,12 +185,14 @@ function M.render(chat)
 		chat.lines = new
 		renderer.decorate(buf, new, chat.render_marks, first)
 		for _, win in ipairs(follow) do
-			api.nvim_win_call(win, function()
-				api.nvim_win_set_cursor(win, { #new, 0 })
-				-- Edits above the tail can shift the focused window's viewport.
-				-- Keep following bottom-aligned rather than relying on cursor scrolling.
-				vim.cmd("normal! zb")
-			end)
+			if api.nvim_win_is_valid(win) and api.nvim_win_get_buf(win) == buf then
+				api.nvim_win_call(win, function()
+					api.nvim_win_set_cursor(win, { math.max(1, api.nvim_buf_line_count(buf)), 0 })
+					-- Edits above the tail can shift the focused window's viewport.
+					-- Keep following bottom-aligned rather than relying on cursor scrolling.
+					vim.cmd("normal! zb")
+				end)
+			end
 		end
 		chat:decorate_options()
 		if chat.pending_focus then
