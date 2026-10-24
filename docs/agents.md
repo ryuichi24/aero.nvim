@@ -54,7 +54,7 @@ Streaming preserves the earlier transcript view. Borders and shell `$` decoratio
 are excluded from yanks/quotes. No Markdown renderer is needed; disable decorations
 with `acp = { decorations = false }`.
 
-Prompt turns start expanded; tool groups and individual tool details start folded.
+Prompt turns start expanded; Thinking sections, tool groups, and individual tool details start folded.
 Use `za`, `zo`, and `zc` to toggle, open, and close the section under the cursor;
 `zM` collapses the conversation into a prompt outline, and `zR` expands everything.
 Opening a tool group shows one-line call summaries; open a call to inspect its output.
@@ -64,6 +64,26 @@ window-local presentation state and do not change saved history or `/export` out
 Existing saved histories receive the same grouping; events before the first prompt
 appear under **Session setup**. Agent Messages show the explanations and decisions
 the agent sends; Thinking sections appear only when reported by the agent.
+
+Choose which sections start collapsed with `acp.collapsed` (`true` collapses,
+`false` expands). Omitted fields keep these defaults:
+
+```lua
+require("aero").setup({
+  acp = {
+    collapsed = {
+      turns = false,
+      thinking = true,
+      tool_groups = true,
+      tools = true,
+    },
+  },
+})
+```
+
+These defaults apply when a section first appears in a transcript window. Manual
+fold choices take precedence afterward. Failed calls and pending permissions are
+still exposed automatically. Exports always include the full recorded content.
 
 The transcript's top bar shows the latest **todo progress** and what the agent is
 working on, alongside the panel's session details. It stays visible while you

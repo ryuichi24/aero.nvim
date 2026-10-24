@@ -83,6 +83,12 @@ require("aero").setup({
     max_tool_lines = 20, -- truncate tool output in transcripts
     prompt_height = 25,
     decorations = true, -- native transcript cards, colors, and visual borders
+    collapsed = { -- initial transcript fold state
+      turns = false,
+      thinking = true,
+      tool_groups = true,
+      tools = true,
+    },
     line_numbers = {
       transcript = { show = false, relative = false },
       prompt = { show = false, relative = false },

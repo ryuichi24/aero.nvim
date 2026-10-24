@@ -306,7 +306,7 @@ function M.build(chat, opts)
 			turn_count = turn_count + 1
 			local preview = one_line(block.image and "[image]" or block.text):gsub("%s+", " ")
 			preview = vim.fn.strcharpart(preview, 0, 80) .. (vim.fn.strchars(preview) > 80 and "…" or "")
-			turn = { kind = "turn", key = block, first = #lines + 1 }
+			turn = { kind = "turn", key = block, first = #lines + 1, closed = config.options.acp.collapsed.turns }
 			table.insert(sections, turn)
 			header(("Turn %d — %s"):format(turn_count, preview), "AeroChatUser", "## ")
 			push("")
@@ -320,7 +320,7 @@ function M.build(chat, opts)
 					kind = "tools",
 					key = block,
 					first = #lines + 1,
-					closed = true,
+					closed = config.options.acp.collapsed.tool_groups,
 					count = 0,
 					failed = 0,
 					counts = {},
@@ -386,18 +386,26 @@ function M.build(chat, opts)
 					)
 					finish("AeroChatAgent")
 				elseif block.kind == "thought" then
+					local section = {
+						kind = "thought",
+						key = block,
+						first = #lines + 1,
+						closed = config.options.acp.collapsed.thinking,
+					}
+					table.insert(sections, section)
 					header("Thinking", "AeroChatThinking")
 					body(
 						block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
 						"AeroChatThinking"
 					)
 					finish("AeroChatThinking")
+					section.last = #lines
 				elseif block.kind == "tool" then
 					local section = {
 						kind = "tool",
 						key = block,
 						first = #lines + 1,
-						closed = true,
+						closed = config.options.acp.collapsed.tools,
 						critical = block.status == "failed",
 					}
 					table.insert(sections, section)

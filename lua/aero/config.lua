@@ -32,6 +32,12 @@ M.defaults = {
 		prompt_height = 25,
 		tab_completion = true, -- map Tab/Shift-Tab to navigate prompt suggestions
 		decorations = true, -- native transcript cards, colors, and visual borders
+		collapsed = { -- initial transcript fold state; true collapses the section
+			turns = false,
+			thinking = true,
+			tool_groups = true,
+			tools = true,
+		},
 		line_numbers = {
 			transcript = { show = false, relative = false },
 			prompt = { show = false, relative = false },

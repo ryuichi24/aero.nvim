@@ -7,7 +7,7 @@ require("aero").setup({
 	state_file = dir .. "/state.json",
 	animation = false,
 	start_insert = false,
-	acp = { max_tool_lines = 1 },
+	acp = { max_tool_lines = 1, collapsed = { tools = true } },
 	agents = { fixture = { type = "acp", cmd = { "false" } } },
 })
 local sessions = require("aero.session")
@@ -17,6 +17,7 @@ local chat = s.chat
 local setup = { kind = "info", text = "Old saved history without timestamps" }
 local first = { kind = "user", text = "Inspect the source\nand explain the result" }
 local message = { kind = "agent", text = "I will inspect the implementation." }
+local thought = { kind = "thought", text = "Compare the source and tests.\nChoose a minimal fix." }
 local read = {
 	kind = "tool",
 	id = "read",
@@ -31,7 +32,7 @@ local decision = { kind = "agent", text = "The implementation needs a fix." }
 local edit = { kind = "tool", id = "edit", tool_kind = "edit", status = "completed", title = "Edit source.lua" }
 local second = { kind = "user", text = "Now explain the fix" }
 local reply = { kind = "agent", text = "Here is the explanation." }
-chat.blocks = { setup, first, message, read, command, decision, edit, second, reply }
+chat.blocks = { setup, first, message, thought, read, command, decision, edit, second, reply }
 local function render()
 	chat:render()
 	assert(
@@ -67,6 +68,7 @@ local group = section("tools", read)
 assert(turn1.last < turn2.first and section("tools", edit).first > chat.block_lines[decision])
 assert(vim.fn.foldclosed(turn1.first) == -1, "prompt turn is collapsed by default")
 assert(vim.fn.foldclosed(group.first) == group.first, "tool group is not collapsed by default")
+assert(vim.fn.foldclosed(section("thought", thought).first) == section("thought", thought).first)
 assert(vim.fn.foldtextresult(group.first):find("Tools · 2 calls", 1, true), "fold summary is not readable")
 cursor(group.first)
 normal("zo")
@@ -171,6 +173,34 @@ assert(#saved.blocks == #chat.blocks and saved.sections == nil and saved.fold_vi
 local restored = setmetatable({ blocks = saved.blocks }, { __index = chat })
 local restored_lines = require("aero.acp.render").build(restored)
 assert(table.concat(restored_lines, "\n"):find("## Turn 2 — Now explain the fix", 1, true))
+
+-- Override each initial fold default in a new turn; partial setup retained the
+-- defaults checked above. Later renders must respect the reader's manual choices.
+require("aero.config").options.acp.collapsed = {
+	turns = true,
+	thinking = false,
+	tool_groups = false,
+	tools = false,
+}
+local prompt = { kind = "user", text = "Configured fold defaults" }
+local thinking = { kind = "thought", text = "Visible reasoning\nMore reasoning" }
+local call = { kind = "tool", id = "configured", title = "Inspect source", status = "completed" }
+local result = { kind = "agent", text = "Visible message" }
+chat.blocks = { prompt, thinking, call, result }
+render()
+assert(vim.fn.foldclosed(section("turn", prompt).first) == section("turn", prompt).first)
+cursor(section("turn", prompt).first)
+normal("zo")
+for _, item in ipairs({ { "thought", thinking }, { "tools", call }, { "tool", call } }) do
+	assert(vim.fn.foldclosed(section(item[1], item[2]).first) == -1, "configured section stayed collapsed")
+end
+cursor(section("thought", thinking).first)
+normal("zc")
+thinking.text = thinking.text .. "\nStreamed reasoning"
+render()
+assert(vim.fn.foldclosed(section("thought", thinking).first) == section("thought", thinking).first)
+assert(vim.fn.foldclosed(section("turn", prompt).first) == -1, "configured default reset a manual choice")
+assert(exports.markdown(chat):find("Streamed reasoning", 1, true), "fold defaults hid exported reasoning")
 sessions.delete(s)
 vim.fn.delete(dir, "rf")
 print("transcript groups: prompt turns, nested folds, streaming, navigation, alerts, history and export passed")
