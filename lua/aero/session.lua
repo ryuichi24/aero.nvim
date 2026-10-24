@@ -219,7 +219,7 @@ function M.start(s, win, resume, session_id, opts)
 		return false
 	end
 	M.stop(s)
-	if agent.type == "acp" and opts.restore_tasks ~= false then
+	if agent.type == "acp" and not opts.history_only and opts.restore_tasks ~= false then
 		local restored, err = require("aero.tasks.agent").restore(s)
 		if not restored then
 			vim.notify(
@@ -229,7 +229,7 @@ function M.start(s, win, resume, session_id, opts)
 			return false
 		end
 	end
-	if agent.type == "acp" then
+	if agent.type == "acp" and not opts.history_only then
 		local attached, err = require("aero.reading_agent").attach(s)
 		if not attached then
 			vim.notify("Aero: cannot attach reading tools: " .. tostring(err), vim.log.levels.ERROR)
@@ -284,7 +284,9 @@ function M.start(s, win, resume, session_id, opts)
 		ensure_timer()
 		s.stop_requested = false
 		emit()
-		events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "acp" }))
+		if not opts.history_only then
+			events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "acp" }))
+		end
 		return true
 	end
 
@@ -440,13 +442,14 @@ function M.prepare_win(win)
 	return win
 end
 
---- Show the session, starting it if it isn't running. Focuses an existing window in this tab
+--- Show the session, restoring stopped ACP history without starting the agent.
+--- Focuses an existing window in this tab
 --- when the session is already visible; otherwise uses `win`.
---- Sessions not created in this nvim instance are resumed rather than started fresh.
+--- Terminal sessions not created in this nvim instance use their resume command.
 ---@return integer? win the window the session is shown in, nil on failure
 function M.show(s, win, reuse)
 	win = win == 0 and vim.api.nvim_get_current_win() or win
-	if running(s) and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
+	if (running(s) or (is_acp(s) and s.chat)) and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
 		local visible = reuse ~= false and tab_wins_with(s.buf)[1]
 		if visible then
 			events.emit("session_shown", events.session(s, { win = visible }))
@@ -458,7 +461,7 @@ function M.show(s, win, reuse)
 		return win
 	end
 	win = M.prepare_win(win)
-	if M.start(s, win, not s.fresh) then
+	if M.start(s, win, not s.fresh, nil, { history_only = is_acp(s) and not s.fresh }) then
 		events.emit("session_shown", events.session(s, { win = win }))
 		return win
 	end

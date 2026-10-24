@@ -484,6 +484,13 @@ function Chat:new_session(params)
 end
 
 function Chat:prompt(text)
+	if vim.trim(text) == "/resume" then
+		if self.state ~= "exited" then
+			return vim.notify("Aero: session is already running", vim.log.levels.INFO)
+		end
+		local win = vim.fn.win_findbuf(self.buf)[1]
+		return require("aero.session").start(self.s, win, true)
+	end
 	if vim.trim(text) == "/prompt" then
 		return require("aero.prompt_snippets").open(self)
 	end
@@ -491,8 +498,7 @@ function Chat:prompt(text)
 		return require("aero.exports").export(self)
 	end
 	if self.state == "exited" then
-		local message = self.resume_error and "Aero: session could not be resumed; retry with r in the dashboard"
-			or "Aero: agent has exited; restart it with r in the dashboard"
+		local message = "Aero: session is stopped; send /resume in the composer to resume it"
 		vim.notify(message, vim.log.levels.WARN)
 		return
 	end
@@ -686,6 +692,11 @@ function M.start(s, buf, agent, resume, session_id, opts)
 	end
 	chats_by_key[s.key] = chat
 	setup_transcript(chat)
+	if opts.history_only then
+		chat.state = "exited"
+		chat:render()
+		return chat
+	end
 	local cmd = type(agent.cmd) == "function" and agent.cmd(s) or agent.cmd
 	local client, err = Client.spawn(cmd, {
 		cwd = s.worktree,

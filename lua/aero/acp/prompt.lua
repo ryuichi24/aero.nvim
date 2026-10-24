@@ -8,7 +8,12 @@ local function reference_command(text)
 end
 
 local function enter_command(text)
-	return text == "/prompt" or text == "/report" or reference_command(text) or text == "/cancel" or text == "/export"
+	return text == "/prompt"
+		or text == "/report"
+		or reference_command(text)
+		or text == "/cancel"
+		or text == "/export"
+		or text == "/resume"
 end
 
 -- Draft-building commands act on the current line, preserving the rest of the draft.
@@ -90,6 +95,11 @@ function M.send(chat, submitting)
 	end
 	if text == "/prompt" then
 		return require("aero.prompt_snippets").open(chat)
+	end
+	if text == "/resume" then
+		api.nvim_buf_set_lines(buf, 0, -1, false, {})
+		vim.bo[buf].modified = false
+		return chat:prompt(text)
 	end
 	if chat.state == "exited" and text ~= "/export" then
 		return chat:prompt(text)
