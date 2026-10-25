@@ -324,6 +324,9 @@ function M.open(worktree, id)
 		return vim.notify("Aero: reading list no longer exists", vim.log.levels.WARN)
 	end
 	project(worktree, list)
+	-- Native quickfix jumps use the window preceding :copen. In particular,
+	-- an acwrite Source buffer (such as Oil) would otherwise force a split.
+	require("aero.reader").select("reading")
 	vim.cmd.copen()
 	vim.keymap.set("n", "<CR>", function()
 		jump(vim.fn.line("."))
