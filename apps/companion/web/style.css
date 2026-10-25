@@ -1004,6 +1004,36 @@ body:has(.transcript-inline[data-keyboard='open']) {
 .tool-title {
   font-weight: 600;
 }
+.tool-group {
+  @apply border-l-[3px] border-l-violet-300;
+}
+.tool-group-counts {
+  @apply text-sm text-slate-400;
+}
+.tool-group-calls {
+  @apply mt-2 min-w-0;
+}
+.tool-group-calls > .tool-card {
+  @apply rounded-none border-0 border-t border-slate-700 bg-transparent px-0 py-2;
+  margin-bottom: 0;
+}
+.tool-group summary,
+.tool-card summary {
+  overflow-wrap: anywhere;
+}
+.tool-group summary:focus-visible,
+.tool-card summary:focus-visible,
+.thought-card summary:focus-visible {
+  @apply rounded outline-2 outline-sky-300;
+}
+@media (max-width: 480px) {
+  .tool-group {
+    padding: 0.625rem;
+  }
+  .tool-group > summary > .tool-group-counts {
+    display: block;
+  }
+}
 .tool-content:empty {
   display: none;
 }

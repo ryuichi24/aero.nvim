@@ -6,6 +6,47 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { attachedReports } from './report-preview';
 
 afterEach(cleanup);
+it('groups consecutive calls by kind without crossing messages and preserves manual expansion', () => {
+  const blocks = [
+    { kind: 'tool', id: 'read-1', tool_kind: 'read', title: 'Read first', status: 'completed' },
+    { kind: 'tool', id: 'read-2', tool_kind: 'read', title: 'Read second', status: 'completed' },
+    { kind: 'agent', text: 'Now checking' },
+    { kind: 'tool', id: 'check', tool_kind: 'execute', title: 'Check', status: 'completed' },
+  ];
+  const { rerender } = render(<Transcript session={{ ...session, blocks }} />);
+  const groups = document.querySelectorAll<HTMLDetailsElement>('.tool-group');
+  expect(groups).toHaveLength(2);
+  expect(groups[0].open).toBe(false);
+  expect(groups[0].querySelector('summary')?.textContent).toContain('Tools · 2 calls · 2 Read');
+  expect(groups[1].querySelector('summary')?.textContent).toContain('Tools · 1 call · 1 Command');
+  groups[0].open = true;
+  fireEvent(groups[0], new Event('toggle'));
+  rerender(<Transcript session={{ ...session, blocks: [...blocks] }} />);
+  expect(groups[0].open).toBe(true);
+});
+it('reveals active and newly failed groups and collapses completed activity', () => {
+  const block = {
+    kind: 'tool',
+    id: 'check',
+    tool_kind: 'execute',
+    title: 'Check',
+    status: 'in_progress',
+  };
+  const { rerender } = render(<Transcript session={{ ...session, blocks: [block] }} />);
+  const group = document.querySelector<HTMLDetailsElement>('.tool-group')!;
+  expect(group.open).toBe(true);
+  expect(group.querySelector('summary')?.textContent).toContain('1 running');
+  rerender(<Transcript session={{ ...session, blocks: [{ ...block, status: 'completed' }] }} />);
+  expect(group.open).toBe(false);
+  rerender(
+    <Transcript
+      session={{ ...session, blocks: [{ ...block, status: 'failed', rawOutput: 'Broken' }] }}
+    />,
+  );
+  expect(group.open).toBe(true);
+  expect(group.querySelector('summary')?.textContent).toContain('1 failed');
+  expect(screen.getByRole('group', { name: 'Output' }).textContent).toContain('Broken');
+});
 it('hides and restores the inline composer without losing the draft or log position', () => {
   render(
     <Transcript

@@ -13,6 +13,35 @@ function readableStatus(status: string): string {
   return status.replaceAll('_', ' ');
 }
 
+const toolNames: Record<string, string> = {
+  read: 'Read',
+  edit: 'Edit',
+  delete: 'Delete',
+  search: 'Search',
+  execute: 'Command',
+  fetch: 'Fetch',
+  think: 'Thinking',
+};
+const toolIcons: Record<string, string> = {
+  pending: '…',
+  in_progress: '◐',
+  completed: '✓',
+  failed: '✗',
+};
+function activeTool(block: TranscriptBlock) {
+  return block.status === 'pending' || block.status === 'in_progress';
+}
+function transcriptEntries(blocks: TranscriptBlock[]) {
+  const entries: { index: number; blocks: TranscriptBlock[] }[] = [];
+  for (const [index, block] of blocks.entries()) {
+    const previous = entries.at(-1);
+    if (block.kind === 'tool' && previous?.blocks[0].kind === 'tool') {
+      previous.blocks.push(block);
+    } else entries.push({ index, blocks: [block] });
+  }
+  return entries;
+}
+
 function Timestamp({ block }: { block: TranscriptBlock }) {
   if (typeof block.timestamp !== 'number' || !Number.isFinite(block.timestamp)) return null;
   const date = new Date(block.timestamp * 1000);
@@ -80,9 +109,9 @@ function ToolContent({ block }: { block: TranscriptBlock }) {
   );
 }
 const Block = memo(function Block({ block }: { block: TranscriptBlock }) {
-  const running = block.status === 'pending' || block.status === 'in_progress';
-  const [expanded, setExpanded] = useState(running);
-  useEffect(() => setExpanded(running), [running]);
+  const reveal = activeTool(block) || block.status === 'failed';
+  const [expanded, setExpanded] = useState(reveal);
+  useEffect(() => setExpanded(reveal), [reveal]);
   if (block.kind === 'tool')
     return (
       <details
@@ -93,7 +122,10 @@ const Block = memo(function Block({ block }: { block: TranscriptBlock }) {
         }}
       >
         <summary>
-          <span className="message-label">Tool</span>
+          <span className="message-label">
+            <span aria-hidden="true">{toolIcons[block.status || 'pending'] || '•'} </span>
+            {toolNames[block.tool_kind || ''] || 'Tool call'}
+          </span>
           <span className="tool-title">{block.title || block.tool_kind || 'Tool call'}</span>
           {block.status && (
             <span className={`status-badge status-${block.status}`}>
@@ -186,6 +218,61 @@ const BlockContent = memo(function BlockContent({
     </>
   );
 });
+
+function ToolGroup({
+  blocks,
+  worktree,
+  reportsDirectory,
+  online,
+}: {
+  blocks: TranscriptBlock[];
+  worktree?: string;
+  reportsDirectory?: string;
+  online: boolean;
+}) {
+  const running = blocks.filter(activeTool).length;
+  const failed = blocks.filter((block) => block.status === 'failed').length;
+  const reveal = running > 0 || failed > 0;
+  const [expanded, setExpanded] = useState(reveal);
+  useEffect(() => setExpanded(reveal), [reveal]);
+  const counts = new Map<string, number>();
+  for (const block of blocks) {
+    const kind = toolNames[block.tool_kind || ''] || 'Tool';
+    counts.set(kind, (counts.get(kind) || 0) + 1);
+  }
+  return (
+    <details
+      className="transcript-card tool-group"
+      open={expanded}
+      onToggle={(event) => {
+        if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
+      }}
+    >
+      <summary>
+        <span className="tool-title">
+          Tools · {blocks.length} {blocks.length === 1 ? 'call' : 'calls'}
+        </span>
+        <span className="tool-group-counts">
+          {' · '}
+          {[...counts].map(([kind, count]) => `${count} ${kind}`).join(', ')}
+        </span>
+        {running > 0 && <span className="status-badge status-in_progress">{running} running</span>}
+        {failed > 0 && <span className="status-badge status-failed">{failed} failed</span>}
+      </summary>
+      <div className="tool-group-calls">
+        {blocks.map((block, index) => (
+          <BlockContent
+            key={block.id || index}
+            block={block}
+            worktree={worktree}
+            reportsDirectory={reportsDirectory}
+            online={online}
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
 
 export const Transcript = memo(
   function Transcript({
@@ -283,6 +370,16 @@ export const Transcript = memo(
             <>
               <div className="transcript-controls">
                 <strong className="sr-only">Agent logs</strong>
+                <button
+                  aria-controls="transcript"
+                  onClick={() => {
+                    follow.current = true;
+                    setPromptsVisible(false);
+                    if (element.current) element.current.scrollTop = element.current.scrollHeight;
+                  }}
+                >
+                  Scroll to end
+                </button>
                 <button
                   aria-expanded={promptsVisible}
                   aria-controls="transcript-prompts"
@@ -388,23 +485,35 @@ export const Transcript = memo(
                       No logs yet. Send a prompt to start the conversation.
                     </p>
                   )}
-                  {session?.blocks?.map((block, index) => (
-                    <div
-                      key={`${block.kind}:${block.id || index}`}
-                      tabIndex={block.kind === 'user' ? -1 : undefined}
-                      ref={(node) => {
-                        if (node && block.kind === 'user') promptTargets.current.set(index, node);
-                        else promptTargets.current.delete(index);
-                      }}
-                    >
-                      <BlockContent
-                        block={block}
-                        worktree={session?.worktree}
-                        reportsDirectory={reportsDirectory}
-                        online={online && active}
-                      />
-                    </div>
-                  ))}
+                  {transcriptEntries(session?.blocks || []).map(({ blocks, index }) => {
+                    const block = blocks[0];
+                    return (
+                      <div
+                        key={`${block.kind}:${block.id || index}`}
+                        tabIndex={block.kind === 'user' ? -1 : undefined}
+                        ref={(node) => {
+                          if (node && block.kind === 'user') promptTargets.current.set(index, node);
+                          else promptTargets.current.delete(index);
+                        }}
+                      >
+                        {block.kind === 'tool' ? (
+                          <ToolGroup
+                            blocks={blocks}
+                            worktree={session?.worktree}
+                            reportsDirectory={reportsDirectory}
+                            online={online && active}
+                          />
+                        ) : (
+                          <BlockContent
+                            block={block}
+                            worktree={session?.worktree}
+                            reportsDirectory={reportsDirectory}
+                            online={online && active}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                   {!!session?.queue?.length && (
                     <aside className="transcript-card queued-card" aria-label="Queued prompts">
                       <div className="message-label">Queued prompts</div>
