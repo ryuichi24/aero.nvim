@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GitBrowser } from './git-browser';
 import type { Snapshot } from './types';
@@ -7,6 +7,61 @@ import type { Snapshot } from './types';
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+it('organizes changes into sorted, collapsible folders and selects files by their full path', async () => {
+  const entries = [
+    { path: 'src/ui/new.tsx', index: '?', worktree: '?' },
+    { path: 'src/main.ts', index: 'M', worktree: 'M' },
+    { path: 'README.md', index: ' ', worktree: 'M' },
+    { path: 'tests/main.ts', index: ' ', worktree: 'D' },
+    { path: 'src/renamed.ts', original_path: 'old/name.ts', index: 'R', worktree: ' ' },
+  ];
+  const fetch = vi.fn(async (url: string) => ({
+    ok: true,
+    json: async () => (url.endsWith('/status') ? { entries } : { content: '+nested change' }),
+  }));
+  vi.stubGlobal('fetch', fetch);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <GitBrowser
+        snapshot={{ connected: true, worktrees: [{ path: '/repo', branch: 'main' }] } as Snapshot}
+      />
+    </QueryClientProvider>,
+  );
+  const navigation = await screen.findByRole('navigation', { name: 'Changed files' });
+  await within(navigation).findByText('Unstaged (4)');
+  const unstaged = within(navigation).getByText('Unstaged (4)').parentElement!;
+  const tree = unstaged.querySelector('ul')!;
+  expect(
+    [...tree.children].map((node) => node.querySelector('summary, button')?.textContent),
+  ).toEqual(['src/ (2)', 'tests/ (1)', 'M README.md']);
+  const src = unstaged.querySelector<HTMLDetailsElement>('details')!;
+  expect(src.open).toBe(true);
+  expect(within(src).getByText('ui/')).toBeTruthy();
+  expect(within(src).getByText('(untracked)', { exact: false })).toBeTruthy();
+  fireEvent.click(within(src).getByRole('button', { name: '? new.tsx (untracked)' }));
+  await screen.findByText('+nested change');
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/git/diff',
+    expect.objectContaining({
+      body: JSON.stringify({ worktree: '/repo', path: 'src/ui/new.tsx', staged: false }),
+    }),
+  );
+  expect(
+    within(src).getByRole('button', { name: '? new.tsx (untracked)' }).getAttribute('aria-current'),
+  ).toBe('true');
+  expect(within(navigation).getByRole('button', { name: 'R renamed.ts ← old/name.ts' }).title).toBe(
+    'old/name.ts → src/renamed.ts',
+  );
+  fireEvent.click(src.querySelector('summary')!);
+  expect(src.open).toBe(false);
+  await act(async () => {
+    client.setQueryData(['git', '/repo', 'status'], { entries: [...entries] });
+  });
+  expect(src.open).toBe(false);
+  client.clear();
 });
 
 it('groups sibling worktrees by workspace, shows summaries, and clears diffs when switching', async () => {

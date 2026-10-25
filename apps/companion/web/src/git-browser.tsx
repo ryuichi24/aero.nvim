@@ -23,6 +23,104 @@ const statusColors: Record<string, string> = {
   C: 'text-violet-300',
 };
 
+interface ChangeFolder {
+  folders: Map<string, ChangeFolder>;
+  files: GitEntry[];
+  count: number;
+}
+
+function changeTree(entries: GitEntry[]): ChangeFolder {
+  const root: ChangeFolder = { folders: new Map(), files: [], count: 0 };
+  for (const entry of entries) {
+    let folder = root;
+    folder.count++;
+    const parts = entry.path.split('/');
+    for (const part of parts.slice(0, -1)) {
+      let child = folder.folders.get(part);
+      if (!child) {
+        child = { folders: new Map(), files: [], count: 0 };
+        folder.folders.set(part, child);
+      }
+      folder = child;
+      folder.count++;
+    }
+    folder.files.push(entry);
+  }
+  return root;
+}
+
+function ChangeTree({
+  folder,
+  staged,
+  selectedPath,
+  onSelect,
+  path = '',
+}: {
+  folder: ChangeFolder;
+  staged: boolean;
+  selectedPath?: string;
+  onSelect: (entry: GitEntry) => void;
+  path?: string;
+}) {
+  return (
+    <ul className="source-entries min-w-0 [&_ul]:ml-2">
+      {[...folder.folders]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, child]) => {
+          const childPath = path ? `${path}/${name}` : name;
+          return (
+            <li key={`folder:${name}`}>
+              <details open>
+                <summary
+                  className="min-h-11 cursor-pointer rounded-lg px-2 py-2.5 text-sm wrap-anywhere text-slate-200 focus-visible:outline-2 focus-visible:outline-sky-300"
+                  title={childPath}
+                >
+                  <span className="font-semibold">{name}/</span>{' '}
+                  <span
+                    className="text-xs text-slate-400"
+                    aria-label={`${child.count} changed files`}
+                  >
+                    ({child.count})
+                  </span>
+                </summary>
+                <ChangeTree
+                  folder={child}
+                  staged={staged}
+                  selectedPath={selectedPath}
+                  onSelect={onSelect}
+                  path={childPath}
+                />
+              </details>
+            </li>
+          );
+        })}
+      {[...folder.files]
+        .sort((a, b) => a.path.localeCompare(b.path))
+        .map((entry) => (
+          <li key={`file:${entry.path}`}>
+            <button
+              className="min-h-11 wrap-anywhere"
+              title={entry.original_path ? `${entry.original_path} → ${entry.path}` : entry.path}
+              aria-current={selectedPath === entry.path ? 'true' : undefined}
+              onClick={() => onSelect(entry)}
+            >
+              <code
+                className={`font-semibold ${statusColors[staged ? entry.index : entry.worktree] || 'text-slate-400'}`}
+              >
+                {staged ? entry.index : entry.worktree}
+              </code>{' '}
+              <span className="font-semibold">{entry.path.split('/').at(-1)}</span>
+              {entry.original_path && (
+                <span className="text-xs text-slate-400"> ← {entry.original_path}</span>
+              )}
+              {entry.index === '?' ? ' (untracked)' : ''}
+            </button>
+          </li>
+        ))}
+    </ul>
+  );
+}
+
 function GitWorktree({
   tree,
   active,
@@ -182,32 +280,16 @@ export function GitBrowser({
                     <h3>
                       {staged ? 'Staged' : 'Unstaged'} ({entries.length})
                     </h3>
-                    <ul className="source-entries">
-                      {entries.map((entry) => (
-                        <li key={entry.path}>
-                          <button
-                            aria-current={
-                              selected?.path === entry.path && selected.staged === staged
-                                ? 'true'
-                                : undefined
-                            }
-                            onClick={() => {
-                              setSelected({ worktree: worktree!, path: entry.path, staged });
-                              setReaderOpen(true);
-                            }}
-                          >
-                            <code
-                              className={`font-semibold ${statusColors[staged ? entry.index : entry.worktree] || 'text-slate-400'}`}
-                            >
-                              {staged ? entry.index : entry.worktree}
-                            </code>{' '}
-                            {entry.original_path ? `${entry.original_path} → ` : ''}
-                            {entry.path}
-                            {entry.index === '?' ? ' (untracked)' : ''}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                    <ChangeTree
+                      key={`${worktree}:${staged}`}
+                      folder={changeTree(entries)}
+                      staged={staged}
+                      selectedPath={selected?.staged === staged ? selected.path : undefined}
+                      onSelect={(entry) => {
+                        setSelected({ worktree: worktree!, path: entry.path, staged });
+                        setReaderOpen(true);
+                      }}
+                    />
                     {!entries.length && (
                       <p className="navigation-empty">
                         No {staged ? 'staged' : 'unstaged'} changes.
