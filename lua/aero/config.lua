@@ -100,7 +100,7 @@ M.defaults = {
 		prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
 	},
 	reading = {
-		explanation = { auto_open = true }, -- show the explanation pane when opening a reading list
+		explanation = { auto_open = true, position = "below" }, -- position: "below" or "right"
 		-- {title} becomes the JSON-quoted list title in the /reading draft.
 		prompt = "Create a new reading list titled {title} for this walkthrough. Use aero_reading_list_publish, omitting the list id to create a separate list. Trace the relevant code from its entry point to the outcome in execution or data-flow order. Verify source paths and line numbers, and include a short label and an explanation of what to understand at each stop and how it connects to the next one.",
 		agent = { enabled = false, executable = false }, -- ACP reading-list tool; uses aero-mcp

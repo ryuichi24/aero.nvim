@@ -97,6 +97,56 @@ assert(not vim.api.nvim_win_is_valid(vim.t.aero_reading_note_win), "navigation p
 require("aero.config").options.reading.explanation.auto_open = true
 reading.open(root, result.id)
 assert(vim.api.nvim_win_is_valid(vim.t.aero_reading_note_win), "auto_open=true opens the pane")
+panel.close()
+local explanation_win = vim.t.aero_reading_note_win
+local explanation_buf = vim.api.nvim_win_get_buf(explanation_win)
+local reopened_panel = panel.open()
+assert(vim.api.nvim_win_is_valid(explanation_win), "opening the agent panel preserves the explanation window")
+assert(vim.api.nvim_win_get_buf(explanation_win) == explanation_buf)
+assert(
+	vim.api.nvim_win_get_width(explanation_win) == vim.api.nvim_win_get_width(source_win),
+	"explanation shares the reader column instead of competing with the agent panel"
+)
+local explanation_pos = vim.api.nvim_win_get_position(explanation_win)
+local reader_pos = vim.api.nvim_win_get_position(source_win)
+assert(explanation_pos[2] == reader_pos[2] and explanation_pos[1] > reader_pos[1])
+assert(reopened_panel ~= explanation_win)
+-- Both placements must survive either opening order, including a narrow screen
+-- where the agent's preferred width cannot fit alongside two reader columns.
+local options = require("aero.config").options
+options.layout.min_code_width = 20
+options.panel.width = 60
+for _, position in ipairs({ "below", "right" }) do
+	options.reading.explanation.position = position
+	for _, panel_first in ipairs({ false, true }) do
+		reading.command("note-toggle")
+		panel.close()
+		vim.o.columns = 80
+		if panel_first then
+			panel.open()
+		end
+		reading.open(root, result.id)
+		local note = vim.t.aero_reading_note_win
+		local buf = vim.api.nvim_win_get_buf(note)
+		local agent = panel.open()
+		for _, columns in ipairs({ 80, 70, 80 }) do
+			vim.o.columns = columns
+			require("aero.layout").rebalance()
+			assert(vim.api.nvim_win_get_buf(note) == buf, "agent panel must preserve explanation contents")
+			assert(vim.api.nvim_win_get_width(note) >= 20, "explanation must remain readable")
+			assert(vim.api.nvim_win_get_width(source_win) >= 20, "reader must remain readable")
+			local np = vim.api.nvim_win_get_position(note)
+			local rp = vim.api.nvim_win_get_position(source_win)
+			local ap = vim.api.nvim_win_get_position(agent)
+			if position == "right" then
+				assert(np[1] == rp[1] and np[2] > rp[2], "right placement must be beside the reader")
+			else
+				assert(np[2] == rp[2] and np[1] > rp[1], "below placement must share the reader column")
+			end
+			assert(ap[2] >= np[2] + vim.api.nvim_win_get_width(note), "agent must not overlap the explanation")
+		end
+	end
+end
 local invalid = vim.deepcopy(args)
 invalid.items[1].path = "../outside.lua"
 assert(not reading.publish(binding, invalid))
@@ -142,3 +192,4 @@ if executable then
 end
 vim.fn.delete(root, "rf")
 print("reading: ok")
+vim.cmd.qa({ bang = true })

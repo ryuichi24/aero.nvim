@@ -327,18 +327,29 @@ refresh_note = function(open)
 		local buf = vim.api.nvim_create_buf(false, true)
 		vim.bo[buf].bufhidden = "wipe"
 		vim.bo[buf].filetype = "markdown"
-		win = vim.api.nvim_open_win(buf, false, { split = "right", win = vim.api.nvim_get_current_win(), width = 45 })
+		local position = require("aero.config").options.reading.explanation.position
+		local anchor = require("aero.navigation").code_window("reading")
+		local right = position == "right"
+		win = vim.api.nvim_open_win(buf, false, {
+			split = right and "right" or "below",
+			win = anchor,
+			width = right and 45 or nil,
+			height = not right and 10 or nil,
+		})
 		vim.t.aero_reading_note_win = win
 		vim.w[win].aero_reading_note = true
 		vim.wo[win].wrap = true
 		vim.wo[win].linebreak = true
 		vim.wo[win].number = false
 		vim.wo[win].relativenumber = false
-		vim.wo[win].winfixwidth = true
+		-- Let side-by-side reader panes share width when the agent panel opens.
+		vim.wo[win].winfixwidth = false
+		vim.wo[win].winfixheight = not right
 		vim.wo[win].winbar = "Reading explanation"
 		vim.keymap.set("n", "q", function()
 			vim.api.nvim_win_close(win, true)
 		end, { buffer = buf, desc = "Close reading explanation" })
+		require("aero.layout").rebalance()
 	end
 	local buf = vim.api.nvim_win_get_buf(win)
 	if not vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), lines) then

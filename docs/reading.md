@@ -96,7 +96,7 @@ The sidebar updates automatically when lists are published, edited, or marked re
 - `:Aero reading source`: open the current quickfix stop in **Source**, keeping
   the **Reading** slot intact. Lua: `require("aero").reading("source")`.
 - `x` in the reading quickfix window, or `:Aero reading toggle`: mark/unmark a stop.
-- Opening a reading list also opens a read-only Markdown explanation pane. It follows the quickfix cursor and reading-item jumps, showing the selected item's label, source location, and agent-written explanation. Updated agent explanations appear automatically when the list is republished. Items without a note show an explicit empty-state message.
+- Opening a reading list also opens a read-only Markdown explanation pane below the reader by default, or to its right when configured. Both placements preserve the explanation when the agent panel opens. It follows the quickfix cursor and reading-item jumps, showing the selected item's label, source location, and agent-written explanation. Updated agent explanations appear automatically when the list is republished. Items without a note show an explicit empty-state message.
 - `K` in the reading quickfix window, or `:Aero reading note`: reopen the explanation pane. Focus the pane to scroll through longer explanations; press `q` there (or close the window normally) to dismiss it.
 - `:Aero reading note-toggle`: close or reopen the explanation pane without changing read progress. Once closed, navigation and agent updates leave it closed until you reopen it or open a list with automatic opening enabled.
 
@@ -105,12 +105,16 @@ To keep the explanation pane closed by default when opening a list:
 ```lua
 require("aero").setup({
   reading = {
-    explanation = { auto_open = false }, -- defaults to true
+    explanation = {
+      auto_open = false, -- defaults to true
+      position = "right", -- "below" (default) or "right", relative to the reader
+    },
   },
 })
 ```
 
 You can still open it with `K`, `:Aero reading note`, or `:Aero reading note-toggle`.
+Placement is applied when the explanation window opens; close and reopen it after changing this option. The right-side pane shares available width with the reader, and the agent panel yields space for both on narrower screens.
 - `:Aero reading next`: jump to the next unread stop, wrapping at the end.
 
 Jumping does not mark a stop read. Progress survives restarts and agent updates.
