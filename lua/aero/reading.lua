@@ -310,6 +310,12 @@ end
 refresh_note = function(open)
 	local win = vim.t.aero_reading_note_win
 	local visible = win and vim.api.nvim_win_is_valid(win)
+	-- Never render into a source buffer if another command replaced the pane.
+	if visible and not vim.b[vim.api.nvim_win_get_buf(win)].aero_reading_note then
+		vim.w[win].aero_reading_note = nil
+		vim.t.aero_reading_note_win = nil
+		visible = false
+	end
 	if not visible and not open then
 		return
 	end
@@ -327,6 +333,7 @@ refresh_note = function(open)
 		local buf = vim.api.nvim_create_buf(false, true)
 		vim.bo[buf].bufhidden = "wipe"
 		vim.bo[buf].filetype = "markdown"
+		vim.b[buf].aero_reading_note = true
 		require("aero.layout").bind(buf)
 		local position = require("aero.config").options.reading.explanation.position
 		local anchor = require("aero.navigation").code_window("reading")
@@ -339,6 +346,7 @@ refresh_note = function(open)
 		})
 		vim.t.aero_reading_note_win = win
 		vim.w[win].aero_reading_note = true
+		vim.wo[win].winfixbuf = true
 		vim.wo[win].wrap = true
 		vim.wo[win].linebreak = true
 		vim.wo[win].number = false

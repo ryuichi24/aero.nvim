@@ -55,6 +55,20 @@ local function note_text()
 	return table.concat(vim.api.nvim_buf_get_lines(note_buf, 0, -1, false), "\n")
 end
 assert(note_text():find("Start here", 1, true))
+vim.api.nvim_set_current_win(note_win)
+vim.cmd.cnext()
+assert(vim.api.nvim_win_get_buf(note_win) == note_buf, "cnext must not replace the explanation buffer")
+assert(vim.api.nvim_get_current_win() ~= note_win, "native quickfix jumps must leave the explanation pane")
+assert(vim.api.nvim_get_current_line() == "result", "native jump must preserve source contents")
+assert(not vim.bo.modified, "refresh must not modify the source buffer")
+assert(note_text():find("# Result", 1, true))
+vim.api.nvim_set_current_win(note_win)
+vim.cmd.cprevious()
+assert(vim.api.nvim_win_get_buf(note_win) == note_buf, "cprev must not replace the explanation buffer")
+assert(vim.api.nvim_get_current_line() == "entry")
+assert(not vim.bo.modified)
+assert(note_text():find("Start here", 1, true))
+vim.api.nvim_set_current_win(qf_win)
 vim.api.nvim_win_set_cursor(qf_win, { 2, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 assert(note_text():find("# Result", 1, true), "explanation follows quickfix cursor before jumping")
@@ -172,6 +186,18 @@ for _, position in ipairs({ "below", "right" }) do
 		end
 	end
 end
+local replaced_note = vim.t.aero_reading_note_win
+local source_file_buf = vim.fn.bufnr(root .. "/source.lua")
+vim.wo[replaced_note].winfixbuf = false
+vim.api.nvim_win_set_buf(replaced_note, source_file_buf)
+vim.api.nvim_exec_autocmds("BufEnter", {})
+assert(vim.t.aero_reading_note_win == nil, "replaced explanation windows must be detached")
+assert(not vim.w[replaced_note].aero_reading_note)
+assert(
+	vim.deep_equal(vim.api.nvim_buf_get_lines(source_file_buf, 0, -1, false), { "entry", "dispatch", "result" }),
+	"refresh must never write explanation text into a replacement source buffer"
+)
+assert(not vim.bo[source_file_buf].modified)
 local invalid = vim.deepcopy(args)
 invalid.items[1].path = "../outside.lua"
 assert(not reading.publish(binding, invalid))
