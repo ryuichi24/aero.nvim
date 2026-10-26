@@ -205,6 +205,7 @@ function M.build(chat, opts)
 			or "AeroChatPending"
 		local title = block.title and (" · " .. vim.fn.strcharpart(one_line(block.title), 0, 100)) or ""
 		header(icon .. " " .. kind .. " · " .. status:gsub("_", " "), group, "#### ")
+		marks[#marks].spinner_col = running and #"#### " or nil
 		marks[#marks].status_group = status_group
 		-- Keep the established status/timestamp prefix, with a useful collapsed-call label.
 		if title ~= "" then
@@ -512,11 +513,15 @@ function M.build(chat, opts)
 	end
 	if chat.model_pending or chat.mode_pending then
 		push(spinner.frame() .. " " .. (chat.model_pending or chat.mode_pending) .. "…", "AeroChatPending", "body")
+		marks[#marks].spinner_col = 0
 	elseif chat.busy then
 		local icon = chat.permission and config.options.icons.waiting or spinner.frame()
 		push(icon .. " " .. chat:activity() .. " (<C-c> to cancel)", "AeroChatPending", "body")
+		marks[#marks].spinner_col = 0
+		marks[#marks].activity = true
 	elseif chat.state == "starting" then
 		push(spinner.frame() .. " starting " .. one_line(chat.s.agent) .. "…", "AeroChatMeta", "body")
+		marks[#marks].spinner_col = 0
 	elseif chat.state == "ready" and #chat.blocks == 0 then
 		push("Press i to write a prompt, :w or <C-s> to send it.", "AeroChatMeta")
 	end

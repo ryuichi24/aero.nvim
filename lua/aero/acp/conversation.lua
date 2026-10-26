@@ -863,7 +863,7 @@ spinner.on_frame(function()
 		then
 			any = true
 			if vim.fn.bufwinid(chat.buf) ~= -1 then
-				chat:render()
+				transcript.spin(chat)
 			end
 		end
 	end

@@ -6,6 +6,7 @@ local folds = require("aero.acp.folds")
 local M = {}
 local option_ns = api.nvim_create_namespace("Aero.acp.options")
 local select_ns = api.nvim_create_namespace("Aero.acp.option_select")
+local spinner_ns = api.nvim_create_namespace("Aero.acp.spinners")
 local option_hl = {
 	allow_once = "DiagnosticOk",
 	allow_always = "DiagnosticOk",
@@ -148,6 +149,45 @@ local function decorate(chat, first)
 	renderer.decorate(chat.buf, chat.lines, chat.render_marks, first)
 end
 
+-- Spinner frames are display-only. Editing transcript text at animation speed
+-- makes every buffer listener reprocess an increasingly large conversation.
+function M.spin(chat)
+	if chat.render_pending or not api.nvim_buf_is_valid(chat.buf) then
+		return
+	end
+	local frame = require("aero.spinner").frame()
+	for _, mark in ipairs(chat.spinner_marks or {}) do
+		local text = frame
+		if mark.activity then
+			local icon = chat.permission and require("aero.config").options.icons.waiting or frame
+			text = icon .. " " .. chat:activity() .. " (<C-c> to cancel)"
+		end
+		mark.id = api.nvim_buf_set_extmark(chat.buf, spinner_ns, mark.line - 1, mark.spinner_col, {
+			id = mark.id,
+			virt_text = { { text, mark.group or "AeroChatPending" } },
+			virt_text_pos = "overlay",
+			priority = 200,
+			hl_mode = "combine",
+		})
+	end
+end
+
+local function spinners(chat)
+	api.nvim_buf_clear_namespace(chat.buf, spinner_ns, 0, -1)
+	chat.spinner_marks = {}
+	for _, mark in ipairs(chat.render_marks or {}) do
+		if mark.spinner_col ~= nil then
+			table.insert(chat.spinner_marks, {
+				line = mark.line,
+				spinner_col = mark.spinner_col,
+				group = mark.group,
+				activity = mark.activity,
+			})
+		end
+	end
+	M.spin(chat)
+end
+
 function M.render(chat)
 	if chat.render_pending then
 		return
@@ -180,6 +220,7 @@ function M.render(chat)
 		if first > #old and first > #new then
 			chat.lines = new
 			decorate(chat)
+			spinners(chat)
 			chat:decorate_options()
 			folds.prepare(chat)
 			folds.apply(chat)
@@ -203,6 +244,7 @@ function M.render(chat)
 		end
 		chat.lines = new
 		decorate(chat, first)
+		spinners(chat)
 		folds.apply(chat)
 		for _, win in ipairs(follow) do
 			if api.nvim_win_is_valid(win) and api.nvim_win_get_buf(win) == buf then

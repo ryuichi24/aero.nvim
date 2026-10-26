@@ -40,7 +40,32 @@ local function render()
 		"render timed out"
 	)
 end
+local cold_start = vim.uv.hrtime()
+local cold_times, restore_cold = {}, {}
+for _, entry in ipairs({
+	{ api, "nvim_buf_set_lines", "buffer edit" },
+	{ require("aero.acp.render"), "build", "build" },
+	{ require("aero.acp.render"), "decorate", "decorate" },
+	{ require("aero.acp.folds"), "apply", "folds" },
+}) do
+	local module, key, label = unpack(entry)
+	local original = module[key]
+	restore_cold[#restore_cold + 1] = function()
+		module[key] = original
+	end
+	module[key] = function(...)
+		local start = vim.uv.hrtime()
+		local result = { original(...) }
+		cold_times[label] = (cold_times[label] or 0) + (vim.uv.hrtime() - start) / 1e6
+		return unpack(result)
+	end
+end
 render()
+for _, restore in ipairs(restore_cold) do
+	restore()
+end
+print(("Initial 60-turn transcript: %.1f ms"):format((vim.uv.hrtime() - cold_start) / 1e6))
+print(vim.inspect(cold_times))
 api.nvim_win_set_cursor(0, { 1, 0 })
 local moves, original_cursor = 0, api.nvim_win_set_cursor
 api.nvim_win_set_cursor = function(...)
@@ -105,8 +130,64 @@ assert(vim.fn.foldclosedend(section("turn", first_prompt).first) == section("tur
 assert(vim.fn.foldclosed(section("tool", added).first) == section("tool", added).first)
 
 -- Duplicate updates must not clear/recreate decorations across the whole log.
+local running = { kind = "tool", id = "running", title = "Long-running command", status = "in_progress" }
+table.insert(chat.blocks, running)
+render()
+local tick = api.nvim_buf_get_changedtick(chat.buf)
+local builds, original_build = 0, chat.build_lines
+chat.build_lines = function(self)
+	builds = builds + 1
+	return original_build(self)
+end
+local transcript = require("aero.acp.transcript")
+local spinner_ns = api.nvim_create_namespace("Aero.acp.spinners")
+assert(#api.nvim_buf_get_extmarks(chat.buf, spinner_ns, 0, -1, {}) == 2, "running tool and footer need spinners")
+local animation_marks, set_extmark = 0, api.nvim_buf_set_extmark
+api.nvim_buf_set_extmark = function(buf, ns, ...)
+	if buf == chat.buf and ns == spinner_ns then
+		animation_marks = animation_marks + 1
+	end
+	return set_extmark(buf, ns, ...)
+end
+require("aero.config").options.animation = true
+require("aero.spinner").ensure()
+vim.wait(300, function()
+	return false
+end, 10)
+require("aero.config").options.animation = false
+api.nvim_buf_set_extmark = set_extmark
+assert(animation_marks > 0, "the shared clock must animate the transcript")
+assert(builds == 0, "spinner frames must not rebuild historical transcript content")
+assert(api.nvim_buf_get_changedtick(chat.buf) == tick, "animation must not trigger buffer-change listeners")
+local original_activity = chat.activity
+chat.activity = function()
+	return "working · 2m 05s"
+end
+transcript.spin(chat)
+local elapsed_visible = false
+for _, mark in ipairs(api.nvim_buf_get_extmarks(chat.buf, spinner_ns, 0, -1, { details = true })) do
+	if mark[4].virt_text[1][1]:find("2m 05s", 1, true) then
+		elapsed_visible = true
+	end
+end
+assert(elapsed_visible, "the display-only footer must keep elapsed time current")
+assert(api.nvim_buf_get_changedtick(chat.buf) == tick)
+chat.activity = original_activity
+local spin_start = vim.uv.hrtime()
+for _ = 1, 120 do
+	transcript.spin(chat)
+end
+print(
+	("120 display-only spinner frames: %.2f ms, %d transcript rebuilds"):format(
+		(vim.uv.hrtime() - spin_start) / 1e6,
+		builds
+	)
+)
+chat.build_lines = original_build
+running.status = "completed"
 chat.busy = false
 render()
+assert(#api.nvim_buf_get_extmarks(chat.buf, spinner_ns, 0, -1, {}) == 0, "completed spinners must be cleared")
 local decorations, original_extmark = 0, api.nvim_buf_set_extmark
 api.nvim_buf_set_extmark = function(...)
 	decorations = decorations + 1
