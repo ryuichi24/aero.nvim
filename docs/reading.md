@@ -28,6 +28,12 @@ list title and replaces the command with an editable walkthrough request. You ca
 also type `/reading Authentication flow` to provide the title directly. Existing
 draft text is preserved; send the completed draft with Ctrl-Enter.
 
+The default request asks for self-contained Markdown explanations with short,
+language-tagged code snippets and explanations of their syntax, operators, idioms,
+and non-obvious expressions. Each note explains the relevant code blocks and how
+they connect to the next stop, so you can read without asking for syntax help at
+each step.
+
 Customize the generated request with `reading.prompt`. `{title}` is replaced with
 the JSON-quoted title (including surrounding quotes); multiline templates are supported:
 
@@ -96,7 +102,7 @@ The sidebar updates automatically when lists are published, edited, or marked re
 - `:Aero reading source`: open the current quickfix stop in **Source**, keeping
   the **Reading** slot intact. Lua: `require("aero").reading("source")`.
 - `x` in the reading quickfix window, or `:Aero reading toggle`: mark/unmark a stop.
-- Opening a reading list also opens a read-only Markdown explanation pane below the reader by default, or to its right when configured. Both placements preserve the explanation when the agent panel opens. It follows the quickfix cursor and reading-item jumps, showing the selected item's label, source location, and agent-written explanation. Updated agent explanations appear automatically when the list is republished. Items without a note show an explicit empty-state message.
+- Opening a reading list also opens a read-only Markdown explanation pane to the right of the reader by default, or below it when configured. Both placements preserve the explanation when the agent panel opens. It follows the quickfix cursor and reading-item jumps, showing the selected item's label, source location, and agent-written explanation. Updated agent explanations appear automatically when the list is republished. Items without a note show an explicit empty-state message.
 - `K` in the reading quickfix window, or `:Aero reading note`: reopen the explanation pane. Focus the pane to scroll through longer explanations; press `q` there (or close the window normally) to dismiss it.
 - `:Aero reading note-toggle`: close or reopen the explanation pane without changing read progress. Once closed, navigation and agent updates leave it closed until you reopen it or open a list with automatic opening enabled.
 
@@ -107,7 +113,7 @@ require("aero").setup({
   reading = {
     explanation = {
       auto_open = false, -- defaults to true
-      position = "right", -- "below" (default) or "right", relative to the reader
+      position = "right", -- "right" (default) or "below", relative to the reader
     },
   },
 })

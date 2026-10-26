@@ -17,7 +17,10 @@ assert(#reading.load(root, result.id).items == 2)
 vim.fn.setqflist({}, " ", { title = "Existing search", items = { { filename = root .. "/source.lua", lnum = 2 } } })
 local previous = vim.fn.getqflist({ id = 0 }).id
 vim.t.aero_worktree = root
-require("aero.config").setup({ companion = { auto_start = false } })
+require("aero.config").setup({
+	companion = { auto_start = false },
+	reading = { explanation = { position = "below" } },
+})
 local reader = require("aero.reader")
 reader.setup()
 local source_win = vim.api.nvim_get_current_win()
