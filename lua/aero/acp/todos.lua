@@ -31,7 +31,9 @@ local function parse(value)
 	end
 	return value
 end
-function M.block(block)
+local block_cache = setmetatable({}, { __mode = "k" })
+local cache_fields = { "kind", "status", "title", "rawOutput", "rawInput", "content", "entries" }
+local function parse_block(block)
 	if block.kind == "plan" then
 		return parse(block.entries)
 	end
@@ -46,7 +48,9 @@ function M.block(block)
 		end
 		if type(value) == "table" and value.todos ~= nil then
 			local entries = parse(block.rawOutput) or parse(value.todos)
-			if entries then return entries end
+			if entries then
+				return entries
+			end
 		end
 	end
 	local title = (block.title or ""):lower()
@@ -71,6 +75,25 @@ function M.block(block)
 			return todos
 		end
 	end
+end
+function M.block(block)
+	local cached = block_cache[block]
+	local valid = cached ~= nil
+	for _, field in ipairs(cache_fields) do
+		if not cached or cached[field] ~= block[field] then
+			valid = false
+			break
+		end
+	end
+	if valid then
+		return cached.result
+	end
+	cached = { result = parse_block(block) }
+	for _, field in ipairs(cache_fields) do
+		cached[field] = block[field]
+	end
+	block_cache[block] = cached
+	return cached.result
 end
 function M.latest(chat)
 	for index = #chat.blocks, 1, -1 do

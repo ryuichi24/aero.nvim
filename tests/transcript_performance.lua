@@ -48,14 +48,21 @@ api.nvim_win_set_cursor = function(...)
 	return original_cursor(...)
 end
 local start = vim.uv.hrtime()
+local decodes, original_decode = 0, vim.json.decode
+vim.json.decode = function(...)
+	decodes = decodes + 1
+	return original_decode(...)
+end
 for i = 1, 12 do
 	chat.blocks[#chat.blocks].text = chat.blocks[#chat.blocks].text .. "\nStreamed line " .. i
 	render()
 end
 local elapsed = (vim.uv.hrtime() - start) / 1e6
 api.nvim_win_set_cursor = original_cursor
+vim.json.decode = original_decode
 print(("Streaming 60 turns / 240 tools, 12 updates: %.1f ms, %d cursor operations"):format(elapsed, moves))
 assert(moves == 0, "streaming text walked or rebuilt historical folds")
+assert(decodes == 0, "streaming text reparsed historical tool output for todos")
 
 local function section(kind, block)
 	for _, value in ipairs(chat.sections) do
@@ -108,6 +115,24 @@ end
 render()
 api.nvim_buf_set_extmark = original_extmark
 assert(decorations == 0, "unchanged transcript rebuilt all decorations")
+-- Cached layouts must match a fresh build, including late protocol updates,
+-- timestamps, changed line limits, and absolute decoration positions.
+local renderer = require("aero.acp.render")
+local function check_cached_layout()
+	local lines, marks = renderer.build(chat)
+	local fresh = vim.tbl_extend("force", chat, { blocks = vim.deepcopy(chat.blocks) })
+	setmetatable(fresh, getmetatable(chat))
+	local fresh_lines, fresh_marks = renderer.build(fresh)
+	assert(vim.deep_equal(lines, fresh_lines), "cached tool text differs from fresh layout")
+	assert(vim.deep_equal(marks, fresh_marks), "cached tool decorations differ from fresh layout")
+end
+check_cached_layout()
+first_call.timestamp = os.time()
+first_call.content = { { type = "content", content = { type = "text", text = "replacement output" } } }
+first_call.status = "failed"
+check_cached_layout()
+require("aero.config").options.acp.max_tool_lines = 1
+check_cached_layout()
 sessions.delete(s)
 vim.fn.delete(dir, "rf")
 vim.cmd("qa!")

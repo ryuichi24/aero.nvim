@@ -7,6 +7,17 @@ local todos = require("aero.acp.todos")
 local images = require("aero.acp.images")
 local M = {}
 local ns = api.nvim_create_namespace("Aero.acp.render")
+local tool_cache = setmetatable({}, { __mode = "k" })
+local tool_cache_fields = {
+	"title",
+	"status",
+	"tool_kind",
+	"timestamp",
+	"rawInput",
+	"rawOutput",
+	"content",
+	"locations",
+}
 local tool_icons = { pending = "…", in_progress = "◐", completed = "✓", failed = "✗" }
 local tool_names = {
 	read = "Read",
@@ -164,7 +175,7 @@ function M.build(chat, opts)
 			fenced(split(text), "text", group)
 		end
 	end
-	local function tool(block)
+	local function build_tool(block)
 		local entries = todos.block(block)
 		if entries then
 			header("Agent todos", "AeroChatTool", "#### ")
@@ -253,6 +264,46 @@ function M.build(chat, opts)
 			end
 		end
 		finish(group)
+	end
+	local function tool(block)
+		-- Protocol updates replace content/input/output tables. Keep caches outside
+		-- the blocks so history and export never copy editor-only layout data.
+		if opts.export then
+			return build_tool(block)
+		end
+		local running = chat.busy
+			and (block.status == nil or block.status == "pending" or block.status == "in_progress")
+		local cached = tool_cache[block]
+		local valid = cached and cached.limit == max_lines and not running
+		for _, field in ipairs(tool_cache_fields) do
+			if not cached or cached[field] ~= block[field] then
+				valid = false
+				break
+			end
+		end
+		if valid then
+			local offset = #lines
+			vim.list_extend(lines, cached.lines)
+			for _, mark in ipairs(cached.marks) do
+				local copy = vim.tbl_extend("force", mark, { line = offset + mark.line })
+				table.insert(marks, copy)
+			end
+			return
+		end
+		local first_line, first_mark = #lines, #marks
+		build_tool(block)
+		if running then
+			tool_cache[block] = nil
+			return
+		end
+		cached = { limit = max_lines, lines = vim.list_slice(lines, first_line + 1), marks = {} }
+		for i = first_mark + 1, #marks do
+			table.insert(cached.marks, vim.tbl_extend("force", marks[i], { line = marks[i].line - first_line }))
+		end
+		for _, field in ipairs(tool_cache_fields) do
+			cached[field] = block[field]
+		end
+		tool_cache[block] = cached
 	end
 	local index = 1
 	local block_lines, sections = {}, {}
