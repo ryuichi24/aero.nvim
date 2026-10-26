@@ -98,7 +98,8 @@ export function PromptCommand({
           {inputs.map((name) => (
             <label key={name}>
               {name}
-              <input
+              <textarea
+                rows={4}
                 value={Object.hasOwn(values, name) ? values[name] : ''}
                 onChange={(event) =>
                   setValues((current) => ({ ...current, [name]: event.target.value }))

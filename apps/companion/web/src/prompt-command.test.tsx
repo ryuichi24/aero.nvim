@@ -86,6 +86,25 @@ it('searches merged snippets, previews context, and inserts custom values once w
   expect(screen.getByRole('button', { name: 'Explain [global]' })).toBeTruthy();
 });
 
+it('preserves long multiline custom values in the preview and generated prompt', async () => {
+  collection();
+  const choose = mount();
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: 'Review [workspace] — Inspect changes' }),
+  );
+  const value = `First sentence. Second sentence.\n\n${'Long paragraph with 100% {{workspace}} $&. '.repeat(200)}\nFinal line.\n`;
+  await user.click(screen.getByRole('textbox', { name: 'topic' }));
+  await user.paste(value);
+  await user.click(screen.getByRole('textbox', { name: 'focus' }));
+  await user.keyboard('First line{Enter}Second line');
+  const expected = `/repo: ${value} / ${value} / First line\nSecond line`;
+  expect(screen.getByLabelText('Prompt preview').textContent).toBe(expected);
+  expect(choose).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Insert prompt' }));
+  expect(choose).toHaveBeenCalledExactlyOnceWith(expected);
+});
+
 it('cancels selection without changing the draft', async () => {
   collection();
   const choose = mount();
