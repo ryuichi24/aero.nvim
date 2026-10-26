@@ -96,7 +96,21 @@ The sidebar updates automatically when lists are published, edited, or marked re
 - `:Aero reading source`: open the current quickfix stop in **Source**, keeping
   the **Reading** slot intact. Lua: `require("aero").reading("source")`.
 - `x` in the reading quickfix window, or `:Aero reading toggle`: mark/unmark a stop.
-- `K` in the reading quickfix window, or `:Aero reading note`: show its explanation.
+- Opening a reading list also opens a read-only Markdown explanation pane. It follows the quickfix cursor and reading-item jumps, showing the selected item's label, source location, and agent-written explanation. Updated agent explanations appear automatically when the list is republished. Items without a note show an explicit empty-state message.
+- `K` in the reading quickfix window, or `:Aero reading note`: reopen the explanation pane. Focus the pane to scroll through longer explanations; press `q` there (or close the window normally) to dismiss it.
+- `:Aero reading note-toggle`: close or reopen the explanation pane without changing read progress. Once closed, navigation and agent updates leave it closed until you reopen it or open a list with automatic opening enabled.
+
+To keep the explanation pane closed by default when opening a list:
+
+```lua
+require("aero").setup({
+  reading = {
+    explanation = { auto_open = false }, -- defaults to true
+  },
+})
+```
+
+You can still open it with `K`, `:Aero reading note`, or `:Aero reading note-toggle`.
 - `:Aero reading next`: jump to the next unread stop, wrapping at the end.
 
 Jumping does not mark a stop read. Progress survives restarts and agent updates.

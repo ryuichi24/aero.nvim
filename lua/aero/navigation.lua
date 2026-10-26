@@ -19,6 +19,7 @@ function M.code_window(kind)
 	end
 	local function usable(win)
 		return win ~= state.win
+			and not vim.w[win].aero_reading_note
 			and api.nvim_win_get_config(win).relative == ""
 			and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix"
 			and not (panel.enabled() and panel.owns(win))

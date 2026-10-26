@@ -2,6 +2,7 @@ local M = {}
 local storage = require("aero.storage")
 local files = require("aero.tasks.storage")
 local projections = {}
+local refresh_note
 
 local function directory(worktree)
 	return vim.fs.joinpath(vim.fn.stdpath("data"), "Aero", "reading", storage.folder(storage.canonical(worktree)))
@@ -53,6 +54,9 @@ local function project(worktree, list, id)
 	vim.fn.setqflist({}, id and "r" or " ", opts)
 	local qid = id or vim.fn.getqflist({ id = 0 }).id
 	projections[qid] = { worktree = worktree, id = list.id }
+	if refresh_note then
+		refresh_note()
+	end
 end
 
 local function publish(binding, args, manual)
@@ -302,6 +306,57 @@ local function selected()
 	end
 end
 
+-- Keep explanations separate from reader slots so source jumps never replace them.
+refresh_note = function(open)
+	local win = vim.t.aero_reading_note_win
+	local visible = win and vim.api.nvim_win_is_valid(win)
+	if not visible and not open then
+		return
+	end
+	local list, index = selected()
+	local lines = { "# Reading explanation", "", "Select an item in an Aero reading list." }
+	if list then
+		local item = list.items[index]
+		lines = { "# " .. item.label, "", list.title, "", ("`%s:%d` "):format(item.path, item.lnum), "" }
+		vim.list_extend(
+			lines,
+			vim.split(item.note or "No explanation was provided for this item.", "\n", { plain = true })
+		)
+	end
+	if not visible then
+		local buf = vim.api.nvim_create_buf(false, true)
+		vim.bo[buf].bufhidden = "wipe"
+		vim.bo[buf].filetype = "markdown"
+		win = vim.api.nvim_open_win(buf, false, { split = "right", win = vim.api.nvim_get_current_win(), width = 45 })
+		vim.t.aero_reading_note_win = win
+		vim.w[win].aero_reading_note = true
+		vim.wo[win].wrap = true
+		vim.wo[win].linebreak = true
+		vim.wo[win].number = false
+		vim.wo[win].relativenumber = false
+		vim.wo[win].winfixwidth = true
+		vim.wo[win].winbar = "Reading explanation"
+		vim.keymap.set("n", "q", function()
+			vim.api.nvim_win_close(win, true)
+		end, { buffer = buf, desc = "Close reading explanation" })
+	end
+	local buf = vim.api.nvim_win_get_buf(win)
+	if not vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), lines) then
+		vim.bo[buf].modifiable = true
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+		vim.bo[buf].modifiable = false
+		vim.api.nvim_win_set_cursor(win, { 1, 0 })
+	end
+end
+
+local note_group = vim.api.nvim_create_augroup("Aero.reading.notes", { clear = true })
+vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter", "WinEnter", "QuickFixCmdPost" }, {
+	group = note_group,
+	callback = function()
+		refresh_note()
+	end,
+})
+
 local function jump(index, kind)
 	local context = vim.fn.getqflist({ context = 0 }).context
 	if type(context) == "table" and context.aero_reading then
@@ -312,6 +367,7 @@ local function jump(index, kind)
 			vim.cmd("buffer " .. entry.bufnr)
 			vim.api.nvim_win_set_cursor(0, { math.max(1, entry.lnum), math.max(0, entry.col - 1) })
 			vim.cmd("normal! zv")
+			refresh_note()
 		end
 		return
 	end
@@ -327,6 +383,7 @@ function M.open(worktree, id)
 	-- Native quickfix jumps use the window preceding :copen. In particular,
 	-- an acwrite Source buffer (such as Oil) would otherwise force a split.
 	require("aero.reader").select("reading")
+	refresh_note(require("aero.config").options.reading.explanation.auto_open)
 	vim.cmd.copen()
 	vim.keymap.set("n", "<CR>", function()
 		jump(vim.fn.line("."))
@@ -341,6 +398,15 @@ end
 
 function M.command(action, worktree)
 	worktree = worktree or current_worktree()
+	if action == "note-toggle" then
+		local win = vim.t.aero_reading_note_win
+		if win and vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_win_close(win, true)
+			return
+		end
+		-- Opening still requires a selected reading item, like :Aero reading note.
+		action = "note"
+	end
 	if action == "new" then
 		return vim.ui.input({ prompt = "Reading list title: " }, function(title)
 			if not title or vim.trim(title) == "" then
@@ -369,7 +435,7 @@ function M.command(action, worktree)
 			save(worktree, list)
 			project(worktree, list, qid)
 		elseif action == "note" then
-			vim.notify(list.items[index].note or list.items[index].label)
+			refresh_note(true)
 		elseif action == "source" then
 			return jump(index, "source")
 		elseif action == "next" then
@@ -381,7 +447,10 @@ function M.command(action, worktree)
 			end
 			vim.notify("Aero: all items read")
 		else
-			vim.notify("Aero: use :Aero reading [new|add|edit|next|source|toggle|note]", vim.log.levels.WARN)
+			vim.notify(
+				"Aero: use :Aero reading [new|add|edit|next|source|toggle|note|note-toggle]",
+				vim.log.levels.WARN
+			)
 		end
 		return
 	end

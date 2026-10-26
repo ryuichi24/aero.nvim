@@ -15,6 +15,7 @@ local changing = false
 local function valid(win)
 	return win
 		and api.nvim_win_is_valid(win)
+		and not vim.w[win].aero_reading_note
 		and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage()
 		and api.nvim_win_get_config(win).relative == ""
 		and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix"

@@ -175,7 +175,7 @@ end, {
 		if words[2] == "reading" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "new", "add", "edit", "next", "source", "toggle", "note" })
+			end, { "new", "add", "edit", "next", "source", "toggle", "note", "note-toggle" })
 		end
 		if words[2] == "pick" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then
