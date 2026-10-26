@@ -117,6 +117,7 @@ You can still open it with `K`, `:Aero reading note`, or `:Aero reading note-tog
 Placement is applied when the explanation window opens; close and reopen it after changing this option. The right-side pane shares available width with the reader, and the agent panel yields space for both on narrower screens.
 
 The explanation pane supports the shared Aero resize controls. Focus it and use `<C-w>k` / `<C-w>j` to grow/shrink its height, or `<C-w>h` / `<C-w>l` to narrow/widen it. Then repeat with `h`, `j`, `k`, or `l`; any other key exits resize mode. These shortcuts follow your `resize` configuration.
+The reading-list quickfix pane supports the same controls: focus it and use `<C-w>k` / `<C-w>j` to adjust its height, then repeat with `k` / `j`. Width resizing depends on the surrounding split layout.
 - `:Aero reading next`: jump to the next unread stop, wrapping at the end.
 
 Jumping does not mark a stop read. Progress survives restarts and agent updates.
