@@ -327,6 +327,7 @@ refresh_note = function(open)
 		local buf = vim.api.nvim_create_buf(false, true)
 		vim.bo[buf].bufhidden = "wipe"
 		vim.bo[buf].filetype = "markdown"
+		require("aero.layout").bind(buf)
 		local position = require("aero.config").options.reading.explanation.position
 		local anchor = require("aero.navigation").code_window("reading")
 		local right = position == "right"

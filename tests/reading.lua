@@ -129,6 +129,18 @@ for _, position in ipairs({ "below", "right" }) do
 		local note = vim.t.aero_reading_note_win
 		local buf = vim.api.nvim_win_get_buf(note)
 		local agent = panel.open()
+		vim.api.nvim_set_current_win(note)
+		local dimension = position == "right" and vim.api.nvim_win_get_width or vim.api.nvim_win_get_height
+		local before = dimension(note)
+		local key = position == "right" and "<C-w>h" or "<C-w>j"
+		local resize = vim.fn.maparg(key, "n", false, true)
+		assert(type(resize.callback) == "function", "explanation must have shared resize shortcuts")
+		resize.callback()
+		assert(dimension(note) == before - 1, "shared shortcut resizes the explanation")
+		local repeat_key = position == "right" and "h" or "j"
+		vim.fn.maparg(repeat_key, "n", false, true).callback()
+		assert(dimension(note) == before - 2, "explanation supports repeat resizing")
+		vim.api.nvim_set_current_win(source_win)
 		for _, columns in ipairs({ 80, 70, 80 }) do
 			vim.o.columns = columns
 			require("aero.layout").rebalance()
