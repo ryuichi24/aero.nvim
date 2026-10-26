@@ -32,6 +32,12 @@ When you select the snippet, Aero asks for the topic to investigate and replaces
 `{{topic}}` with your answer. You can rename it or add placeholders such as
 `{{focus}}` to ask your own questions.
 
+Custom variables open a multiline editor. Type or paste the full value, using
+Enter for newlines, then type `/confirm` on its own line and press Enter to confirm
+each variable. The command line is removed from the value. Press Escape followed
+by `q` to cancel and preserve the draft.
+Long values, blank lines, and trailing newlines are preserved.
+
 You can also choose the scope or supply the filename directly:
 
 ```vim

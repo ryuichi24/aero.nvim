@@ -18,13 +18,13 @@ local commented = [=[
 ]=]
 local parsed = decode(commented)
 assert(#parsed == 1 and parsed[1].name == "Comments")
-assert(parsed[1].prompt == vim.json.decode('"https://example.com /* literal */ // literal, } \\\\\\\"quoted\\\\\\\""'))
+assert(parsed[1].prompt == vim.json.decode('"https://example.com /* literal */ // literal, } \\\\\\"quoted\\\\\\""'))
 assert(decode('["comma, ]", "comma, }",]')[1] == "comma, ]")
-assert(not pcall(decode, '[ /* unfinished'))
-assert(not pcall(decode, '[1 /* separation */ 2]'))
-assert(not pcall(decode, '[1,,]'))
-assert(not pcall(decode, '[,]'))
-assert(not pcall(decode, '{,}'))
+assert(not pcall(decode, "[ /* unfinished"))
+assert(not pcall(decode, "[1 /* separation */ 2]"))
+assert(not pcall(decode, "[1,,]"))
+assert(not pcall(decode, "[,]"))
+assert(not pcall(decode, "{,}"))
 -- Isolate user-owned files from the machine running the test.
 local original_paths = snippets.paths
 local global_dir = dir .. "/global"
@@ -36,8 +36,10 @@ write_snippet(global_dir .. "/prompts.json", "Legacy", "ignored")
 write_snippet(global_dir .. "/prompts.jsonc", "Legacy JSONC", "ignored")
 write_snippet(global_dir .. "/prompt/10-review.json", "Shared", "first")
 write_snippet(global_dir .. "/prompt/20-review.json", "Shared", "ignored JSON counterpart")
-vim.fn.writefile({ '[{"name":"Shared","prompt":"JSONC winner",},] // comment' },
-	global_dir .. "/prompt/20-review.jsonc")
+vim.fn.writefile(
+	{ '[{"name":"Shared","prompt":"JSONC winner",},] // comment' },
+	global_dir .. "/prompt/20-review.jsonc"
+)
 write_snippet(global_dir .. "/prompt/30-explain.json", "Explain", "explanation")
 write_snippet(global_dir .. "/prompt/nested/ignored.json", "Nested", "ignored")
 vim.fn.writefile({ "ignored" }, global_dir .. "/prompt/README.md")
@@ -63,8 +65,10 @@ snippets.paths = original_paths
 vim.fn.mkdir(dir .. "/.aero/prompt/nested", "p")
 write_snippet(dir .. "/.aero/prompt/10-review.json", "Shared", "workspace first")
 write_snippet(dir .. "/.aero/prompt/20-review.json", "Shared", "ignored counterpart")
-vim.fn.writefile({ '[{"name":"Shared","prompt":"workspace folder winner",},] // comment' },
-	dir .. "/.aero/prompt/20-review.jsonc")
+vim.fn.writefile(
+	{ '[{"name":"Shared","prompt":"workspace folder winner",},] // comment' },
+	dir .. "/.aero/prompt/20-review.jsonc"
+)
 write_snippet(dir .. "/.aero/prompt/30-extra.json", "Workspace only", "extra")
 write_snippet(dir .. "/.aero/prompt/nested/ignored.json", "Nested", "ignored")
 vim.fn.writefile({ "invalid" }, dir .. "/.aero/prompt/40-invalid.jsonc")
@@ -111,7 +115,9 @@ write(dir .. "/.aero/prompts.json", {
 items, errors = snippets.list(dir)
 assert(#errors == 0 and items[2].scope == "workspace")
 assert(items[2].prompt == "  Review {{session}}\n\nKeep 100% of {{topic}}.\n")
-assert(snippets.render(items[2].prompt, { session = "test", topic = "code" }) == "  Review test\n\nKeep 100% of code.\n")
+assert(
+	snippets.render(items[2].prompt, { session = "test", topic = "code" }) == "  Review test\n\nKeep 100% of code.\n"
+)
 for _, invalid in ipairs({ {}, { "", "  " }, { "valid", 1 }, { "valid", vim.NIL }, { line = "text" } }) do
 	write(dir .. "/.aero/prompts.json", { { name = "Review", prompt = invalid } })
 	items, errors = snippets.list(dir)
@@ -131,8 +137,10 @@ chat:compose()
 local submitted = 0
 function chat:send_prompt_buf() submitted = submitted + 1 end
 api.nvim_buf_set_lines(buf, 0, -1, false, { "Unfinished draft" })
-assert(draft_saves > 0 and vim.deep_equal(chat.draft, { "Unfinished draft" }),
-	"editing the prompt did not request draft persistence")
+assert(
+	draft_saves > 0 and vim.deep_equal(chat.draft, { "Unfinished draft" }),
+	"editing the prompt did not request draft persistence"
+)
 vim.fn.maparg("<CR>", "n", false, true).callback()
 api.nvim_exec_autocmds("BufWriteCmd", { buffer = buf })
 assert(submitted == 0, "Enter or :w submitted an unfinished draft")
@@ -165,8 +173,9 @@ for _ = 1, 2 do
 	api.nvim_win_set_cursor(0, { #draft + 1, 0 })
 	require("aero.acp.prompt").send(chat)
 	vim.fn.maparg("<CR>", "n", false, true).callback()
-	assert(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-		== table.concat(draft, "\n") .. "\n\nFresh text")
+	assert(
+		table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n") == table.concat(draft, "\n") .. "\n\nFresh text"
+	)
 end
 local reports = require("aero.reports")
 local original_pick, picked = reports.pick, false
@@ -181,28 +190,46 @@ local context = snippets.context(chat)
 assert(context.worktree == dir and context.workspace == dir and context.session == "test")
 assert(context.date:match("^%d%d%d%d%-%d%d%-%d%d$") and context.time:match("^%d%d:%d%d:%d%d$"))
 assert(snippets.render("{{ session }} {{unknown}}", context) == "test {{unknown}}")
-local original_input = vim.ui.input
-local questions, result = {}, nil
-vim.ui.input = function(opts, callback)
-	table.insert(questions, opts.prompt)
-	callback(#questions == 1 and "100% {{date}}" or "")
+local result
+local function answer(lines)
+	local input = vim.list_extend(vim.deepcopy(lines), { "/confirm" })
+	api.nvim_buf_set_lines(0, 0, -1, false, input)
+	api.nvim_win_set_cursor(0, { #input, 0 })
+	local buf = api.nvim_get_current_buf()
+	assert(vim.fn.maparg("<CR>", "i", false, true).callback() == "")
+	assert(vim.wait(100, function() return not api.nvim_buf_is_valid(buf) end))
 end
 snippets.expand("{{session}}: {{topic}} / {{ topic }} / {{focus}}", context, function(text) result = text end)
-assert(#questions == 2 and questions[1]:find("topic", 1, true) and questions[2]:find("focus", 1, true))
-assert(result == "test: 100% {{date}} / 100% {{date}} / ")
+assert(api.nvim_win_get_config(0).title[1][1]:find("topic", 1, true))
+api.nvim_buf_set_lines(0, 0, -1, false, { "Text with /confirm inside it" })
+assert(vim.fn.maparg("<CR>", "i", false, true).callback() == "<CR>")
+assert(result == nil)
+local lines = { "First sentence. Second sentence.", "", string.rep("100% {{date}} ", 1000), "Last line.", "" }
+local value = table.concat(lines, "\n")
+answer(lines)
+assert(result == nil and api.nvim_win_get_config(0).title[1][1]:find("focus", 1, true))
+answer({ "" })
+assert(result == "test: " .. value .. " / " .. value .. " / ")
+local cancellations = 0
+snippets.expand("{{topic}}", context, function(text)
+	assert(text == nil)
+	cancellations = cancellations + 1
+end)
+api.nvim_win_close(0, true)
+vim.wait(100, function() return cancellations == 1 end)
+assert(cancellations == 1)
 -- Exercise interactive insertion through the picker and preserve drafts on cancellation.
 write(dir .. "/global.json", { { name = "Runtime", prompt = "{{session}}: {{topic}}" } })
 api.nvim_buf_set_lines(buf, 0, -1, false, { "/prompt" })
-questions = {}
 snippets.open(chat)
 vim.fn.maparg("<CR>", "n", false, true).callback()
-assert(api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "test: 100% {{date}}")
-vim.ui.input = function(_, callback) callback(nil) end
+answer(lines)
+assert(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n") == "test: " .. value)
 api.nvim_buf_set_lines(buf, 0, -1, false, { "/prompt" })
 snippets.open(chat)
 vim.fn.maparg("<CR>", "n", false, true).callback()
+vim.fn.maparg("q", "n", false, true).callback()
 assert(api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "/prompt")
-vim.ui.input = original_input
 -- Source context is taken from the remembered code window, not the composer.
 vim.cmd("vsplit")
 local source_win = api.nvim_get_current_win()
@@ -232,8 +259,20 @@ end
 command({ "git", "init", "-b", "snippet-branch", dir })
 vim.fn.writefile({ "before" }, dir .. "/tracked.txt")
 command({ "git", "-C", dir, "add", "tracked.txt" })
-command({ "git", "-C", dir, "-c", "user.name=Test", "-c", "user.email=test@example.com",
-	"-c", "commit.gpgsign=false", "commit", "-m", "fixture" })
+command({
+	"git",
+	"-C",
+	dir,
+	"-c",
+	"user.name=Test",
+	"-c",
+	"user.email=test@example.com",
+	"-c",
+	"commit.gpgsign=false",
+	"commit",
+	"-m",
+	"fixture",
+})
 vim.fn.writefile({ "after" }, dir .. "/tracked.txt")
 context = snippets.context(chat, "{{branch}} {{diff}}")
 assert(context.branch == "snippet-branch")

@@ -6,9 +6,7 @@ local function scope_paths(directory, scope)
 	local sources = {}
 	local folder = vim.fs.joinpath(directory, "prompt")
 	local scan, err, code = vim.uv.fs_scandir(folder)
-	if not scan then
-		return sources, code ~= "ENOENT" and { folder .. ": " .. err } or {}
-	end
+	if not scan then return sources, code ~= "ENOENT" and { folder .. ": " .. err } or {} end
 	local files = {}
 	while true do
 		local name, kind = vim.uv.fs_scandir_next(scan)
@@ -29,9 +27,7 @@ local function scope_paths(directory, scope)
 	return sources, {}
 end
 
-function M.global_paths(directory)
-	return scope_paths(directory, "global")
-end
+function M.global_paths(directory) return scope_paths(directory, "global") end
 
 function M.paths(worktree)
 	local root = require("aero.git").main_root(worktree) or worktree
@@ -44,20 +40,20 @@ end
 
 local function read(path)
 	local stat, err, code = vim.uv.fs_stat(path)
-	if not stat then
-		return code == "ENOENT" and {} or nil, err
-	end
-	local ok, data = pcall(function()
-		return require("aero.jsonc").decode(table.concat(vim.fn.readfile(path), "\n"))
-	end)
+	if not stat then return code == "ENOENT" and {} or nil, err end
+	local ok, data = pcall(
+		function() return require("aero.jsonc").decode(table.concat(vim.fn.readfile(path), "\n")) end
+	)
 	if not ok then return nil, tostring(data) end
-	if type(data) ~= "table" or not vim.islist(data) then
-		return nil, "expected a JSON array of snippets"
-	end
+	if type(data) ~= "table" or not vim.islist(data) then return nil, "expected a JSON array of snippets" end
 	local names = {}
 	for index, item in ipairs(data) do
-		if type(item) ~= "table" or type(item.name) ~= "string" or vim.trim(item.name) == ""
-			or (item.description ~= nil and type(item.description) ~= "string") then
+		if
+			type(item) ~= "table"
+			or type(item.name) ~= "string"
+			or vim.trim(item.name) == ""
+			or (item.description ~= nil and type(item.description) ~= "string")
+		then
 			return nil, "snippet " .. index .. " requires a non-empty name string and an optional description string"
 		end
 		local prompt = item.prompt
@@ -70,7 +66,10 @@ local function read(path)
 			prompt = table.concat(prompt, "\n")
 		end
 		if type(prompt) ~= "string" or vim.trim(prompt) == "" then
-			return nil, "snippet " .. index .. " prompt must be a non-empty string or an array of strings with non-empty content"
+			return nil,
+				"snippet "
+					.. index
+					.. " prompt must be a non-empty string or an array of strings with non-empty content"
 		end
 		item.prompt = prompt
 		if names[item.name] then return nil, "duplicate snippet name: " .. item.name end
@@ -90,8 +89,11 @@ function M.list(worktree)
 		else
 			for _, item in ipairs(items) do
 				merged[item.name] = {
-					key = item.name, name = item.name, prompt = item.prompt,
-					description = item.description or "", scope = source.scope,
+					key = item.name,
+					name = item.name,
+					prompt = item.prompt,
+					description = item.description or "",
+					scope = source.scope,
 				}
 			end
 		end
@@ -106,9 +108,7 @@ local variable_pattern = "{{%s*([%a_][%w_]*)%s*}}"
 local function git(worktree, args)
 	local command = { "git", "-C", worktree }
 	vim.list_extend(command, args)
-	local ok, result = pcall(function()
-		return vim.system(command, { text = true }):wait(2000)
-	end)
+	local ok, result = pcall(function() return vim.system(command, { text = true }):wait(2000) end)
 	return ok and result.code == 0 and (result.stdout or ""):gsub("\n$", "") or ""
 end
 
@@ -123,9 +123,12 @@ local function source_context()
 	-- Visual marks belong to the source buffer, not the composer or picker.
 	local first, last = api.nvim_buf_get_mark(buf, "<"), api.nvim_buf_get_mark(buf, ">")
 	if first[1] > 0 and last[1] > 0 then
-		local ok, lines = pcall(vim.fn.getregion,
-			{ buf, first[1], first[2] + 1, 0 }, { buf, last[1], last[2] + 1, 0 },
-			{ type = vim.fn.visualmode() ~= "" and vim.fn.visualmode() or "v" })
+		local ok, lines = pcall(
+			vim.fn.getregion,
+			{ buf, first[1], first[2] + 1, 0 },
+			{ buf, last[1], last[2] + 1, 0 },
+			{ type = vim.fn.visualmode() ~= "" and vim.fn.visualmode() or "v" }
+		)
 		if ok then result.selection = table.concat(lines, "\n") end
 	end
 	local diagnostics = vim.diagnostic.get(buf)
@@ -135,9 +138,16 @@ local function source_context()
 	end)
 	local lines = {}
 	for _, diagnostic in ipairs(diagnostics) do
-		table.insert(lines, ("%s:%d:%d: %s: %s"):format(result.file,
-			diagnostic.lnum + 1, diagnostic.col + 1,
-			vim.diagnostic.severity[diagnostic.severity] or "UNKNOWN", diagnostic.message))
+		table.insert(
+			lines,
+			("%s:%d:%d: %s: %s"):format(
+				result.file,
+				diagnostic.lnum + 1,
+				diagnostic.col + 1,
+				vim.diagnostic.severity[diagnostic.severity] or "UNKNOWN",
+				diagnostic.message
+			)
+		)
 	end
 	result.diagnostics = table.concat(lines, "\n")
 	return result
@@ -157,7 +167,9 @@ function M.context(chat, template)
 	}
 	-- Avoid running Git for templates that do not need it.
 	local needed = {}
-	for name in (template or "{{branch}} {{diff}}"):gmatch(variable_pattern) do needed[name] = true end
+	for name in (template or "{{branch}} {{diff}}"):gmatch(variable_pattern) do
+		needed[name] = true
+	end
 	values.branch = needed.branch and git(chat.s.worktree, { "branch", "--show-current" }) or ""
 	values.diff = needed.diff and git(chat.s.worktree, { "diff", "--no-ext-diff", "--no-color", "HEAD", "--" }) or ""
 	return vim.tbl_extend("force", values, source_context())
@@ -165,9 +177,52 @@ end
 
 -- A function replacement preserves percent signs and never expands inserted values again.
 function M.render(template, values)
-	return (template:gsub(variable_pattern, function(name)
-		return values[name]
-	end))
+	return (template:gsub(variable_pattern, function(name) return values[name] end))
+end
+
+local function variable_input(name, callback)
+	local buf = api.nvim_create_buf(false, true)
+	vim.bo[buf].bufhidden = "wipe"
+	local width = math.max(1, math.min(80, vim.o.columns - 4))
+	local height = math.max(1, math.min(10, vim.o.lines - 6))
+	local win = api.nvim_open_win(buf, true, {
+		relative = "editor",
+		style = "minimal",
+		border = "rounded",
+		width = width,
+		height = height,
+		row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1),
+		col = math.max(0, math.floor((vim.o.columns - width) / 2)),
+		title = " " .. name .. " · /confirm + Enter · q cancel ",
+	})
+	vim.wo[win].wrap = true
+	local finished = false
+	local function finish(value)
+		if finished then return end
+		finished = true
+		vim.cmd.stopinsert()
+		if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
+		if api.nvim_buf_is_valid(buf) then api.nvim_buf_delete(buf, { force = true }) end
+		callback(value)
+	end
+	vim.keymap.set({ "n", "i" }, "<CR>", function()
+		local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+		local row = api.nvim_win_get_cursor(win)[1]
+		if vim.trim(lines[row]) ~= "/confirm" then return "<CR>" end
+		table.remove(lines, row)
+		local value = table.concat(lines, "\n")
+		vim.schedule(function() finish(value) end)
+		return ""
+	end, { buffer = buf, expr = true, replace_keycodes = true })
+	vim.keymap.set("n", "q", function() finish(nil) end, { buffer = buf, nowait = true })
+	api.nvim_create_autocmd("BufWipeout", {
+		buffer = buf,
+		once = true,
+		callback = function()
+			vim.schedule(function() finish(nil) end)
+		end,
+	})
+	vim.cmd.startinsert()
 end
 
 function M.expand(template, context, callback)
@@ -181,7 +236,7 @@ function M.expand(template, context, callback)
 	local function next_variable(index)
 		local name = pending[index]
 		if not name then return callback(M.render(template, values)) end
-		vim.ui.input({ prompt = "Aero prompt · " .. name .. ": " }, function(value)
+		variable_input(name, function(value)
 			if value == nil then return callback(nil) end
 			values[name] = value
 			next_variable(index + 1)
@@ -193,15 +248,17 @@ end
 function M.open(chat)
 	local items, errors = M.list(chat.s.worktree)
 	local templates = {}
-	for _, item in ipairs(items) do table.insert(templates, item.prompt) end
+	for _, item in ipairs(items) do
+		table.insert(templates, item.prompt)
+	end
 	local context = M.context(chat, table.concat(templates, "\n"))
-	for _, err in ipairs(errors) do vim.notify("Aero: " .. err, vim.log.levels.WARN) end
+	for _, err in ipairs(errors) do
+		vim.notify("Aero: " .. err, vim.log.levels.WARN)
+	end
 	require("aero.picker").open({
 		title = "prompt snippets",
 		items = function() return items end,
-		label = function(item)
-			return ("  %s [%s] %s"):format(item.name, item.scope, item.description)
-		end,
+		label = function(item) return ("  %s [%s] %s"):format(item.name, item.scope, item.description) end,
 		search = function(item) return item.name .. " " .. item.description .. " " .. item.prompt end,
 		preview = function(item) return M.render(item.prompt, context) end,
 		select = function(item)
