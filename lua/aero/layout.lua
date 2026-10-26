@@ -263,6 +263,27 @@ function M.rebalance()
 	-- Growing the editor group does not necessarily grow each nested split
 	-- equally. Restore its narrow leaves after releasing sidebar space.
 	if centers > 1 then
+		-- Grow spanning windows first so nested readers have room to expand.
+		-- On Neovim 0.11, resizing a nested leaf alone can steal its sibling's
+		-- width without expanding their enclosing column.
+		local function reserve(node)
+			if node[1] == "leaf" then
+				return
+			end
+			if node[1] == "col" then
+				local count = code_columns(node)
+				local width = count * minimum + math.max(0, count - 1)
+				for _, child in ipairs(node[2]) do
+					if child[1] == "leaf" and api.nvim_win_get_width(child[2]) < width then
+						pcall(api.nvim_win_set_width, child[2], width)
+					end
+				end
+			end
+			for _, child in ipairs(node[2]) do
+				reserve(child)
+			end
+		end
+		reserve(tree)
 		for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
 			if
 				code_window(win)

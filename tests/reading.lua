@@ -176,7 +176,15 @@ for _, position in ipairs({ "below", "right" }) do
 			require("aero.layout").rebalance()
 			assert(vim.api.nvim_win_get_buf(note) == buf, "agent panel must preserve explanation contents")
 			assert(vim.api.nvim_win_get_width(note) >= 20, "explanation must remain readable")
-			assert(vim.api.nvim_win_get_width(source_win) >= 20, "reader must remain readable")
+			assert(
+				vim.api.nvim_win_get_width(source_win) >= 20,
+				("reader must remain readable (position=%s, panel_first=%s, columns=%d, layout=%s)"):format(
+					position,
+					tostring(panel_first),
+					columns,
+					vim.inspect(vim.fn.winlayout())
+				)
+			)
 			local np = vim.api.nvim_win_get_position(note)
 			local rp = vim.api.nvim_win_get_position(source_win)
 			local ap = vim.api.nvim_win_get_position(agent)
