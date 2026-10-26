@@ -3,6 +3,25 @@
 local api = vim.api
 local M = {}
 
+local function initialize(buf, callback)
+	local highlighter = vim.treesitter.highlighter.active[buf]
+	if not highlighter then
+		return callback()
+	end
+	-- Building native folds visits the whole history. Do not highlight each
+	-- temporary cursor location (and parse every fenced language) on the way.
+	local language = highlighter.tree:lang()
+	vim.treesitter.stop(buf)
+	local ok, err = xpcall(callback, debug.traceback)
+	local resumed, resume_err = pcall(vim.treesitter.start, buf, language)
+	if not ok then
+		error(err, 0)
+	end
+	if not resumed then
+		error(resume_err, 0)
+	end
+end
+
 local function index(sections)
 	local result = {}
 	for _, section in ipairs(sections) do
@@ -128,47 +147,54 @@ function M.apply(chat, abort)
 		end
 		local new_index = index(sections)
 		if fresh or #pending.create > 0 or next(pending.restore) or #pending.alerts > 0 then
-			api.nvim_win_call(win, function()
-				local position = vim.fn.winsaveview()
-				if fresh then
-					vim.wo.foldmethod, vim.wo.foldenable, vim.wo.foldlevel = "manual", true, 99
-					vim.wo.foldtext = "v:lua.require'aero.acp.folds'.text()"
-					vim.cmd("silent! normal! zE")
-				end
-				for i = #pending.create, 1, -1 do
-					local section = pending.create[i]
-					if section.last > section.first then
-						-- Creating a containing fold preserves the existing child folds.
-						vim.cmd(("%d,%dfold"):format(section.first, section.last))
-						api.nvim_win_set_cursor(0, { section.first, 0 })
-						vim.cmd("silent! normal! zo")
+			local function apply()
+				api.nvim_win_call(win, function()
+					local position = vim.fn.winsaveview()
+					if fresh then
+						vim.wo.foldmethod, vim.wo.foldenable, vim.wo.foldlevel = "manual", true, 99
+						vim.wo.foldtext = "v:lua.require'aero.acp.folds'.text()"
+						vim.cmd("silent! normal! zE")
 					end
-				end
-				local closed = {}
-				for old, value in pairs(pending.restore) do
-					local section = lookup(new_index, old)
-					if section then
-						closed[section] = value
+					for i = #pending.create, 1, -1 do
+						local section = pending.create[i]
+						if section.last > section.first then
+							-- Creating a containing fold preserves the existing child folds.
+							vim.cmd(("%d,%dfold"):format(section.first, section.last))
+							api.nvim_win_set_cursor(0, { section.first, 0 })
+							vim.cmd("silent! normal! zo")
+						end
 					end
-				end
-				for _, section in ipairs(pending.create) do
-					if closed[section] == nil then
-						closed[section] = section.closed == true
+					local closed = {}
+					for old, value in pairs(pending.restore) do
+						local section = lookup(new_index, old)
+						if section then
+							closed[section] = value
+						end
 					end
-				end
-				-- Close children before parents, without resetting unrelated folds.
-				for i = #sections, 1, -1 do
-					local section = sections[i]
-					if closed[section] and section.last > section.first then
-						api.nvim_win_set_cursor(0, { section.first, 0 })
-						vim.cmd("silent! normal! zc")
+					for _, section in ipairs(pending.create) do
+						if closed[section] == nil then
+							closed[section] = section.closed == true
+						end
 					end
-				end
-				for _, section in ipairs(pending.alerts) do
-					expose(section.first)
-				end
-				vim.fn.winrestview(position)
-			end)
+					-- Close children before parents, without resetting unrelated folds.
+					for i = #sections, 1, -1 do
+						local section = sections[i]
+						if closed[section] and section.last > section.first then
+							api.nvim_win_set_cursor(0, { section.first, 0 })
+							vim.cmd("silent! normal! zc")
+						end
+					end
+					for _, section in ipairs(pending.alerts) do
+						expose(section.first)
+					end
+					vim.fn.winrestview(position)
+				end)
+			end
+			if fresh then
+				initialize(chat.buf, apply)
+			else
+				apply()
+			end
 		end
 		view.sections, view.pending = sections, nil
 	end
