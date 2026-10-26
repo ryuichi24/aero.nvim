@@ -198,6 +198,20 @@ function M.rebalance()
 			end
 		end
 	end
+	-- A quickfix window below the reader nests its side-by-side splits inside
+	-- one top-level column. Reserve space for every reader column in that group.
+	local function code_columns(node)
+		if node[1] == "leaf" then
+			local win = node[2]
+			return code_window(win) and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix" and 1 or 0
+		end
+		local count = 0
+		for _, child in ipairs(node[2]) do
+			local columns = code_columns(child)
+			count = node[1] == "row" and count + columns or math.max(count, columns)
+		end
+		return count
+	end
 	for _, child in ipairs(tree[2]) do
 		local group, side, code = {}, nil, false
 		leaves(child, group)
@@ -212,7 +226,7 @@ function M.rebalance()
 			side.preferred = math.max(side_minimum, side.kind == "dashboard" and M.dashboard_width() or M.panel_width())
 			table.insert(sidebars, side)
 		else
-			centers = centers + 1
+			centers = centers + math.max(1, code_columns(child))
 		end
 	end
 	if centers == 0 or #sidebars == 0 or not has_code(0) then
@@ -223,7 +237,7 @@ function M.rebalance()
 		side_minimum,
 		math.min(config.options.layout.min_code_width, math.floor((available - #sidebars * side_minimum) / centers))
 	)
-	local budget = math.max(#sidebars * side_minimum, available - centers * minimum)
+	local budget = math.max(#sidebars * side_minimum, available - centers * minimum - (centers - 1))
 	local preferred = 0
 	for _, side in ipairs(sidebars) do
 		preferred = preferred + side.preferred
@@ -244,6 +258,19 @@ function M.rebalance()
 	for _, side in ipairs(sidebars) do
 		if api.nvim_win_get_width(side.win) ~= side.width then
 			pcall(api.nvim_win_set_width, side.win, side.width)
+		end
+	end
+	-- Growing the editor group does not necessarily grow each nested split
+	-- equally. Restore its narrow leaves after releasing sidebar space.
+	if centers > 1 then
+		for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+			if
+				code_window(win)
+				and vim.bo[api.nvim_win_get_buf(win)].buftype ~= "quickfix"
+				and api.nvim_win_get_width(win) < minimum
+			then
+				pcall(api.nvim_win_set_width, win, minimum)
+			end
 		end
 	end
 	for win, entry in pairs(windows) do
