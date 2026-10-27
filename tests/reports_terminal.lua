@@ -20,20 +20,26 @@ aero.setup({
 vim.cmd.runtime("plugin/aero.lua")
 local sessions, panel = require("aero.session"), require("aero.panel")
 local s = sessions.create(dir, "fixture")
+
 assert(panel.show(s))
 assert(vim.wait(5000, function()
 	return vim.fn.filereadable(captured) == 1
 end, 10))
+
 local job = s.job
 api.nvim_set_current_win(panel.win())
 vim.cmd("Aero report")
+
 assert(vim.b.aero_report_picker)
 assert(vim.deep_equal(api.nvim_buf_get_lines(0, 0, -1, false), { "  findings.md", "  New +" }))
+
 api.nvim_win_set_cursor(0, { 1, 0 })
 vim.fn.maparg("<CR>", "n", false, true).callback()
 local received
+
 assert(vim.wait(5000, function()
 	local ok, data = pcall(vim.json.decode, table.concat(vim.fn.readfile(captured), "\n"))
+
 	if ok and #data.pastes == 1 then
 		received = data
 		return true
@@ -44,6 +50,7 @@ assert(received.pastes[1]:find("write or update", 1, true))
 assert(received.pending == "", "report attachment sent input outside bracketed paste")
 assert(s.job == job, "report attachment restarted the terminal agent")
 assert(vim.fn.readfile(report)[1] == "Existing findings.")
+
 sessions.delete(s)
 api.nvim_create_autocmd("VimLeavePre", {
 	once = true,

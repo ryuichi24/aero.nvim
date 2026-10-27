@@ -4,7 +4,9 @@ local executable = assert(vim.env.AERO_MCP_EXECUTABLE)
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 root = require("aero.storage").canonical(root)
+
 assert(vim.system({ "git", "init", root }):wait().code == 0)
+
 require("aero").setup({
 	state_file = root .. "/state.json",
 	animation = false,
@@ -26,7 +28,9 @@ vim.ui.select = function(_, _, callback)
 	callback(nil)
 end
 require("aero.tasks.agent").work()
+
 assert(#require("aero.session").all() == 0 and vim.api.nvim_get_current_tabpage() == board_tab)
+
 vim.ui.select = function(items, _, callback)
 	callback(items[1])
 end
@@ -34,7 +38,9 @@ vim.ui.input = function(_, callback)
 	callback(nil)
 end
 require("aero.tasks.agent").work()
+
 assert(#require("aero.session").all() == 0 and vim.api.nvim_get_current_tabpage() == board_tab)
+
 vim.ui.select = function(items, _, callback)
 	callback(items[1])
 end
@@ -44,6 +50,7 @@ end
 require("aero.tasks.agent").work()
 local sessions = require("aero.session")
 local s = assert(sessions.list(root)[1])
+
 assert(s.task_binding and s.mcp_servers and s.key == s.task_binding.session_key)
 assert(vim.api.nvim_get_current_tabpage() ~= board_tab and not vim.t[board_tab].aero_worktree)
 assert(vim.api.nvim_buf_is_valid(view.columns[1].buf))
@@ -51,7 +58,9 @@ assert(vim.wait(10000, function()
 	return s.chat.state == "ready" or s.chat.state == "exited"
 end))
 assert(s.chat.state == "ready", table.concat(s.chat.client.stderr, ""))
+
 local draft = table.concat(vim.api.nvim_buf_get_lines(s.chat:get_prompt_buf(), 0, -1, false), "\n")
+
 assert(draft:find(ticket.metadata.id, 1, true), "assignment was not appended")
 assert(
 	draft:find("metadata.task_type", 1, true) and draft:find("aero_create_report", 1, true),
@@ -61,7 +70,9 @@ assert(
 	require("aero.tasks.operations").get_ticket(s.task_binding).state == "todo",
 	"assignment submitted automatically"
 )
+
 s.chat:send_prompt_buf()
+
 assert(vim.wait(15000, function()
 	return require("aero.tasks.operations").get_ticket(s.task_binding).state == "review"
 end))
@@ -72,11 +83,15 @@ assert(
 	tasks.read_ticket(board.path, ticket.path).metadata.id == ticket.metadata.id,
 	"ACP write bypassed task protection"
 )
+
 local read = assert(require("aero.tasks.operations").get_ticket(s.task_binding))
+
 assert(read.body:find("Implemented and verified", 1, true))
+
 -- A loaded conversation must receive the same MCP configuration.
 local old_credential = s.task_transport.credential
 sessions.stop(s)
+
 assert(vim.wait(10000, function()
 	return s.chat.state == "exited"
 end))
@@ -86,17 +101,20 @@ assert(vim.wait(10000, function()
 end))
 assert(s.chat.state == "ready", table.concat(s.chat.client.stderr, ""))
 assert(s.task_transport.credential ~= old_credential, "resume reused an old credential")
+
 sessions.delete(s)
 require("aero.config").options.worktree_tabs = false
 vim.api.nvim_set_current_tabpage(board_tab)
 require("aero.tasks.agent").work(board.metadata.id, ticket.metadata.id)
 local without_tabs = assert(sessions.list(root)[1])
+
 assert(vim.api.nvim_get_current_tabpage() ~= board_tab and not vim.t[board_tab].aero_worktree)
 assert(vim.api.nvim_buf_is_valid(view.columns[1].buf))
 assert(vim.wait(10000, function()
 	return without_tabs.chat.state == "ready" or without_tabs.chat.state == "exited"
 end))
 assert(without_tabs.chat.state == "ready")
+
 sessions.delete(without_tabs)
 require("aero.tasks.bridge").stop()
 vim.fn.delete(root, "rf")

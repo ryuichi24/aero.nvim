@@ -3,37 +3,53 @@ local prompt = require("aero.acp.prompt")
 local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(buf)
 local chat = { prompt_buf = buf }
+
 local function lines(value, row)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, value)
 	vim.api.nvim_win_set_cursor(0, { row or 1, 0 })
 end
+
 lines({ "Trace token validation.", "/reading Authentication flow", "Include error branches." }, 2)
+
 assert(prompt.command(chat))
+
 local draft = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+
 assert(draft[1] == "Trace token validation." and draft[3] == "Include error branches.")
 assert(draft[2]:find('titled "Authentication flow"', 1, true))
 assert(draft[2]:find("aero_reading_list_publish", 1, true))
+
 lines({ "/reading" })
 vim.ui.input = function(_, callback)
 	callback("Error handling")
 end
+
 assert(prompt.command(chat))
 assert(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1]:find('"Error handling"', 1, true))
+
 lines({ "/reading" })
 vim.ui.input = function(_, callback)
 	callback(nil)
 end
+
 assert(prompt.command(chat))
 assert(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "/reading")
+
 lines({ "/reading Submit flow" })
 prompt.send(chat, true)
+
 assert(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1]:find('"Submit flow"', 1, true))
+
 require("aero.config").options.reading.prompt = "Prepare {title}.\nPublish {title} with aero_reading_list_publish."
 lines({ "Context", '/reading 100% "coverage"', "Keep this" }, 2)
+
 assert(prompt.command(chat))
+
 local custom = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 local quoted = vim.json.encode('100% "coverage"')
+
 assert(custom[1] == "Context" and custom[4] == "Keep this")
 assert(custom[2] == "Prepare " .. quoted .. ".")
 assert(custom[3] == "Publish " .. quoted .. " with aero_reading_list_publish.")
+
 print("reading prompt: ok")

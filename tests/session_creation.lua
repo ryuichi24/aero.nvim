@@ -16,10 +16,12 @@ require("aero.panel").focus = function(s)
 end
 local dashboard = require("aero.dashboard")
 dashboard.open()
+
 local function press(key)
 	api.nvim_win_set_cursor(0, { 4, 0 })
 	vim.fn.maparg(key, "n", false, true).callback()
 end
+
 local input, inputs = "opencode-acp", 0
 vim.ui.input = function(_, callback)
 	inputs = inputs + 1
@@ -29,57 +31,83 @@ press("O")
 local first = shown
 input = "opencode-acp-2"
 press("O")
+
 assert(shown ~= first and #sessions.list(dir) == 2, "uppercase shortcut reused a session")
 assert(shown.fresh and shown.name == "opencode-acp-2")
+
 input = "opencode"
 press("o")
 local terminal = shown
 input = "opencode-2"
 press("o")
-assert(shown ~= terminal and shown.name == "opencode-2" and shown.fresh,
-	"lowercase shortcut reused a session")
+
+assert(shown ~= terminal and shown.name == "opencode-2" and shown.fresh, "lowercase shortcut reused a session")
+
 vim.ui.select = function(_, _, callback)
 	callback("opencode-acp")
 end
+
 assert(inputs == 4, "agent shortcuts did not prompt for names")
+
 input = "  investigate bug  "
 press("a")
+
 assert(shown.name == "investigate bug" and shown.fresh)
+
 local count = #sessions.list(dir)
 local named = shown
 press("a")
+
 assert(#sessions.list(dir) == count and shown == named, "duplicate name created a session")
+
 for _, value in ipairs({ "", "   ", "bad\nname" }) do
 	input = value
 	press("a")
+
 	assert(#sessions.list(dir) == count)
 end
+
 input = nil
 press("a")
+
 assert(#sessions.list(dir) == count, "cancelled prompt created a session")
+
 for _, key in ipairs({ "c", "x", "o", "C", "X", "O" }) do
 	local previous_inputs = inputs
 	press(key)
-	assert(inputs == previous_inputs + 1 and #sessions.list(dir) == count,
-		"cancelled shortcut prompt created a session or did not prompt")
+
+	assert(
+		inputs == previous_inputs + 1 and #sessions.list(dir) == count,
+		"cancelled shortcut prompt created a session or did not prompt"
+	)
 end
+
 require("aero.config").options.prompt_session_name = false
 local previous_inputs = inputs
 press("a")
+
 assert(inputs == previous_inputs and #sessions.list(dir) == count + 1)
 assert(shown.name == "opencode-acp-3" and shown.fresh)
+
 press("o")
+
 assert(inputs == previous_inputs and shown.name == "opencode-3" and shown.fresh)
+
 vim.ui.select = function(items, opts, callback)
 	assert(items[1] == "default", "default agent is not the first choice")
 	assert(opts.format_item(items[1]) == "default (" .. require("aero.config").options.default_agent .. ")")
 	assert(opts.format_item("opencode-acp") == "opencode-acp")
+
 	callback(items[1], 1)
 end
 press("a")
+
 assert(shown.agent == "opencode-acp", "default choice did not use opencode-acp")
+
 require("aero").setup({ default_agent = "claude", prompt_session_name = false })
 press("a")
+
 assert(shown.agent == "claude", "default choice did not use the configured agent")
+
 vim.fn.delete(dir, "rf")
 print("Session creation tests passed.")

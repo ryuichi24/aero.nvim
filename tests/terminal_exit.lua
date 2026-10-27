@@ -6,16 +6,21 @@ local child = vim.fn.jobstart(
 	{ vim.v.progpath, "--headless", "--embed", "-u", "NONE", "-i", "NONE", "-n" },
 	{ rpc = true }
 )
+
 assert(child > 0)
+
 local function lua(code, args)
 	return vim.rpcrequest(child, "nvim_exec_lua", code, args or {})
 end
+
 local function input(keys)
 	vim.rpcrequest(child, "nvim_input", keys)
 end
+
 local function wait(fn, message)
 	assert(vim.wait(5000, fn, 10), message or "timed out")
 end
+
 local function mode()
 	return vim.rpcrequest(child, "nvim_get_mode").mode
 end
@@ -49,11 +54,14 @@ local ok, err = xpcall(function()
 		)
 	end)
 	input("\004") -- Ctrl-D: EOF through the actual terminal input callback.
+
 	wait(function()
 		return lua("return _G.exit_test.s.exit_code ~= nil")
 	end)
+
 	assert(mode():sub(1, 1) == "n", "process exited but cursor remained trapped in terminal input mode")
 	assert(lua("return vim.api.nvim_buf_is_valid(_G.exit_test.s.buf)"), "exit removed the scrollback buffer")
+
 	-- The virtual terminal renders channel output asynchronously; observing the
 	-- process exit does not mean its final output has reached the buffer yet.
 	wait(function()
@@ -63,11 +71,15 @@ local ok, err = xpcall(function()
 	end, "exited terminal did not preserve its final output")
 	local width = lua("return vim.api.nvim_win_get_width(_G.exit_test.panel)")
 	input("\023hhh\027") -- Repeat resizing through the child's real input loop.
+
 	wait(function()
 		return lua("return vim.api.nvim_win_get_width(_G.exit_test.panel)") == width - 3
 	end)
+
 	assert(lua("return vim.api.nvim_get_current_win() == _G.exit_test.panel"), "resizing changed focus")
+
 	input("\023w") -- Ctrl-W w navigates back to code; directional keys now resize Aero panes.
+
 	wait(function()
 		return lua("return vim.api.nvim_get_current_win() == _G.exit_test.code")
 	end)
@@ -93,14 +105,18 @@ local ok, err = xpcall(function()
 	wait(function()
 		return lua("return _G.exit_test.s.exit_code ~= nil")
 	end)
+
 	assert(mode() == "i", "background exit interrupted insert mode")
 	assert(lua("return vim.api.nvim_get_current_win() == _G.exit_test.code"), "background exit stole focus")
 end, debug.traceback)
-
 vim.rpcnotify(child, "nvim_command", "qa!")
+
 if vim.fn.jobwait({ child }, 1000)[1] == -1 then
 	vim.fn.jobstop(child)
 end
+
 vim.fn.delete(dir, "rf")
+
 assert(ok, err)
+
 print("Terminal exit tests passed (Ctrl-D, normal-mode navigation, dead-terminal reentry, background editing).")

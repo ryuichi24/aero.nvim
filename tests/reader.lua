@@ -12,57 +12,88 @@ api.nvim_win_set_cursor(win, { 2, 0 })
 local reports = reader.attach(win, "reports")
 local report = api.nvim_win_get_buf(reports)
 api.nvim_buf_set_lines(report, 0, -1, false, { "unsaved report" })
+
 assert(report ~= source)
 assert(reader.attach(win, "source") == win)
 assert(api.nvim_win_get_buf(win) == source)
 assert(api.nvim_win_get_cursor(win)[1] == 2)
+
 reader.attach(win, "exports")
 local export = api.nvim_win_get_buf(win)
 reader.attach(win, "references")
 local reference = api.nvim_win_get_buf(win)
+
 assert(#api.nvim_tabpage_list_wins(0) == 1)
+
 reader.mode("panes")
+
 assert(#api.nvim_tabpage_list_wins(0) == 4)
+
 local visible = {}
+
 for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do
 	visible[api.nvim_win_get_buf(w)] = true
 end
+
 assert(visible[source] and visible[report] and visible[export] and visible[reference])
+
 reader.mode("tabs")
+
 assert(#api.nvim_tabpage_list_wins(0) == 1)
+
 reader.attach(win, "reports")
+
 assert(api.nvim_win_get_buf(win) == report)
 assert(vim.bo[report].modified)
+
 vim.cmd("tabnew")
 vim.t.aero_worktree = "/another-worktree"
 local other = api.nvim_get_current_buf()
 reader.attach(api.nvim_get_current_win())
+
 assert(api.nvim_get_current_buf() == other)
+
 vim.cmd("tabprevious")
 reader.attach(win, "source")
+
 assert(api.nvim_win_get_buf(win) == source)
+
 local sidebar_buf = api.nvim_create_buf(false, true)
 local sidebar = api.nvim_open_win(sidebar_buf, false, { split = "left", win = win, width = 20 })
 reader.mode("panes")
+
 assert(api.nvim_win_get_buf(sidebar) == sidebar_buf)
+
 reader.mode("tabs")
+
 assert(api.nvim_win_is_valid(sidebar))
 assert(api.nvim_win_get_buf(sidebar) == sidebar_buf)
+
 vim.cmd("runtime plugin/aero.lua")
 vim.cmd("Aero reader reports")
+
 assert(api.nvim_get_current_buf() == report)
+
 require("aero").reader("panes")
 require("aero").reader("tabs")
 vim.cmd("Aero reader reading")
 local reading = api.nvim_get_current_buf()
+
 assert(reader.active() == "reading")
 assert(vim.wo.winbar:find("Reading", 1, true))
+
 _G.AeroReaderClick(6)
+
 assert(#api.nvim_tabpage_list_wins(0) == 6)
+
 _G.AeroReaderClick(6)
 _G.AeroReaderClick(1)
+
 assert(api.nvim_get_current_buf() == source)
+
 _G.AeroReaderClick(5)
+
 assert(api.nvim_get_current_buf() == reading)
+
 print("reader: ok")
 vim.cmd("qa!")

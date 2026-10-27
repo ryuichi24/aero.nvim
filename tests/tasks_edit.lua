@@ -1,6 +1,7 @@
 -- Run: nvim --headless -u NONE -l tests/tasks_edit.lua
 vim.opt.rtp:prepend(vim.fn.getcwd())
 local api = vim.api
+
 -- Expected validation failures must not leave a headless native-edit test at hit-enter.
 local notices = {}
 vim.notify = function(message)
@@ -22,59 +23,80 @@ local board = assert(tasks.create_board(ws, "Editable"))
 local first = assert(tasks.create_ticket(ws, board.path, "todo", "Same 日本語"))
 local second = assert(tasks.create_ticket(ws, board.path, "todo", "Same 日本語"))
 local ticket_text = storage.read(first.path)
+
 -- Notes and inline comments must survive placement reconstruction.
 local parsed = tasks.read_board(ws, board.path)
 local lines = vim.deepcopy(parsed.lines)
 lines[parsed.states[1].entries[1].line] = lines[parsed.states[1].entries[1].line] .. " <!-- follows ticket -->"
 table.insert(lines, parsed.states[1].first + 1, "State note stays here.")
+
 assert(storage.write(board.path, parsed.text, storage.text(lines, parsed.text)))
+
 local viewmod = require("aero.tasks.view")
 local view = assert(viewmod.open(ws, board.path))
+
 assert(#view.columns == 3)
+
 local syntax = api.nvim_buf_call(view.columns[1].buf, function()
 	return vim.fn.execute("syntax list AeroTaskIdentity")
 end)
+
 assert(syntax:find("conceal", 1, true), "ticket ID prefix was not concealed")
 assert(vim.wo.conceallevel == 2 and vim.wo.concealcursor == "nvic")
 assert(
 	api.nvim_buf_get_lines(view.columns[1].buf, 0, 1, false)[1]:find(first.metadata.id, 1, true),
 	"concealment removed the underlying identity"
 )
+
 for _, column in ipairs(view.columns) do
 	assert(vim.bo[column.buf].buftype == "acwrite" and vim.bo[column.buf].modifiable)
 	assert(vim.fn.maparg("d", "n", false, true).buffer ~= 1)
 end
+
 local function focus(index)
 	local buf = view.columns[index].buf
 	local win = vim.fn.bufwinid(buf)
+
 	assert(win ~= -1, "expected visible state")
+
 	api.nvim_set_current_win(win)
 end
+
 local function keys(sequence)
 	vim.cmd.normal({ args = { api.nvim_replace_termcodes(sequence, true, false, true) }, bang = true })
 end
+
 local baseline = storage.read(board.path)
 focus(1)
 api.nvim_win_set_cursor(0, { 1, 0 })
 keys("dd")
 viewmod.actions(view).close()
+
 assert(
 	api.nvim_tabpage_is_valid(view.tab) and api.nvim_get_current_tabpage() == view.tab,
 	"closing a dirty board discarded its tab"
 )
 assert(storage.read(board.path) == baseline)
+
 focus(2)
 keys("p")
+
 assert(storage.read(board.path) == baseline, "paste saved prematurely")
+
 vim.cmd.write()
 local moved = tasks.read_board(ws, board.path)
+
 assert(moved.states[2].entries[1].path == first.path)
 assert(moved.states[1].entries[1].path == second.path)
 assert(moved.states[2].entries[1].raw:find("follows ticket", 1, true))
 assert(moved.text:find("State note stays here.", 1, true))
+
 local updated_ticket = tasks.read_ticket(board.path, first.path)
+
 assert(updated_ticket.metadata.state == moved.states[2].name)
+
 local original_ticket = require("aero.tasks.markdown").parse(ticket_text, "ticket", first.path)
+
 assert(
 	vim.deep_equal(
 		vim.list_slice(updated_ticket.lines, updated_ticket.frontmatter.finish + 1),
@@ -83,40 +105,60 @@ assert(
 	"movement changed ticket body"
 )
 assert(not viewmod.dirty(view))
+
 local saved = storage.read(board.path)
 vim.cmd.write()
 vim.cmd.wall()
+
 assert(storage.read(board.path) == saved, "no-op save rewrote board")
+
 -- Undoing only the destination removes its reference; redo restores the retained file.
 keys("u")
+
 assert(viewmod.save(view))
+
 local undone = tasks.read_board(ws, board.path)
+
 assert(#undone.states[2].entries == 0 and undone.orphans[1].path == first.path)
 assert(storage.read(first.path) == updated_ticket.text, "removal changed the retained ticket")
+
 keys("<C-r>")
+
 assert(viewmod.save(view))
 assert(tasks.read_board(ws, board.path).states[2].entries[1].path == first.path)
+
 -- Duplicating a row is rejected even with matching display titles.
 focus(1)
 keys("yyp")
+
 assert(not viewmod.save(view))
+
 keys("u")
+
 assert(viewmod.save(view))
+
 -- Keep all draft buffers intact across resizing/reentry/external changes.
 focus(1)
 keys("dd")
 local draft = api.nvim_buf_get_lines(view.columns[1].buf, 0, -1, false)
 api.nvim_exec_autocmds("WinResized", {})
 viewmod.open(ws, board.path)
+
 assert(vim.deep_equal(draft, api.nvim_buf_get_lines(view.columns[1].buf, 0, -1, false)))
+
 focus(3)
 keys("p")
+
 assert(tasks.move_ticket(ws, board.path, second.path, "doing"))
+
 viewmod.render(view)
+
 assert(view.stale and viewmod.dirty(view))
 assert(not viewmod.save(view), "stale baseline overwritten")
 assert(tasks.read_board(ws, board.path).states[2].entries[2].path == second.path)
+
 viewmod.render(view, true)
+
 -- Hidden state buffers participate in validation and commit.
 focus(2)
 keys("dd")
@@ -124,18 +166,26 @@ local hidden = view.columns[3].buf
 local line = first.metadata.id .. "  " .. first.metadata.title
 api.nvim_buf_set_lines(hidden, 0, -1, false, { line })
 local hiddenwin = vim.fn.bufwinid(hidden)
+
 if hiddenwin ~= -1 then
 	api.nvim_win_close(hiddenwin, true)
 end
+
 assert(viewmod.save(view))
 assert(tasks.read_board(ws, board.path).states[3].entries[1].path == first.path)
+
 -- Wiping a column is an error, never interpreted as deleting its tickets.
 api.nvim_buf_delete(hidden, { force = true })
+
 assert(not viewmod.save(view))
+
 viewmod.render(view, true)
+
 assert(api.nvim_buf_is_valid(view.columns[3].buf))
+
 -- Service rejects incomplete and foreign identities without changing files.
 local current = tasks.read_board(ws, board.path)
+
 assert(not tasks.apply_layout(ws, board.path, {
 	expected_text = current.text,
 	states = {
@@ -167,13 +217,16 @@ focus(2)
 keys("p")
 vim.cmd.write()
 local visual = tasks.read_board(ws, multi.path)
+
 assert(#visual.states[1].entries == 0 and #visual.states[2].entries == 2)
 assert(visual.states[2].entries[1].path == a.path and visual.states[2].entries[2].path == b.path)
 
 -- Title edits are diagnosed, and unsaved source Markdown blocks a valid draft.
 focus(2)
 keys("A changed<Esc>")
+
 assert(not viewmod.save(view))
+
 keys("u")
 focus(2)
 keys("dd")
@@ -182,10 +235,13 @@ keys("p")
 local sourcebuf = vim.fn.bufadd(multi.path)
 vim.fn.bufload(sourcebuf)
 api.nvim_buf_set_lines(sourcebuf, 0, 0, false, { "unsaved" })
+
 assert(not viewmod.save(view))
 assert(storage.read(multi.path) == visual.text)
+
 vim.bo[sourcebuf].modified = false
 api.nvim_buf_delete(sourcebuf, { force = true })
+
 assert(viewmod.save(view))
 
 -- Deleting a persisted row and :w removes only its reference, with native undo/redo.
@@ -193,32 +249,42 @@ focus(3)
 local before_removal = tasks.read_board(ws, multi.path).states[3].entries
 local removed_path = before_removal[1].path
 local removed_id = before_removal[1].ticket.metadata.id
+
 for row, line in ipairs(api.nvim_buf_get_lines(view.columns[3].buf, 0, -1, false)) do
 	if line:find(removed_id, 1, true) then
 		api.nvim_win_set_cursor(0, { row, 0 })
 		break
 	end
 end
+
 local retained = storage.read(removed_path)
 local notices_before = #notices
 keys("i<C-g>u<Esc>") -- Separate this scripted edit from the preceding paste's undo block.
+
 keys("dd")
 vim.cmd.write()
 local removed = tasks.read_board(ws, multi.path)
+
 assert(#removed.states[3].entries == #before_removal - 1 and removed.orphans[1].path == removed_path)
 assert(storage.read(removed_path) == retained, "row deletion deleted or modified the ticket file")
 assert(#notices == notices_before, "row deletion produced a warning")
 assert(not viewmod.dirty(view))
+
 keys("u")
 vim.cmd.write()
+
 assert(tasks.read_board(ws, multi.path).states[3].entries[1].path == removed_path)
 assert(storage.read(removed_path) == retained)
+
 keys("<C-r>")
 vim.cmd.write()
+
 assert(#tasks.read_board(ws, multi.path).states[3].entries == #before_removal - 1)
 assert(storage.read(removed_path) == retained)
+
 keys("ggdG")
 vim.cmd.write()
+
 assert(#tasks.read_board(ws, multi.path).states[3].entries == 0, "last-row deletion was not saved")
 assert(storage.read(removed_path) == retained)
 
@@ -230,7 +296,9 @@ storage.read = function(...)
 end
 keys("hjk")
 api.nvim_exec_autocmds("WinResized", {})
+
 assert(reads == 0)
+
 storage.read = original_read
 vim.fn.delete(root, "rf")
 print("Editable task tests passed (native cut/paste, batch save, undo, conflicts, hidden/wiped buffers, preservation).")
