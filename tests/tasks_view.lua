@@ -48,6 +48,8 @@ assert(api.nvim_buf_get_name(0) == board.path)
 assert(api.nvim_get_current_tabpage() == origin_tab, "open_board_markdown opened a board tab instead of Markdown")
 assert(vim.b.aero_board_path == board.path and vim.b.aero_workspace_root == root)
 
+local source_win = api.nvim_get_current_win()
+
 api.nvim_set_current_win(vim.fn.bufwinid(source_dashboard))
 vim.cmd("Aero board markdown")
 
@@ -258,6 +260,8 @@ require("aero").open_board(ws, board.path)
 assert(view.tab == api.nvim_get_current_tabpage(), "closed board did not reopen")
 
 api.nvim_set_current_tabpage(origin_tab)
+-- Returning to the tab restores dashboard focus; create the scratch buffer in the code window.
+api.nvim_set_current_win(source_win)
 vim.cmd.enew()
 vim.cmd("Aero board markdown")
 
@@ -265,6 +269,7 @@ assert(
 	api.nvim_buf_get_name(0) == board.path and api.nvim_get_current_tabpage() == origin_tab,
 	"board picker did not open raw Markdown"
 )
+assert(api.nvim_win_get_buf(dw) == dashboard, "board picker replaced the sidebar buffer")
 
 local other = assert(tasks.create_board(ws, "Second board"))
 vim.ui.select = function()
