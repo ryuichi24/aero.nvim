@@ -48,6 +48,63 @@ apps/
 The root `release.json` remains the plugin-wide version manifest; the root
 Makefile delegates builds into this workspace. Release asset names are unchanged.
 
+## Formatting, linting, and local hooks
+
+Install StyLua 2.6.0 (with LuaJIT syntax support) and Luacheck 1.2.0 on your
+`PATH`, plus Git, Make, Go, Node.js, and pnpm. On macOS,
+`brew install stylua luacheck` installs the Lua tools; verify their versions. `STYLUA`, `LUACHECK`,
+`GO`, and `PNPM` can be overridden when invoking Make.
+
+For a fresh checkout, run:
+
+```sh
+pnpm --dir apps/companion/web install --frozen-lockfile
+make build-companion-ui # supplies assets required by Go embed
+make hooks
+make format
+make lint
+```
+
+`make format` formats `lua/`, `plugin/`, `tests/`, and Lua tooling in `apps/scripts/`
+with StyLua and the statement-spacing formatter, applies Go
+lint fixes and gofumpt in both modules, and runs the frontend's existing
+Prettier configuration. Review the resulting diff. `make lint` checks those
+formats, runs Luacheck, Go vet, golangci-lint's `wsl_v5`, ESLint, and TypeScript
+type checking. Per-language targets are `format-lua`, `format-go`, `format-web`,
+`lint-lua`, `lint-go`, and `lint-web`.
+
+Lua formatting adds a blank line before and after `if` blocks and `for` loops
+when another statement is adjacent. Ordinary assignments, calls, and returns
+stay together; blank lines between them are removed. Existing separators around
+function declarations and comments are preserved. It does not add padding just
+inside a block or between table fields / multiline arguments.
+`apps/scripts/lua-spacing.lua` uses Neovim's Lua Tree-sitter parser to preserve
+strings and comments, and refuses files with syntax errors. Neovim with the Lua
+parser available is required for both formatting and linting (`NVIM_BIN` overrides
+the executable). `make lint-lua` checks spacing without writing; the existing
+pre-commit hook enforces it through `make lint`.
+
+Lua files under `tests/` use a readability-oriented exception: preserve manual
+blank lines, separate setup/action statements from consecutive `assert(...)`
+groups, and separate individual `check(...)` fixture cases. The `if`/`for` rule
+still applies. Spacing test fixtures use named cases and multiline Lua strings
+so input and expected output can be compared directly.
+
+Go tooling is pinned to golangci-lint v2.15.0 and downloaded through `go run`;
+use a Go toolchain compatible with that release (verified with Go 1.27.3).
+Frontend lint dependencies are pinned in `package.json` and `pnpm-lock.yaml`.
+ESLint covers JS/MJS/TS/TSX files, including tests and Vite config, with
+recommended JavaScript/TypeScript rules, strict equality, and React Hook rules.
+Luacheck uses LuaJIT globals plus Neovim's `vim`; it permits shadowing,
+discarded assigned values, unused method receivers, and empty branches.
+
+`make hooks` copies `.githooks/pre-commit` to Git's effective hooks directory
+and marks it executable. Reinstall after hook updates or in new checkouts.
+Review any existing local pre-commit hook before replacing it. The hook runs
+`make lint` against the whole working tree and blocks on failure; it does not
+format or stage files. With partial staging, ensure the staged snapshot is
+also consistent. Tests remain separate: run `make check-all` for full verification.
+
 ## Prepare the release
 
 1. Update the root `release.json`:

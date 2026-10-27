@@ -1,8 +1,52 @@
 GO ?= go
 PNPM ?= pnpm
+STYLUA ?= stylua
+LUACHECK ?= luacheck
+NVIM_BIN ?= nvim
+GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+GO_MODULES := apps/mcp apps/companion
+LUA_PATHS := lua plugin tests apps/scripts
 VERSION ?= $(shell python3 -c 'import json; print(json.load(open("release.json"))["version"])')
 
 .PHONY: build build-mcp build-all build-companion build-companion-ui test test-lua test-companion vet check check-all release clean
+.PHONY: format format-lua format-go format-web lint lint-lua lint-go lint-web hooks
+
+format: format-lua format-go format-web
+
+format-lua:
+	$(STYLUA) $(LUA_PATHS)
+	$(NVIM_BIN) --headless -u NONE -i NONE -l apps/scripts/lua-spacing.lua $(LUA_PATHS)
+
+format-go:
+	@set -e; for module in $(GO_MODULES); do \
+		$(GO) -C $$module run $(GOLANGCI_LINT) run --fix ./...; \
+		$(GO) -C $$module run $(GOLANGCI_LINT) fmt ./...; \
+	done
+
+format-web:
+	$(PNPM) --dir apps/companion/web run format
+
+lint: lint-lua lint-go lint-web
+
+lint-lua:
+	$(STYLUA) --check $(LUA_PATHS)
+	$(NVIM_BIN) --headless -u NONE -i NONE -l apps/scripts/lua-spacing.lua --check $(LUA_PATHS)
+	$(LUACHECK) $(LUA_PATHS)
+
+lint-go:
+	@set -e; for module in $(GO_MODULES); do \
+		$(GO) -C $$module run $(GOLANGCI_LINT) fmt --diff ./...; \
+		$(GO) -C $$module vet ./...; \
+		$(GO) -C $$module run $(GOLANGCI_LINT) run ./...; \
+	done
+
+lint-web:
+	$(PNPM) --dir apps/companion/web run lint
+	$(PNPM) --dir apps/companion/web run typecheck
+	$(PNPM) --dir apps/companion/web run format:check
+
+hooks:
+	install -m 755 .githooks/pre-commit "$$(git rev-parse --git-path hooks)/pre-commit"
 
 build: build-mcp
 
