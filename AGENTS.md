@@ -1,4 +1,16 @@
-# Development checks
+# Agent Instructions
+
+## Coding Conventions
+
+Before writing or modifying code, read and follow
+[Coding Conventions](./docs/dev/conventions/coding/init.md).
+
+## Git Commits
+
+Before creating a commit, read and follow
+[Commit Conventions](./docs/dev/conventions/commit.md).
+
+## Development checks
 
 See `docs/releasing.md` for tool prerequisites and fresh-checkout setup.
 After code changes, run `make format`, review the diff, and run `make lint`.
