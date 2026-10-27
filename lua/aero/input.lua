@@ -46,6 +46,46 @@ local function select_default(buf, win, default, select_length)
 	-- the boundary before we enter Select mode.
 	vim.cmd("normal! " .. api.nvim_replace_termcodes("<C-g>", true, false, true))
 
+	-- Native Select-mode replacement deletes into the unnamed register (and
+	-- possibly the clipboard). Restore its previous contents immediately when
+	-- replacement enters Insert mode, including any shifted delete registers.
+	local registers = {}
+	local names = { '"', "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" }
+
+	if vim.o.clipboard:find("unnamedplus", 1, true) then
+		table.insert(names, "+")
+	end
+
+	if vim.tbl_contains(vim.opt.clipboard:get(), "unnamed") then
+		table.insert(names, "*")
+	end
+
+	for _, name in ipairs(names) do
+		registers[name] = vim.fn.getreginfo(name)
+	end
+
+	local restore
+	restore = api.nvim_create_autocmd("ModeChanged", {
+		buffer = buf,
+		callback = function()
+			if not vim.v.event.old_mode:match("^[sS\019]") then
+				return
+			end
+
+			api.nvim_del_autocmd(restore)
+
+			if vim.v.event.new_mode:sub(1, 1) == "i" then
+				for _, name in ipairs(names) do
+					if name ~= '"' then
+						vim.fn.setreg(name, registers[name])
+					end
+				end
+
+				vim.fn.setreg('"', registers['"'])
+			end
+		end,
+	})
+
 	-- Input providers normally map confirmation only in Normal/Insert mode.
 	vim.keymap.set("s", "<CR>", function()
 		api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc><CR>", true, false, true), "m", false)
