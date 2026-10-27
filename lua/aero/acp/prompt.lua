@@ -202,7 +202,6 @@ function M.buffer(chat, lookup)
 		end
 	end, { buffer = buf, desc = "Aero: report picker / cancel / newline" })
 	map("n", "q", "<cmd>close<cr>", "close prompt (draft is kept)")
-	map({ "n", "i" }, "<C-g>", with_chat("toggle_prompt"), "toggle prompt (draft is kept)")
 	map({ "n", "i" }, "<C-c>", with_chat("cancel"), "cancel turn")
 	vim.bo[buf].omnifunc = "v:lua.require'aero.acp'.omnifunc"
 	vim.b[buf].aero_chat_key = key

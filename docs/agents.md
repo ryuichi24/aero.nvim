@@ -119,7 +119,6 @@ vim.keymap.set("n", "<leader>at", "<cmd>Aero todos<CR>", { desc = "Focus agent t
 | `<CR>` on an option / `1`–`9` | Answer pending permission |
 | `p` | Jump to pending permission |
 | `gY` | Toggle auto yes for this conversation |
-| `<C-g>` | Toggle the input panel, keeping the draft |
 | `<C-c>` | Cancel the turn and pending request |
 | `]]` / `[[` | Jump to the next / previous prompt turn |
 | `za` / `zo` / `zc` | Toggle / open / close the current turn or tool section |
@@ -160,7 +159,6 @@ Your terminal must send Ctrl-Enter as a distinct key (for example, using Kitty's
 | `<Tab>` / `<S-Tab>` | Next / previous suggestion when `acp.tab_completion = true` |
 | `@` (insert mode) | Show inline fuzzy suggestions for worktree files and folders |
 | `q` | Close in normal mode |
-| `<C-g>` | Toggle the input panel in normal or insert mode, keeping the draft |
 | `<C-c>` | Cancel the turn |
 
 Slash-command suggestions appear automatically as you type `/`, including agent-provided
