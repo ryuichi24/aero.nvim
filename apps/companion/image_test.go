@@ -13,24 +13,30 @@ import (
 func TestScreenshotImages(t *testing.T) {
 	root, outside, reports := t.TempDir(), t.TempDir(), t.TempDir()
 	png := []byte("\x89PNG\r\n\x1a\nimage fixture")
+
 	external := filepath.Join(outside, "shot.png")
 	for _, name := range []string{filepath.Join(root, "shot.png"), external, filepath.Join(reports, "report.png")} {
-		if err := os.WriteFile(name, png, 0600); err != nil {
+		if err := os.WriteFile(name, png, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	if err := os.Symlink(external, filepath.Join(root, "escape.png")); err != nil {
 		t.Fatal(err)
 	}
+
 	data, _ := json.Marshal(map[string]any{"worktrees": []any{map[string]string{"path": root, "reports_directory": reports}}, "sessions": []any{map[string]any{"id": "one", "worktree": root, "blocks": []any{map[string]string{"text": "[Screenshot](" + external + ")"}}}}})
 	c := newClient(t, hostFunc(func(context.Context, string, any) (hostResponse, error) { return hostResponse{Result: data}, nil }))
 	check := func(name string, status int) {
 		t.Helper()
+
 		response := c.request("GET", "/api/image?"+url.Values{"session": {"one"}, "path": {name}}.Encode(), nil, "")
 		defer response.Body.Close()
+
 		if response.StatusCode != status {
 			t.Fatalf("%s: status %d, want %d", name, response.StatusCode, status)
 		}
+
 		if status == 200 {
 			body, _ := io.ReadAll(response.Body)
 			if string(body) != string(png) || response.Header.Get("Content-Type") != "image/png" {

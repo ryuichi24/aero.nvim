@@ -53,26 +53,31 @@ func randomToken(size int) string {
 	if _, err := rand.Read(bytes); err != nil {
 		panic("cryptographic randomness unavailable")
 	}
+
 	return base64.RawURLEncoding.EncodeToString(bytes)
 }
 
 func newState(h host, origin string) *state {
 	s := &state{host: h, origin: origin, devices: make(map[[32]byte]device), epoch: randomToken(24)}
 	s.newPairingCode()
+
 	return s
 }
 
 func (s *state) newPairingCode() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	number, err := rand.Int(rand.Reader, big.NewInt(1000000))
 	if err != nil {
 		panic("cryptographic randomness unavailable")
 	}
+
 	s.code = fmt.Sprintf("%06d", number.Int64())
 	s.codeExpires = time.Now().Add(5 * time.Minute)
 	s.attempts = 0
 	s.pairingRevision++
+
 	return s.code
 }
 
@@ -81,53 +86,67 @@ var errPairingDenied = errors.New("pairing code invalid, expired, or consumed")
 func (s *state) pair(code, name string) (string, device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.attempts++
+
 	supplied, expected := sha256.Sum256([]byte(code)), sha256.Sum256([]byte(s.code))
 	if len(code) != 6 || s.attempts > 20 || !time.Now().Before(s.codeExpires) || subtle.ConstantTimeCompare(supplied[:], expected[:]) != 1 {
 		return "", device{}, errPairingDenied
 	}
+
 	token := randomToken(32)
+
 	nameRunes := []rune(name)
 	if len(nameRunes) > 80 {
 		nameRunes = nameRunes[:80]
 	}
+
 	d := device{ID: randomToken(12), Name: string(nameRunes)}
 	next := s.copyDevices()
 	next[sha256.Sum256([]byte(token))] = d
+
 	if s.store != nil {
 		if err := s.store.save(next); err != nil {
 			return "", device{}, err
 		}
 	}
+
 	s.devices = next
 	s.codeExpires = time.Time{}
 	s.pairingRevision++
+
 	return token, d, nil
 }
 
 func (s *state) authenticate(token string) (device, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	d, ok := s.devices[sha256.Sum256([]byte(token))]
+
 	return d, ok
 }
 
 func (s *state) revoke(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	next := s.copyDevices()
 	for hash, d := range next {
 		if d.ID == id {
 			delete(next, hash)
 		}
 	}
+
 	if s.store != nil {
 		if err := s.store.save(next); err != nil {
 			return err
 		}
 	}
+
 	s.devices = next
 	s.pairingRevision++
+
 	return nil
 }
 
@@ -136,6 +155,7 @@ func (s *state) copyDevices() map[[32]byte]device {
 	for hash, d := range s.devices {
 		next[hash] = d
 	}
+
 	return next
 }
 
@@ -144,7 +164,9 @@ func (s *state) rememberDevices(path string) error {
 	if err != nil {
 		return err
 	}
+
 	s.store, s.devices = store, devices
+
 	return nil
 }
 
@@ -159,24 +181,31 @@ type pairingInfo struct {
 func (s *state) pairingInfo() pairingInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	info := pairingInfo{Revision: s.pairingRevision, Origin: s.origin, Devices: make([]device, 0, len(s.devices))}
 	if time.Now().Before(s.codeExpires) && s.attempts < 20 {
 		info.Code, info.ExpiresAt = s.code, s.codeExpires.Unix()
 	}
+
 	for _, d := range s.devices {
 		info.Devices = append(info.Devices, d)
 	}
+
 	sort.Slice(info.Devices, func(i, j int) bool { return info.Devices[i].ID < info.Devices[j].ID })
+
 	return info
 }
 
 func (s *state) listDevices() []device {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	result := make([]device, 0, len(s.devices))
 	for _, d := range s.devices {
 		result = append(result, d)
 	}
+
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+
 	return result
 }

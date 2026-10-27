@@ -29,6 +29,7 @@ func newBridge(h host, origin string) *bridge {
 	if err != nil {
 		panic("embedded UI missing")
 	}
+
 	return &bridge{state: newState(h, origin), ui: ui, pollInterval: 500 * time.Millisecond}
 }
 
@@ -48,16 +49,19 @@ func (b *bridge) protected(w http.ResponseWriter, r *http.Request) bool {
 		reject(w, http.StatusForbidden, "invalid host")
 		return false
 	}
+
 	origin := r.Header.Get("Origin")
 	if (r.Method == http.MethodPost && origin != b.state.origin) || (origin != "" && origin != b.state.origin) {
 		reject(w, http.StatusForbidden, "invalid origin")
 		return false
 	}
+
 	site := r.Header.Get("Sec-Fetch-Site")
 	if site != "" && site != "same-origin" && site != "none" {
 		reject(w, http.StatusForbidden, "cross-origin request rejected")
 		return false
 	}
+
 	return true
 }
 
@@ -69,7 +73,9 @@ func (b *bridge) authenticate(w http.ResponseWriter, r *http.Request) (device, s
 			return d, cookie.Value, true
 		}
 	}
+
 	reject(w, http.StatusUnauthorized, "pairing required or device revoked")
+
 	return device{}, "", false
 }
 
@@ -80,30 +86,38 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Mermaid SVGs include generated styles and presentation style attributes.
 	// Source folding compiles Tree-sitter WASM in a worker, which inherits this policy.
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+
 	if !b.protected(w, r) {
 		return
 	}
+
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		w.Header().Set("Allow", "GET, POST")
 		reject(w, http.StatusMethodNotAllowed, "unsupported method")
+
 		return
 	}
+
 	if r.Method == http.MethodGet && !strings.HasPrefix(r.URL.Path, "/api/") {
 		b.static(w, r)
 		return
 	}
+
 	if r.URL.RawQuery != "" && !(r.Method == http.MethodGet && (r.URL.Path == "/api/image" || r.URL.Path == "/api/video")) {
 		reject(w, http.StatusBadRequest, "query parameters are unsupported")
 		return
 	}
+
 	if r.Method == http.MethodPost && r.URL.Path == "/api/pair" {
 		b.pair(w, r)
 		return
 	}
+
 	d, token, ok := b.authenticate(w, r)
 	if !ok {
 		return
 	}
+
 	if r.Method == http.MethodGet {
 		switch r.URL.Path {
 		case "/api/image":
@@ -117,32 +131,41 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			reject(w, http.StatusNotFound, "unknown route")
 		}
+
 		return
 	}
+
 	if r.URL.Path == "/api/revoke" {
 		var body map[string]json.RawMessage
 		if !decodeBody(w, r, &body) {
 			return
 		}
+
 		if err := b.state.revoke(d.ID); err != nil {
 			reject(w, http.StatusServiceUnavailable, "could not persist device revocation")
 			return
 		}
+
 		http.SetCookie(w, b.cookie("", -1))
 		reply(w, http.StatusOK, map[string]string{"status": "revoked"})
+
 		if b.onChange != nil {
 			b.onChange("devices")
 		}
+
 		return
 	}
+
 	if r.URL.Path == "/api/git/status" || r.URL.Path == "/api/git/diff" {
 		b.git(w, r)
 		return
 	}
+
 	if r.URL.Path == "/api/source" || r.URL.Path == "/api/reports" || r.URL.Path == "/api/reference" {
 		b.source(w, r)
 		return
 	}
+
 	if r.URL.Path == "/api/reference_browse" || r.URL.Path == "/api/prompt_snippets" {
 		var input struct {
 			Epoch        string `json:"epoch"`
@@ -155,32 +178,42 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decodeBody(w, r, &input) {
 			return
 		}
+
 		method := "reference_browse"
+
 		if r.URL.Path == "/api/prompt_snippets" {
 			method = "prompt_snippets"
 		}
+
 		response, err := b.state.host.Call(r.Context(), method, input)
 		if err != nil {
 			reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
 			return
 		}
+
 		if response.Error != "" {
 			reject(w, http.StatusBadRequest, response.Error)
 			return
 		}
+
 		reply(w, http.StatusOK, response.Result)
+
 		return
 	}
+
 	method := map[string]string{"/api/prompt": "prompt", "/api/cancel": "cancel", "/api/permission": "permission"}[r.URL.Path]
+
 	for _, lifecycle := range []string{"reference_update", "reference_cancel", "session_assign_board", "session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		if r.URL.Path == "/api/"+lifecycle {
 			method = lifecycle
 		}
 	}
+
 	if method == "" {
 		reject(w, http.StatusNotFound, "unknown route")
 		return
 	}
+
 	var action struct {
 		OperationID     string  `json:"operation_id"`
 		Session         string  `json:"session"`
@@ -209,6 +242,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &action) {
 		return
 	}
+
 	if len(action.OperationID) < 16 || len(action.OperationID) > 128 {
 		reject(w, http.StatusBadRequest, "operation_id required (16-128 characters)")
 		return
@@ -219,6 +253,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reject(w, http.StatusBadRequest, "action exceeds the host protocol limit")
 		return
 	}
+
 	response, err := b.state.host.Call(r.Context(), method, action)
 	defer b.state.invalidateSnapshot()
 	// ACP assignments and reference transfers finish asynchronously; observe the
@@ -232,28 +267,35 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(response.Result, &receipt) != nil || receipt.Status != "unknown" {
 				break
 			}
+
 			select {
 			case <-r.Context().Done():
 				err = r.Context().Err()
 			case <-time.After(50 * time.Millisecond):
 				response, err = b.state.host.Call(r.Context(), method, action)
 			}
+
 			if err != nil {
 				break
 			}
 		}
 	}
+
 	if err != nil {
 		reject(w, http.StatusServiceUnavailable, "Neovim disconnected; outcome unknown. Retry the identical operation.")
 		return
 	}
+
 	status := http.StatusOK
+
 	if response.Error != "" {
 		status = http.StatusConflict
+
 		if strings.Contains(response.Error, "outcome unknown") {
 			status = http.StatusServiceUnavailable
 		}
 	}
+
 	reply(w, status, response)
 }
 
@@ -263,6 +305,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 		reject(w, http.StatusBadRequest, "invalid JSON body")
 		return false
 	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequest)
 	// A null body must not silently decode to a zero-value action or revocation.
 	raw, err := io.ReadAll(r.Body)
@@ -270,16 +313,20 @@ func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 		reject(w, http.StatusBadRequest, "invalid JSON body")
 		return false
 	}
+
 	decoder := json.NewDecoder(strings.NewReader(string(raw)))
 	decoder.DisallowUnknownFields()
+
 	if err := decoder.Decode(target); err != nil {
 		reject(w, http.StatusBadRequest, "invalid JSON body")
 		return false
 	}
+
 	if decoder.Decode(new(any)) != io.EOF {
 		reject(w, http.StatusBadRequest, "invalid JSON body")
 		return false
 	}
+
 	return true
 }
 

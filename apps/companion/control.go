@@ -16,6 +16,7 @@ type controlOutput struct {
 func (c *controlOutput) send(event string, info pairingInfo, message string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	_ = json.NewEncoder(c.output).Encode(struct {
 		Event string `json:"event"`
 		pairingInfo
@@ -26,6 +27,7 @@ func (c *controlOutput) send(event string, info pairingInfo, message string) {
 func controlConsole(b *bridge, input io.Reader, output *controlOutput, shutdown func()) {
 	scanner := bufio.NewScanner(input)
 	scanner.Buffer(make([]byte, 4096), 65536)
+
 	for scanner.Scan() {
 		var command struct {
 			Method string `json:"method"`
@@ -35,6 +37,7 @@ func controlConsole(b *bridge, input io.Reader, output *controlOutput, shutdown 
 			output.send("error", pairingInfo{}, "invalid companion control request")
 			continue
 		}
+
 		switch command.Method {
 		case "pair":
 			b.state.newPairingCode()
@@ -46,6 +49,7 @@ func controlConsole(b *bridge, input io.Reader, output *controlOutput, shutdown 
 				output.send("error", pairingInfo{}, "device ID required")
 				continue
 			}
+
 			if err := b.state.revoke(command.Device); err != nil {
 				output.send("error", pairingInfo{}, "could not persist device revocation")
 			} else {

@@ -27,127 +27,158 @@ func (b *bridge) source(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &input) {
 		return
 	}
+
 	snapshot := b.state.cachedSnapshot(r.Context(), b.pollInterval)
 	if string(snapshot["connected"]) != "true" {
 		reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
 		return
 	}
+
 	var trees []struct {
 		Path               string `json:"path"`
 		ReportsDirectory   string `json:"reports_directory"`
 		ReferenceDirectory string `json:"reference_directory"`
 	}
+
 	_ = json.Unmarshal(snapshot["worktrees"], &trees)
 	allowed := false
 	reports := r.URL.Path == "/api/reports"
 	reference := r.URL.Path == "/api/reference"
 	directory := input.Worktree
+
 	for _, tree := range trees {
 		if tree.Path == input.Worktree {
 			allowed = true
+
 			if reports {
 				directory = tree.ReportsDirectory
 			} else if reference {
 				directory = tree.ReferenceDirectory
 			}
+
 			break
 		}
 	}
+
 	if !allowed {
 		reject(w, http.StatusForbidden, "worktree unavailable")
 		return
 	}
+
 	if reference && directory == "" {
 		reject(w, http.StatusNotFound, "reference unavailable")
 		return
 	}
+
 	name := input.Path
 	if name == "" {
 		name = "."
 	}
+
 	if !filepath.IsLocal(name) {
 		reject(w, http.StatusBadRequest, "invalid source path")
 		return
 	}
+
 	if reports && (directory == "" || (name != "." && (filepath.Base(name) != name || !strings.HasSuffix(name, ".md")))) {
 		reject(w, http.StatusBadRequest, "invalid report path")
 		return
 	}
+
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		if (reports || reference) && name == "." && os.IsNotExist(err) {
 			reply(w, http.StatusOK, map[string]any{"entries": []sourceEntry{}})
 			return
 		}
+
 		reject(w, http.StatusNotFound, "worktree unavailable")
+
 		return
 	}
 	defer root.Close()
+
 	stat, err := root.Stat(name)
 	if err != nil {
 		reject(w, http.StatusNotFound, "source path unavailable")
 		return
 	}
+
 	if !stat.IsDir() && !stat.Mode().IsRegular() {
 		reject(w, http.StatusBadRequest, "not a regular source file")
 		return
 	}
+
 	file, err := root.Open(name)
 	if err != nil {
 		reject(w, http.StatusNotFound, "source path unavailable")
 		return
 	}
 	defer file.Close()
+
 	info, err := file.Stat()
 	if err != nil {
 		reject(w, http.StatusNotFound, "source path unavailable")
 		return
 	}
+
 	if info.IsDir() {
 		items, err := file.ReadDir(-1)
 		if err != nil {
 			reject(w, http.StatusNotFound, "directory unavailable")
 			return
 		}
+
 		entries := make([]sourceEntry, 0, len(items))
 		for _, item := range items {
 			if reports && (!item.Type().IsRegular() || !strings.HasSuffix(item.Name(), ".md")) {
 				continue
 			}
+
 			if item.Name() == ".git" && !reference {
 				continue
 			}
+
 			stat, err := root.Stat(filepath.Join(name, item.Name()))
 			if err != nil || (!stat.IsDir() && !stat.Mode().IsRegular()) {
 				continue
 			}
+
 			entries = append(entries, sourceEntry{item.Name(), stat.IsDir()})
 		}
+
 		sort.Slice(entries, func(i, j int) bool {
 			if entries[i].Directory != entries[j].Directory {
 				return entries[i].Directory
 			}
+
 			return entries[i].Name < entries[j].Name
 		})
 		reply(w, http.StatusOK, map[string]any{"entries": entries})
+
 		return
 	}
+
 	if !info.Mode().IsRegular() {
 		reject(w, http.StatusBadRequest, "not a regular source file")
 		return
 	}
+
 	data, err := io.ReadAll(io.LimitReader(file, maxSourceSize+1))
 	if err != nil {
 		reject(w, http.StatusNotFound, "file unavailable")
 		return
 	}
+
 	if len(data) > maxSourceSize {
 		reject(w, http.StatusBadRequest, "file exceeds the 2 MiB reading limit")
 		return
 	}
+
 	if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
 		reject(w, http.StatusBadRequest, "binary files cannot be displayed")
 		return
 	}
+
 	reply(w, http.StatusOK, map[string]string{"content": string(data)})
 }

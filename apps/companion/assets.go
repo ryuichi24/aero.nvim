@@ -19,19 +19,23 @@ func (b *bridge) static(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "index.html"
 	}
+
 	if !fs.ValidPath(name) || (name != "index.html" && name != "manifest.webmanifest" && !strings.HasPrefix(name, "assets/")) {
 		reject(w, http.StatusNotFound, "unknown route")
 		return
 	}
+
 	data, err := fs.ReadFile(b.ui, name)
 	if err != nil {
 		reject(w, http.StatusNotFound, "unknown route")
 		return
 	}
+
 	typeName := mime.TypeByExtension(path.Ext(name))
 	if name == "manifest.webmanifest" {
 		typeName = "application/manifest+json"
 	}
+
 	w.Header().Set("Content-Type", typeName)
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)

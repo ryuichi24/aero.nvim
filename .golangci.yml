@@ -1,0 +1,21 @@
+version: "2"
+
+formatters:
+  enable:
+    - gofumpt
+  exclusions:
+    generated: strict
+
+linters:
+  default: none
+  enable:
+    - wsl_v5
+  settings:
+    wsl_v5:
+      allow-first-in-block: false
+  exclusions:
+    generated: strict
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
