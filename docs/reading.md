@@ -122,6 +122,18 @@ require("aero").setup({
 You can still open it with `K`, `:Aero reading note`, or `:Aero reading note-toggle`.
 Placement is applied when the explanation window opens; close and reopen it after changing this option. The right-side pane shares available width with the reader, and the agent panel yields space for both on narrower screens.
 
+Explanation windows start with all folds open by default, including Markdown headings. This only changes the explanation window's fold level; other windows keep their folding settings. To preserve your normal folding defaults instead:
+
+```lua
+require("aero").setup({
+  reading = {
+    explanation = { unfold = false }, -- default: true
+  },
+})
+```
+
+The `unfold` option is applied when the explanation window opens. You can still fold headings manually afterward.
+
 The explanation pane supports the shared Aero resize controls. Focus it and use `<C-w>k` / `<C-w>j` to grow/shrink its height, or `<C-w>h` / `<C-w>l` to narrow/widen it. Then repeat with `h`, `j`, `k`, or `l`; any other key exits resize mode. These shortcuts follow your `resize` configuration.
 The reading-list quickfix pane supports the same controls: focus it and use `<C-w>k` / `<C-w>j` to adjust its height, then repeat with `k` / `j`. Width resizing depends on the surrounding split layout.
 - `:Aero reading next`: jump to the next unread stop, wrapping at the end.

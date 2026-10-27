@@ -53,6 +53,20 @@ assert(type(vim.fn.maparg("x", "n", false, true).callback) == "function", "read-
 assert(type(vim.fn.maparg("K", "n", false, true).callback) == "function", "explanation mapping is preserved")
 local note_win = vim.t.aero_reading_note_win
 assert(vim.api.nvim_win_is_valid(note_win), "opening a list shows its explanation pane")
+assert(vim.wo[note_win].foldlevel == 99, "explanations start fully unfolded by default")
+local source_foldlevel = vim.wo[source_win].foldlevel
+local config = require("aero.config")
+vim.api.nvim_win_close(note_win, true)
+config.options.reading.explanation.unfold = false
+reading.command("note", root)
+note_win = vim.t.aero_reading_note_win
+assert(vim.wo[note_win].foldlevel == source_foldlevel, "unfold=false preserves inherited folding defaults")
+vim.api.nvim_win_close(note_win, true)
+config.options.reading.explanation.unfold = true
+reading.command("note", root)
+note_win = vim.t.aero_reading_note_win
+assert(vim.wo[note_win].foldlevel == 99)
+assert(vim.wo[source_win].foldlevel == source_foldlevel, "explanation folding must not affect the source")
 local note_buf = vim.api.nvim_win_get_buf(note_win)
 local function note_text()
 	return table.concat(vim.api.nvim_buf_get_lines(note_buf, 0, -1, false), "\n")

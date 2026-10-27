@@ -100,7 +100,7 @@ M.defaults = {
 		prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
 	},
 	reading = {
-		explanation = { auto_open = true, position = "right" }, -- position: "below" or "right"
+		explanation = { auto_open = true, position = "right", unfold = true }, -- position: "below" or "right"
 		-- {title} becomes the JSON-quoted list title in the /reading draft.
 		prompt = "Create a new reading list titled {title} for this walkthrough. Use aero_reading_list_publish, omitting the list id to create a separate list. Trace the relevant code from its entry point to the outcome in execution or data-flow order. Verify source paths and line numbers, and include a short label and a self-contained Markdown note for each stop. Explain what each relevant code block does, why it matters, and how it connects to the next stop. Include short, source-grounded code snippets in fenced blocks with language tags, and explain the syntax and language constructs used in each snippet, including operators, idioms, and non-obvious expressions. Do not assume the reader already knows the language syntax; provide these explanations up front so they do not need to ask while reading. Keep snippets focused on the code being explained rather than copying entire functions unnecessarily.",
 		agent = { enabled = false, executable = false }, -- ACP reading-list tool; uses aero-mcp

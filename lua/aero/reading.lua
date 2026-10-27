@@ -351,6 +351,9 @@ refresh_note = function(open)
 		vim.wo[win].linebreak = true
 		vim.wo[win].number = false
 		vim.wo[win].relativenumber = false
+		if require("aero.config").options.reading.explanation.unfold then
+			vim.wo[win].foldlevel = 99
+		end
 		-- Let side-by-side reader panes share width when the agent panel opens.
 		vim.wo[win].winfixwidth = false
 		vim.wo[win].winfixheight = not right
