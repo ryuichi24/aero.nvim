@@ -53,7 +53,7 @@ function M.open(chat, opts)
 			if win == -1 or not api.nvim_win_is_valid(win) then
 				win = require("aero.session").prepare_win(api.nvim_get_current_win())
 			end
-			api.nvim_win_set_buf(win, chat.buf)
+			require("aero.layout").set_buf(win, chat.buf)
 			api.nvim_set_current_win(win)
 			chat:goto_block(item.block)
 		end,

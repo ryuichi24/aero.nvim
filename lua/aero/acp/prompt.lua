@@ -245,7 +245,7 @@ function M.compose(chat)
 		end
 		local layout = require("aero.layout")
 		vim.cmd(("belowright %dsplit"):format(layout.prompt_height(chat.s.key)))
-		api.nvim_win_set_buf(0, buf)
+		require("aero.layout").set_buf(0, buf)
 		if vim.bo[buf].filetype == "" then
 			vim.bo[buf].filetype = "markdown"
 		end

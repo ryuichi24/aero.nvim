@@ -53,7 +53,7 @@ function M.close(kind)
 end
 
 local function copy_window(source, target)
-	api.nvim_win_set_buf(target, api.nvim_win_get_buf(source))
+	require("aero.layout").set_buf(target, api.nvim_win_get_buf(source))
 	for name, info in pairs(api.nvim_get_all_options_info()) do
 		if info.scope == "win" then
 			local value = api.nvim_get_option_value(name, { win = source, scope = "local" })

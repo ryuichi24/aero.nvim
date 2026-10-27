@@ -84,7 +84,7 @@ function M.select(entry)
 	end
 	-- Show the existing transcript, including exited agents, without starting/resuming.
 	win = require("aero.session").prepare_win(win)
-	api.nvim_win_set_buf(win, chat.buf)
+	require("aero.layout").set_buf(win, chat.buf)
 	if panel.enabled() then
 		panel.shown(s)
 	end

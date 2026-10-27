@@ -11,10 +11,14 @@ local api = vim.api
 local bufs = {}
 
 --- The worktree the current tab works on.
-function M.current_worktree() return vim.t.aero_worktree or vim.fn.getcwd() end
+function M.current_worktree()
+	return vim.t.aero_worktree or vim.fn.getcwd()
+end
 
 local function alive(buf)
-	if not (buf and api.nvim_buf_is_valid(buf)) then return false end
+	if not (buf and api.nvim_buf_is_valid(buf)) then
+		return false
+	end
 	local job = vim.b[buf].terminal_job_id
 	return job ~= nil and vim.fn.jobwait({ job }, 0)[1] == -1
 end
@@ -22,11 +26,15 @@ end
 --- This tab's terminal window, if one is shown.
 function M.win()
 	for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do
-		if vim.b[api.nvim_win_get_buf(w)].aero_term then return w end
+		if vim.b[api.nvim_win_get_buf(w)].aero_term then
+			return w
+		end
 	end
 end
 
-function M.is_term_win(win) return vim.b[api.nvim_win_get_buf(win)].aero_term ~= nil end
+function M.is_term_win(win)
+	return vim.b[api.nvim_win_get_buf(win)].aero_term ~= nil
+end
 
 --- Show the worktree's terminal below `code_win` (starting a shell if needed) and focus it.
 function M.open(worktree, code_win)
@@ -39,13 +47,15 @@ function M.open(worktree, code_win)
 	end
 	local fresh = not alive(buf)
 	if fresh then
-		if buf and api.nvim_buf_is_valid(buf) then api.nvim_buf_delete(buf, { force = true }) end
+		if buf and api.nvim_buf_is_valid(buf) then
+			api.nvim_buf_delete(buf, { force = true })
+		end
 		buf = api.nvim_create_buf(false, true)
 		bufs[worktree] = buf
 	end
 	if win then
 		-- another worktree's terminal is showing: reuse its window
-		api.nvim_win_set_buf(win, buf)
+		require("aero.layout").set_buf(win, buf)
 	else
 		win = api.nvim_open_win(
 			buf,
@@ -74,7 +84,9 @@ end
 
 --- Hide the terminal window in this tab (the shell keeps running).
 function M.hide()
-	if require("aero.fullscreen").close("terminal") then return end
+	if require("aero.fullscreen").close("terminal") then
+		return
+	end
 	local win = M.win()
 	if win and #api.nvim_tabpage_list_wins(0) > 1 then
 		layout.remember(win)
@@ -90,7 +102,9 @@ function M.delete(worktree)
 	require("aero.terminal_history").delete(worktree)
 	local buf = bufs[worktree]
 	bufs[worktree] = nil
-	if buf and api.nvim_buf_is_valid(buf) then api.nvim_buf_delete(buf, { force = true }) end
+	if buf and api.nvim_buf_is_valid(buf) then
+		api.nvim_buf_delete(buf, { force = true })
+	end
 end
 
 --- Pick a command to copy or paste into this worktree's terminal without submitting it.
@@ -125,19 +139,23 @@ function M.history()
 	picker.open({
 		title = "term history",
 		width = math.floor(vim.o.columns * 0.9),
-		items = function() return items end,
+		items = function()
+			return items
+		end,
 		preview_title = " Full command · Ctrl-d/u: scroll ",
 		preview = function(entry)
 			return table.concat({
 				"Directory: " .. (entry.cwd or "unknown directory"),
 				"Started: "
 					.. (
-						entry.started_at and os.date("%Y-%m-%d %H:%M:%S", math.floor(entry.started_at)) or "unknown time"
+						entry.started_at and os.date("%Y-%m-%d %H:%M:%S", math.floor(entry.started_at))
+						or "unknown time"
 					),
 				"Exit code: " .. (entry.exit_code == nil and "unfinished/unknown" or tostring(entry.exit_code)),
 				"Duration: "
 					.. (
-						entry.duration_seconds and string.format("%.2fs", entry.duration_seconds) or "unfinished/unknown"
+						entry.duration_seconds and string.format("%.2fs", entry.duration_seconds)
+						or "unfinished/unknown"
 					),
 				"",
 				entry.command,
@@ -165,9 +183,13 @@ function M.history()
 				duration
 			)
 		end,
-		select = function(entry) paste(entry, false) end,
+		select = function(entry)
+			paste(entry, false)
+		end,
 		actions = {
-			r = function(entry) paste(entry, true) end,
+			r = function(entry)
+				paste(entry, true)
+			end,
 			y = function(entry)
 				picker.close()
 				vim.fn.setreg("+", entry.command)

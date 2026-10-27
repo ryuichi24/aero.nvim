@@ -239,7 +239,7 @@ function M.start(s, win, resume, session_id, opts)
 	local old = s.buf
 	local buf = vim.api.nvim_create_buf(true, false)
 	if win then
-		vim.api.nvim_win_set_buf(win, buf)
+		require("aero.layout").set_buf(win, buf)
 	end
 	local function cleanup_old()
 		if old and old ~= buf and vim.api.nvim_buf_is_valid(old) then
@@ -456,7 +456,7 @@ function M.show(s, win, reuse)
 			return visible
 		end
 		win = M.prepare_win(win)
-		vim.api.nvim_win_set_buf(win, s.buf)
+		require("aero.layout").set_buf(win, s.buf)
 		events.emit("session_shown", events.session(s, { win = win }))
 		return win
 	end

@@ -43,6 +43,27 @@ assert(vim.t.aero_worktree == repo, "opening the session did not enter its workt
 assert(sidebar_open(), "opening a stopped session hid the sidebar")
 assert(require("aero.panel").current_session() == stopped, "the selected session was not shown")
 
+-- Native quickfix navigation from a real agent terminal must reuse the editor,
+-- including when the previously focused window was the quickfix list.
+local agent_win = assert(require("aero.panel").win())
+local agent_buf = api.nvim_win_get_buf(agent_win)
+local editor = require("aero.navigation").code_window()
+api.nvim_set_current_win(editor)
+local first, second = api.nvim_create_buf(true, false), api.nvim_create_buf(true, false)
+vim.fn.setqflist({ { bufnr = first, lnum = 1 }, { bufnr = second, lnum = 1 } })
+vim.cmd.copen()
+local count = #api.nvim_tabpage_list_wins(0)
+api.nvim_set_current_win(agent_win)
+vim.cmd.cnext()
+assert(api.nvim_get_current_win() == editor and api.nvim_get_current_buf() == second)
+api.nvim_set_current_win(vim.fn.getqflist({ winid = 0 }).winid)
+api.nvim_set_current_win(agent_win)
+vim.cmd.cprevious()
+assert(api.nvim_get_current_win() == editor and api.nvim_get_current_buf() == first)
+assert(api.nvim_win_get_buf(agent_win) == agent_buf, "quickfix replaced the agent terminal")
+assert(#api.nvim_tabpage_list_wins(0) == count, "quickfix duplicated an agent window")
+vim.cmd.cclose()
+
 -- Session navigation from a hidden sidebar must keep it hidden.
 aero.close()
 vim.cmd("tabprevious")

@@ -154,8 +154,24 @@ function M.remember(win, manual)
 	end
 end
 
+--- Replace a pane's buffer intentionally while retaining native jump protection.
+function M.set_buf(win, buf)
+	win = win == 0 and api.nvim_get_current_win() or win
+	local fixed = vim.wo[win].winfixbuf
+	vim.wo[win].winfixbuf = false
+	local ok, err = pcall(api.nvim_win_set_buf, win, buf)
+	if api.nvim_win_is_valid(win) then
+		vim.wo[win].winfixbuf = fixed
+	end
+	if not ok then
+		error(err, 0)
+	end
+end
+
 function M.track(win, kind, key, preferred_width)
 	windows[win] = { kind = kind, key = key }
+	-- Native quickfix jumps must find an editor instead of replacing an agent pane.
+	vim.wo[win].winfixbuf = true
 	if preferred_width then
 		local state = tab_state(api.nvim_win_get_tabpage(win))
 		if kind == "dashboard" then
@@ -433,6 +449,33 @@ local function bind_current()
 	end
 end
 
+local function quickfix_target()
+	local pane = api.nvim_get_current_win()
+	if not vim.wo[pane].winfixbuf or code_window(pane) then
+		return
+	end
+	local function usable(win)
+		return win
+			and api.nvim_win_is_valid(win)
+			and code_window(win)
+			and not vim.wo[win].winfixbuf
+			and vim.bo[api.nvim_win_get_buf(win)].buftype == ""
+	end
+	local previous = vim.fn.win_getid(vim.fn.winnr("#"))
+	if usable(previous) then
+		return
+	end
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		if usable(win) then
+			-- :cnext/:cprevious only try prevwin before splitting a fixed window.
+			-- Keep that fallback on an editor even after visiting quickfix or a composer.
+			vim.cmd("noautocmd call win_gotoid(" .. win .. ")")
+			vim.cmd("noautocmd call win_gotoid(" .. pane .. ")")
+			return
+		end
+	end
+end
+
 function M.setup()
 	stop_resize()
 	local old = {}
@@ -474,7 +517,10 @@ api.nvim_create_autocmd({ "WinNew", "WinClosed", "VimResized", "TabEnter", "Cmdw
 })
 api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 	group = group,
-	callback = bind_current,
+	callback = function()
+		bind_current()
+		quickfix_target()
+	end,
 })
 api.nvim_create_autocmd("BufWipeout", {
 	group = group,

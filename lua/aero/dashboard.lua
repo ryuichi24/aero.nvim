@@ -412,7 +412,7 @@ function M.open(focus_worktree)
 	local width = require("aero.layout").dashboard_width()
 	if pos == "current" then
 		state.win = cur
-		api.nvim_win_set_buf(cur, buf)
+		require("aero.layout").set_buf(cur, buf)
 	else
 		state.target = cur
 		state.win = api.nvim_open_win(buf, true, {
@@ -481,7 +481,7 @@ function M.close()
 			return vim.fn.bufnr("#")
 		end)
 		if alt > 0 and alt ~= state.buf and api.nvim_buf_is_valid(alt) then
-			api.nvim_win_set_buf(state.win, alt)
+			require("aero.layout").set_buf(state.win, alt)
 		else
 			return
 		end
