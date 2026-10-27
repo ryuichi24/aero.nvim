@@ -9,9 +9,10 @@ import zlib
 parser = argparse.ArgumentParser()
 parser.add_argument("-i")
 parser.add_argument("-o")
+parser.add_argument("--delay", type=float, default=0.08)
 args, _ = parser.parse_known_args()
 source = Path(args.i).read_text()
-time.sleep(0.08)
+time.sleep(args.delay)
 if "INVALID" in source:
     print("Parse error: invalid diagram", file=sys.stderr)
     sys.exit(1)
