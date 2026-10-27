@@ -44,12 +44,13 @@ export function ImageLink({
   const label = media === 'video' ? 'Recording' : 'Screenshot';
   useEffect(() => {
     if (!open) return;
+    const origin = trigger.current;
     close.current?.focus();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = overflow;
-      trigger.current?.focus();
+      origin?.focus();
     };
   }, [open]);
   return (

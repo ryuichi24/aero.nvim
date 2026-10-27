@@ -132,6 +132,8 @@ export function SourceBrowser({
     return () => {
       dialog.close();
       document.body.style.overflow = overflow;
+      // The toolbar remounts when fullscreen closes; focus its current button.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       fullscreenButton.current?.focus();
     };
   }, [fullscreen]);

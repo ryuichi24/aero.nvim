@@ -17,6 +17,7 @@ export function Mermaid({ source }: { source: string }) {
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!fullscreen) return;
+    const origin = trigger.current;
     const modal = dialog.current!;
     const overflow = document.body.style.overflow;
     modal.showModal();
@@ -24,7 +25,7 @@ export function Mermaid({ source }: { source: string }) {
     return () => {
       modal.close();
       document.body.style.overflow = overflow;
-      trigger.current?.focus();
+      origin?.focus();
     };
   }, [fullscreen]);
 

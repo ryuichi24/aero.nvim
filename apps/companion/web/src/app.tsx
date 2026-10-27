@@ -23,7 +23,6 @@ import { AttentionPanel } from './attention/attention-panel';
 import { SessionBrowser } from './session-browser';
 import { CompanionHome } from './companion-home';
 import { NavigationIcon } from './navigation-icon';
-import type { View } from './companion-state';
 import { useDisplayPreferences, useWorkspacePreferences } from './preferences/use-preferences';
 import { WorkspaceReview } from './workspace-review';
 import { CancelReferenceTransfer } from './reference-browser';
@@ -115,7 +114,7 @@ function Companion() {
       !snapshot.workspaces.some((workspace) => workspace.root === workspaceScope)
     )
       setWorkspaceScope('');
-  }, [snapshot, workspaceScope]);
+  }, [snapshot, workspaceScope, setWorkspaceScope]);
   const workspaceView =
     view === 'reports' || view === 'source' || view === 'git' || view === 'reference';
   const scopedSnapshot = scopeSnapshot(snapshot, workspaceScope);
@@ -263,7 +262,8 @@ function Companion() {
                 setAttentionHost(
                   event.currentTarget.closest<HTMLElement>('dialog, .image-preview'),
                 );
-                attentionOpen ? closeAttention() : setAttentionOpen(true);
+                if (attentionOpen) closeAttention();
+                else setAttentionOpen(true);
               }}
             >
               Attention{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
@@ -297,7 +297,8 @@ function Companion() {
                 attentionOrigin.current = attentionButton.current;
                 setAttentionHost(null);
                 if (deviceMenu.current) deviceMenu.current.open = false;
-                attentionOpen ? closeAttention() : setAttentionOpen(true);
+                if (attentionOpen) closeAttention();
+                else setAttentionOpen(true);
               }}
             >
               Attention{attentionEntries.length ? ` (${attentionEntries.length})` : ''}

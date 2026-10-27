@@ -26,6 +26,7 @@ export function useComposerViewport({
     }
     if (!inline.current) return;
     const host = inline.current;
+    const modal = dialog.current;
     const viewport = window.visualViewport;
 
     function isComposerField(node: EventTarget | null): node is HTMLElement {
@@ -125,9 +126,9 @@ export function useComposerViewport({
       delete document.documentElement.dataset.composerKeyboard;
       delete host.dataset.keyboard;
       host.style.removeProperty('--transcript-keyboard-top');
-      dialog.current?.style.removeProperty('height');
-      dialog.current?.style.removeProperty('top');
-      dialog.current?.style.removeProperty('bottom');
+      modal?.style.removeProperty('height');
+      modal?.style.removeProperty('top');
+      modal?.style.removeProperty('bottom');
     };
   }, [active, fullscreen, inline, dialog, container]);
 }
