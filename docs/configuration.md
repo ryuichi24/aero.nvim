@@ -102,6 +102,8 @@ require("aero").setup({
     theme = "auto", -- follow Neovim's 'background'
     background = "transparent",
     scale = 2,
+    concurrency = 4, -- maximum simultaneous Mermaid CLI processes
+    prefetch = 2, -- render this many diagrams ahead of the viewport
     max_width = 80, -- terminal columns
     max_height = 24, -- terminal rows
     preview_key = "gM", -- expand the diagram under the cursor; false disables the shortcut

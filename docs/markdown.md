@@ -69,9 +69,14 @@ Wrappers containing additional prose or multiple diagrams stay as source example
 
 Previews update after edits, use a separate image for each visible window, and
 follow scrolling and window resizing through image.nvim. Diagram generation is
-asynchronous with at most two CLI processes running at once. PNGs are cached in
+asynchronous with at most four CLI processes running at once (configurable with
+`concurrency`). Aero also pre-renders the next two diagrams below the viewport;
+set `prefetch = 0` to disable this. Pending previews show an animated status line
+below the last source line, including their diagram number, queue position or
+rendering state, and elapsed time. The animation does not rerender existing images.
+PNGs are cached in
 `stdpath("cache")/aero/mermaid` by source and rendering settings. Missing
-dependencies and invalid diagrams show an inline status beside the closing fence;
+dependencies and invalid diagrams show an inline status near the end of the block;
 the original source remains available.
 
 Previews work alongside `render-markdown.nvim`, including its concealed code
@@ -107,6 +112,8 @@ require("aero").setup({
     theme = "auto", -- follow 'background'; or default, dark, forest, neutral
     background = "transparent",
     scale = 2,
+    concurrency = 4, -- simultaneous CLI processes; lower this to reduce browser memory use
+    prefetch = 2, -- diagrams ahead of the viewport; 0 disables prefetching
     max_width = 80, -- terminal columns
     max_height = 24, -- terminal rows
     preview_key = "gM", -- false disables the keyboard shortcut; the button remains
