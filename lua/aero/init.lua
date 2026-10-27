@@ -169,7 +169,7 @@ function M.prompt(action)
 	require("aero.panel").prompt()
 end
 
---- Append the focused source file's absolute path to the current agent's draft.
+--- Append an @ reference to the focused source file to the current agent's draft.
 function M.file()
 	ensure()
 	return require("aero.commands").file()

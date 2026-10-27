@@ -40,7 +40,7 @@ for _, name in ipairs({ "source.lua", "source with spaces.lua" }) do
 
 	local encoded = path:find("%s") and vim.json.encode(path) or path
 
-	assert(sent == "File: " .. encoded .. "\n\nExplain this file", "file path or prompt was lost")
+	assert(sent == "@" .. encoded .. "\n\nExplain this file", "file reference or prompt was lost")
 end
 
 print("file prompt: ok")

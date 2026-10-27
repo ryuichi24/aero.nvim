@@ -199,10 +199,10 @@ the agent acknowledges cancellation.
 
 ## Add the current source file
 
-Run `:Aero file` while focused on a named source file to append its absolute path
+Run `:Aero file` while focused on a named source file to append `@/absolute/path/to/file`
 to the current tab's panel session's draft and open the composer without submitting.
 Existing draft text is preserved, and paths containing whitespace are quoted.
-Terminal agents receive the path as bracketed paste. An unnamed or special buffer
+Terminal agents receive the reference as bracketed paste. An unnamed or special buffer
 reports a message instead.
 
 Create your own mapping (no default key is assigned):
