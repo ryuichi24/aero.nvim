@@ -41,6 +41,7 @@ end
 local function show(slot, win)
 	slot.win = win
 	api.nvim_win_set_buf(win, slot.buf)
+
 	if slot.view then
 		api.nvim_win_call(win, function()
 			vim.fn.winrestview(slot.view)
@@ -62,10 +63,12 @@ local function render(s)
 	for kind, slot in pairs(s.slots) do
 		if valid(slot.win) then
 			local bar = {}
+
 			for index, name in ipairs(kinds) do
 				local hl = name == kind and "TabLineSel" or "TabLine"
 				bar[#bar + 1] = "%#" .. hl .. "#%" .. index .. "@v:lua.AeroReaderClick@ " .. labels[name] .. " %T"
 			end
+
 			bar[#bar + 1] = "%#TabLineFill#%=%#TabLine#%"
 				.. (#kinds + 1)
 				.. "@v:lua.AeroReaderClick@ "
@@ -80,25 +83,32 @@ function M.attach(win, kind)
 	if not vim.t.aero_worktree or vim.t.aero_fullscreen or vim.t.aero_board_path then
 		return win
 	end
+
 	kind = kind or "source"
 	local s = state()
 	changing = true
 	local previous = s.slots[s.active]
 	save(previous)
+
 	if previous and valid(previous.win) and api.nvim_win_get_buf(previous.win) == previous.buf then
 		require("aero.buffers").remember(previous.win)
 	end
+
 	if not next(s.slots) then
 		s.slots.source = { buf = api.nvim_win_get_buf(win), win = win }
 		previous = s.slots.source
 	end
+
 	local slot = s.slots[kind]
+
 	if not slot or not api.nvim_buf_is_valid(slot.buf) then
 		slot = { buf = api.nvim_create_buf(true, false) }
 		s.slots[kind] = slot
 	end
+
 	if s.mode == "tabs" then
 		win = valid(s.win) and s.win or win
+
 		for _, other in pairs(s.slots) do
 			other.win = nil
 		end
@@ -107,7 +117,9 @@ function M.attach(win, kind)
 	elseif previous and valid(previous.win) then
 		win = api.nvim_open_win(slot.buf, false, { split = "below", win = previous.win })
 	end
+
 	s.win, s.active = win, kind
+
 	-- Buffer events during the swap must not record the outgoing document as Source.
 	vim.w[win].aero_reader_kind = "switching"
 	show(slot, win)
@@ -121,6 +133,7 @@ function M.select(kind)
 	if not labels[kind] then
 		return
 	end
+
 	local win = require("aero.navigation").code_window(kind)
 	api.nvim_set_current_win(win)
 end
@@ -128,41 +141,53 @@ end
 function M.mode(mode)
 	local s = state()
 	mode = mode or (s.mode == "tabs" and "panes" or "tabs")
+
 	if mode ~= "tabs" and mode ~= "panes" then
 		return vim.notify(
 			"Aero: use :Aero reader [tabs|panes|source|exports|references|reports|reading]",
 			vim.log.levels.WARN
 		)
 	end
+
 	if not next(s.slots) then
 		require("aero.navigation").code_window()
 	end
+
 	if s.mode == mode then
 		return
 	end
+
 	changing = true
 	local active = s.slots[s.active]
 	local anchor = active and active.win
+
 	if not valid(anchor) then
 		changing = false
 		return
 	end
+
 	for _, slot in pairs(s.slots) do
 		save(slot)
 	end
+
 	s.mode = mode
+
 	if mode == "tabs" then
 		for _, slot in pairs(s.slots) do
 			if valid(slot.win) and slot.win ~= anchor then
 				api.nvim_win_close(slot.win, false)
 			end
+
 			slot.win = nil
 		end
+
 		active.win = anchor
 	else
 		local last = anchor
+
 		for _, kind in ipairs(kinds) do
 			local slot = s.slots[kind]
+
 			if slot and slot ~= active and api.nvim_buf_is_valid(slot.buf) then
 				last = api.nvim_open_win(slot.buf, false, { split = "below", win = last })
 				show(slot, last)
@@ -170,6 +195,7 @@ function M.mode(mode)
 			end
 		end
 	end
+
 	s.win = anchor
 	render(s)
 	changing = false
@@ -191,7 +217,9 @@ function M.setup()
 			if changing or not vim.t.aero_worktree or not valid(api.nvim_get_current_win()) then
 				return
 			end
+
 			local s, win = state(), api.nvim_get_current_win()
+
 			for kind, slot in pairs(s.slots) do
 				if slot.win == win then
 					s.active, s.win = kind, win

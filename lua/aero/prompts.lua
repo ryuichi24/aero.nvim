@@ -4,24 +4,29 @@ local api = vim.api
 
 function M.items(chat)
 	local items = {}
+
 	for index, block in ipairs(chat.blocks) do
 		if block.kind == "user" then
 			table.insert(items, { key = tostring(index), block = block, text = block.text })
 		end
 	end
+
 	return items
 end
 
 function M.open(chat, opts)
 	opts = opts or {}
+
 	if not chat then
 		local s = require("aero.session_target").resolve("viewed")
 		chat = s and s.chat
 	end
+
 	if not chat then
 		vim.notify("Aero: focus an ACP session to view its prompt history", vim.log.levels.INFO)
 		return
 	end
+
 	local win = vim.fn.bufwinid(chat.buf)
 	require("aero.picker").close()
 	require("aero.picker").open({
@@ -40,6 +45,7 @@ function M.open(chat, opts)
 				vim.notify("Aero: conversation is no longer available", vim.log.levels.INFO)
 				return
 			end
+
 			if opts.compose then
 				local buf = chat:get_prompt_buf()
 				local draft = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
@@ -50,9 +56,11 @@ function M.open(chat, opts)
 				vim.cmd.startinsert({ bang = true })
 				return
 			end
+
 			if win == -1 or not api.nvim_win_is_valid(win) then
 				win = require("aero.session").prepare_win(api.nvim_get_current_win())
 			end
+
 			require("aero.layout").set_buf(win, chat.buf)
 			api.nvim_set_current_win(win)
 			chat:goto_block(item.block)

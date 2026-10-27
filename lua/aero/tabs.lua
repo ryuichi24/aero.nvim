@@ -3,9 +3,7 @@
 local config = require("aero.config")
 local events = require("aero.events")
 local buffers = require("aero.buffers")
-
 local M = {}
-
 local api = vim.api
 
 function M.enabled()
@@ -23,8 +21,10 @@ end
 
 local function dashboard_only(tab)
 	local dashboard = false
+
 	for _, win in ipairs(api.nvim_tabpage_list_wins(tab)) do
 		local buf = api.nvim_win_get_buf(win)
+
 		if api.nvim_buf_get_name(buf) == "Aero://dashboard" then
 			dashboard = true
 		elseif
@@ -37,6 +37,7 @@ local function dashboard_only(tab)
 			return false
 		end
 	end
+
 	return dashboard
 end
 
@@ -45,6 +46,7 @@ end
 function M.find(worktree)
 	local candidate
 	local current = api.nvim_get_current_tabpage()
+
 	for _, tab in ipairs(api.nvim_list_tabpages()) do
 		if
 			not vim.t[tab].aero_fullscreen
@@ -52,17 +54,21 @@ function M.find(worktree)
 			and not vim.t[tab].aero_removed_workspace
 		then
 			local assigned = vim.t[tab].aero_worktree
+
 			if assigned and norm(assigned) == norm(worktree) then
 				return tab
 			end
+
 			if not assigned and not candidate then
 				local nr = api.nvim_tabpage_get_number(tab)
+
 				if inside(vim.fn.getcwd(-1, nr), worktree) then
 					candidate = tab
 				end
 			end
 		end
 	end
+
 	if
 		not vim.t[current].aero_worktree
 		and not vim.t[current].aero_fullscreen
@@ -72,9 +78,11 @@ function M.find(worktree)
 	then
 		candidate = current
 	end
+
 	if candidate then
 		vim.t[candidate].aero_worktree = worktree
 	end
+
 	return candidate
 end
 
@@ -83,6 +91,7 @@ function M.available(worktree)
 	if vim.fn.isdirectory(worktree) == 1 then
 		return true
 	end
+
 	vim.notify(
 		"Aero: worktree directory does not exist: "
 			.. worktree
@@ -98,19 +107,25 @@ function M.enter(worktree)
 	if not M.available(worktree) then
 		return nil
 	end
+
 	buffers.remember()
 	local tab = M.find(worktree)
+
 	if tab then
 		if tab ~= api.nvim_get_current_tabpage() then
 			api.nvim_set_current_tabpage(tab)
 		end
+
 		vim.cmd.tcd(vim.fn.fnameescape(worktree))
+
 		if not buffers.remember() then
 			buffers.restore(worktree)
 		end
+
 		events.emit("worktree_entered", { path = worktree, tab = tab, created = false })
 		return false
 	end
+
 	vim.cmd("$tabnew")
 	vim.t.aero_worktree = worktree
 	vim.cmd.tcd(vim.fn.fnameescape(worktree))
@@ -123,6 +138,7 @@ end
 function M.close(worktree)
 	for _, tab in ipairs(api.nvim_list_tabpages()) do
 		local assigned = vim.t[tab].aero_worktree
+
 		if assigned and norm(assigned) == norm(worktree) and #api.nvim_list_tabpages() > 1 then
 			vim.cmd.tabclose(api.nvim_tabpage_get_number(tab))
 			return

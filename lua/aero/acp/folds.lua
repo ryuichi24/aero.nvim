@@ -5,18 +5,22 @@ local M = {}
 
 local function initialize(buf, callback)
 	local highlighter = vim.treesitter.highlighter.active[buf]
+
 	if not highlighter then
 		return callback()
 	end
+
 	-- Building native folds visits the whole history. Do not highlight each
 	-- temporary cursor location (and parse every fenced language) on the way.
 	local language = highlighter.tree:lang()
 	vim.treesitter.stop(buf)
 	local ok, err = xpcall(callback, debug.traceback)
 	local resumed, resume_err = pcall(vim.treesitter.start, buf, language)
+
 	if not ok then
 		error(err, 0)
 	end
+
 	if not resumed then
 		error(resume_err, 0)
 	end
@@ -24,10 +28,12 @@ end
 
 local function index(sections)
 	local result = {}
+
 	for _, section in ipairs(sections) do
 		result[section.kind] = result[section.kind] or {}
 		result[section.kind][section.key] = section
 	end
+
 	return result
 end
 
@@ -47,9 +53,12 @@ local function retained(old, new, edit)
 	if not new then
 		return false
 	end
+
 	local first, last = old.first, old.last
+
 	if edit then
 		local delta = edit.new_last - edit.old_last
+
 		if first > edit.old_last then
 			first, last = first + delta, last + delta
 		elseif last < edit.first then
@@ -60,26 +69,32 @@ local function retained(old, new, edit)
 			return false
 		end
 	end
+
 	return first == new.first and last == new.last
 end
 
 local function plan(view, sections, edit)
 	local old_index, new_index = index(view.sections), index(sections)
 	local pending = { remove = {}, create = {}, restore = {}, alerts = {}, old_index = old_index }
+
 	for _, old in ipairs(view.sections) do
 		if not retained(old, lookup(new_index, old), edit) then
 			table.insert(pending.remove, old)
 		end
 	end
+
 	for _, section in ipairs(sections) do
 		local old = lookup(old_index, section)
+
 		if not old or not retained(old, section, edit) then
 			table.insert(pending.create, section)
 		end
+
 		if section.critical and (not old or old.critical ~= section.critical) then
 			table.insert(pending.alerts, section)
 		end
 	end
+
 	return pending
 end
 
@@ -99,31 +114,39 @@ function M.prepare(chat, edit)
 		else
 			local pending = plan(view, chat.sections or {}, edit)
 			view.pending = pending
+
 			if #pending.remove > 0 then
 				api.nvim_win_call(win, function()
 					local position = vim.fn.winsaveview()
 					local by_line = {}
+
 					for _, old in ipairs(view.sections) do
 						by_line[old.first] = old
 					end
+
 					for i = #pending.remove, 1, -1 do
 						local section = pending.remove[i]
 						local row = vim.fn.foldclosed(section.first)
 						while row ~= -1 and row ~= section.first do
 							local ancestor = by_line[row]
+
 							if ancestor then
 								pending.restore[ancestor] = true
 							end
+
 							api.nvim_win_set_cursor(0, { row, 0 })
 							vim.cmd("silent! normal! zo")
 							row = vim.fn.foldclosed(section.first)
 						end
+
 						if pending.restore[section] == nil then
 							pending.restore[section] = row == section.first
 						end
+
 						api.nvim_win_set_cursor(0, { section.first, 0 })
 						vim.cmd("silent! normal! zd")
 					end
+
 					vim.fn.winrestview(position)
 				end)
 			end
@@ -133,30 +156,39 @@ end
 
 function M.apply(chat, abort)
 	chat.fold_views = chat.fold_views or {}
+
 	for _, win in ipairs(vim.fn.win_findbuf(chat.buf)) do
 		local view = chat.fold_views[win]
 		local fresh = not view
+
 		if fresh then
 			view = { sections = {} }
 			chat.fold_views[win] = view
 		end
+
 		local sections = abort and view.sections or chat.sections or {}
 		local pending = view.pending or plan(view, sections)
+
 		if abort then
 			pending.create, pending.alerts = pending.remove, {}
 		end
+
 		local new_index = index(sections)
+
 		if fresh or #pending.create > 0 or next(pending.restore) or #pending.alerts > 0 then
 			local function apply()
 				api.nvim_win_call(win, function()
 					local position = vim.fn.winsaveview()
+
 					if fresh then
 						vim.wo.foldmethod, vim.wo.foldenable, vim.wo.foldlevel = "manual", true, 99
 						vim.wo.foldtext = "v:lua.require'aero.acp.folds'.text()"
 						vim.cmd("silent! normal! zE")
 					end
+
 					for i = #pending.create, 1, -1 do
 						local section = pending.create[i]
+
 						if section.last > section.first then
 							-- Creating a containing fold preserves the existing child folds.
 							vim.cmd(("%d,%dfold"):format(section.first, section.last))
@@ -164,38 +196,48 @@ function M.apply(chat, abort)
 							vim.cmd("silent! normal! zo")
 						end
 					end
+
 					local closed = {}
+
 					for old, value in pairs(pending.restore) do
 						local section = lookup(new_index, old)
+
 						if section then
 							closed[section] = value
 						end
 					end
+
 					for _, section in ipairs(pending.create) do
 						if closed[section] == nil then
 							closed[section] = section.closed == true
 						end
 					end
+
 					-- Close children before parents, without resetting unrelated folds.
 					for i = #sections, 1, -1 do
 						local section = sections[i]
+
 						if closed[section] and section.last > section.first then
 							api.nvim_win_set_cursor(0, { section.first, 0 })
 							vim.cmd("silent! normal! zc")
 						end
 					end
+
 					for _, section in ipairs(pending.alerts) do
 						expose(section.first)
 					end
+
 					vim.fn.winrestview(position)
 				end)
 			end
+
 			if fresh then
 				initialize(chat.buf, apply)
 			else
 				apply()
 			end
 		end
+
 		view.sections, view.pending = sections, nil
 	end
 end
@@ -203,14 +245,17 @@ end
 function M.jump(chat, direction)
 	local row = api.nvim_win_get_cursor(0)[1]
 	local turns = {}
+
 	for _, section in ipairs(chat.sections or {}) do
 		if section.kind == "turn" then
 			table.insert(turns, section)
 		end
 	end
+
 	if direction < 0 then
 		turns = vim.fn.reverse(turns)
 	end
+
 	for _, section in ipairs(turns) do
 		if direction * (section.first - row) > 0 then
 			api.nvim_win_set_cursor(0, { section.first, 0 })

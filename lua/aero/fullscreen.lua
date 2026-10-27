@@ -7,11 +7,14 @@ local global_key
 function M.setup()
 	if global_key then
 		local map = vim.fn.maparg(global_key, "n", false, true)
+
 		if map.callback == M.toggle and map.buffer == 0 then
 			vim.keymap.del("n", global_key)
 		end
 	end
+
 	global_key = require("aero.config").options.fullscreen_key
+
 	if global_key then
 		vim.keymap.set("n", global_key, M.toggle, { desc = "Aero: toggle fullscreen" })
 	end
@@ -23,28 +26,35 @@ end
 
 function M.close(kind)
 	local view = M.active()
+
 	if not view or (kind and view.kind ~= kind) then
 		return false
 	end
+
 	-- Do not force-close: any new unsaved buffers opened here must be kept safe.
 	view.closing = true
 	local ok, err = pcall(vim.cmd.tabclose)
+
 	if not ok then
 		view.closing = nil
 		vim.notify("aero: can't leave fullscreen: " .. tostring(err), vim.log.levels.ERROR)
 		return true
 	end
+
 	if api.nvim_tabpage_is_valid(view.tab) then
 		api.nvim_set_current_tabpage(view.tab)
+
 		if api.nvim_win_is_valid(view.focus) then
 			api.nvim_set_current_win(view.focus)
 		end
+
 		-- Focusing a short shell can apply 'winheight' on return to the source tab.
 		-- Restore the original split geometry after focus-related resizing.
 		if vim.deep_equal(vim.fn.winlayout(), view.layout_tree) then
 			vim.cmd(view.restore_layout)
 		end
 	end
+
 	require("aero.events").emit(
 		"fullscreen_exited",
 		{ kind = view.kind, tab = view.tab, win = view.source, buf = view.buf }
@@ -54,12 +64,14 @@ end
 
 local function copy_window(source, target)
 	require("aero.layout").set_buf(target, api.nvim_win_get_buf(source))
+
 	for name, info in pairs(api.nvim_get_all_options_info()) do
 		if info.scope == "win" then
 			local value = api.nvim_get_option_value(name, { win = source, scope = "local" })
 			pcall(api.nvim_set_option_value, name, value, { win = target, scope = "local" })
 		end
 	end
+
 	vim.wo[target].winfixwidth = false
 	vim.wo[target].winfixheight = false
 	local saved = api.nvim_win_call(source, vim.fn.winsaveview)
@@ -72,12 +84,14 @@ function M.toggle()
 	if M.close() then
 		return
 	end
+
 	local source = api.nvim_get_current_win()
 	local tab = api.nvim_get_current_tabpage()
 	local buf = api.nvim_win_get_buf(source)
 	local session = require("aero.session")
 	local s = session.from_buf(buf)
 	local key = vim.b[buf].aero_chat_key
+
 	if key then
 		for _, candidate in ipairs(session.all()) do
 			if candidate.key == key then
@@ -86,10 +100,13 @@ function M.toggle()
 			end
 		end
 	end
+
 	local prompt
+
 	if s and s.chat then
 		for _, win in ipairs(api.nvim_tabpage_list_wins(tab)) do
 			local b = api.nvim_win_get_buf(win)
+
 			if b == s.buf then
 				source = win
 			elseif b == s.chat.prompt_buf then
@@ -97,10 +114,12 @@ function M.toggle()
 			end
 		end
 	end
+
 	local kind = s and "agent"
 		or vim.b[buf].aero_term and "terminal"
 		or vim.bo[buf].filetype == "Aero" and "dashboard"
 		or "editor"
+
 	-- Reuse an existing zoom of this panel if the user switched back to its original tab.
 	for zoom, view in pairs(views) do
 		if
@@ -113,6 +132,7 @@ function M.toggle()
 			return
 		end
 	end
+
 	local focus = api.nvim_get_current_win()
 	local cwd = vim.fn.getcwd()
 	local worktree = vim.t.aero_worktree
@@ -135,12 +155,14 @@ function M.toggle()
 	vim.t.aero_worktree = worktree
 	vim.cmd.tcd(vim.fn.fnameescape(cwd))
 	copy_window(source, win)
+
 	if kind == "agent" then
 		require("aero.panel").attach(win, s)
 	elseif kind == "dashboard" then
 		require("aero.dashboard").attach(win)
 		vim.wo[win].winfixwidth = false
 	end
+
 	if prompt then
 		local pw = api.nvim_open_win(api.nvim_win_get_buf(prompt), false, {
 			split = "below",
@@ -150,10 +172,12 @@ function M.toggle()
 		copy_window(prompt, pw)
 		vim.wo[pw].winfixheight = true
 		require("aero.layout").track(pw, "prompt", s.key)
+
 		if prompt == focus then
 			api.nvim_set_current_win(pw)
 		end
 	end
+
 	require("aero.events").emit(
 		"fullscreen_entered",
 		{ kind = kind, tab = zoom, source_tab = tab, win = win, source_win = source, buf = api.nvim_win_get_buf(win) }
@@ -163,6 +187,7 @@ end
 function M.bind(buf)
 	require("aero.layout").bind(buf)
 	local key = require("aero.config").options.fullscreen_key
+
 	if key then
 		vim.keymap.set("n", key, M.toggle, { buffer = buf, desc = "Aero: toggle fullscreen" })
 	end
@@ -173,6 +198,7 @@ api.nvim_create_autocmd("TabClosed", {
 		for tab, view in pairs(views) do
 			if not api.nvim_tabpage_is_valid(tab) then
 				views[tab] = nil
+
 				if not view.closing then
 					vim.schedule(function()
 						require("aero.events").emit(
@@ -185,5 +211,4 @@ api.nvim_create_autocmd("TabClosed", {
 		end
 	end,
 })
-
 return M

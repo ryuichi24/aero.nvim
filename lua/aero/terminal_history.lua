@@ -16,7 +16,9 @@ function M.directory(worktree)
 	)
 end
 
-local function history_file(worktree) return vim.fs.joinpath(M.directory(worktree), "commands.jsonl") end
+local function history_file(worktree)
+	return vim.fs.joinpath(M.directory(worktree), "commands.jsonl")
+end
 
 -- Portable shell JSON encoding avoids adding a runtime dependency on Python or jq.
 local hooks = [=[
@@ -76,9 +78,16 @@ _aero_history_finish() {
 ]=]
 
 function M.prepare(worktree, cmd)
-	if type(cmd) ~= "table" or #cmd ~= 1 then return cmd end
+	if type(cmd) ~= "table" or #cmd ~= 1 then
+		return cmd
+	end
+
 	local shell = vim.fn.fnamemodify(cmd[1], ":t")
-	if shell ~= "bash" and shell ~= "zsh" then return cmd end
+
+	if shell ~= "bash" and shell ~= "zsh" then
+		return cmd
+	end
+
 	local dir = vim.fn.tempname()
 	vim.fn.mkdir(dir, "p", 448)
 	vim.fn.mkdir(M.directory(worktree), "p", 448)
@@ -87,8 +96,11 @@ function M.prepare(worktree, cmd)
 	assert(fd, err)
 	vim.uv.fs_close(fd)
 	local quoted = vim.fn.shellescape(file)
-	local common = vim.split((hooks:gsub("__FILE__", function() return quoted end)), "\n")
+	local common = vim.split((hooks:gsub("__FILE__", function()
+		return quoted
+	end)), "\n")
 	local result, env
+
 	if shell == "bash" then
 		local lines = {
 			"[[ -f ~/.bashrc ]] && source ~/.bashrc",
@@ -140,6 +152,7 @@ function M.prepare(worktree, cmd)
 		result = { cmd[1], "--rcfile", dir .. "/bashrc", "-i" }
 	else
 		local original = vim.env.ZDOTDIR or vim.env.HOME
+
 		-- Restore ZDOTDIR before user configuration, so plugins see the real directory.
 		vim.fn.writefile({
 			"export ZDOTDIR=" .. vim.fn.shellescape(original),
@@ -167,54 +180,83 @@ function M.prepare(worktree, cmd)
 		vim.fn.writefile(lines, dir .. "/.zshrc")
 		result, env = { cmd[1], "-i" }, { ZDOTDIR = dir }
 	end
+
 	local old = sessions[worktree]
 	sessions[worktree] = { dir = dir }
-	if old then vim.fn.delete(old.dir, "rf") end
+
+	if old then
+		vim.fn.delete(old.dir, "rf")
+	end
+
 	return result, env
 end
 
 function M.list(worktree)
 	local commands, ids = {}, {}
+
 	-- Legacy entries have no execution metadata. Keep their original file intact.
 	local legacy = io.open(vim.fs.joinpath(M.directory(worktree), "commands"), "rb")
+
 	if legacy then
 		local data = legacy:read("*a")
 		legacy:close()
+
 		for command in data:gmatch("([^%z]*)%z") do
 			command = command:gsub("^\t ?", "")
-			if vim.trim(command) ~= "" then commands[#commands + 1] = { command = command } end
+
+			if vim.trim(command) ~= "" then
+				commands[#commands + 1] = { command = command }
+			end
 		end
 	end
+
 	local file = io.open(history_file(worktree), "rb")
+
 	if file then
 		for line in file:lines() do
 			local ok, entry = pcall(vim.json.decode, line)
+
 			if ok and type(entry) == "table" and type(entry.command) == "string" then
 				for _, field in ipairs({ "cwd", "started_at", "exit_code", "duration_seconds" }) do
-					if entry[field] == vim.NIL then entry[field] = nil end
+					if entry[field] == vim.NIL then
+						entry[field] = nil
+					end
 				end
+
 				local index = type(entry.id) == "string" and ids[entry.id]
+
 				if index then
 					commands[index] = entry
 				else
 					commands[#commands + 1] = entry
-					if type(entry.id) == "string" then ids[entry.id] = #commands end
+
+					if type(entry.id) == "string" then
+						ids[entry.id] = #commands
+					end
 				end
 			end
 		end
+
 		file:close()
 	end
+
 	return commands
 end
 
 local function cleanup(worktree)
 	local session = sessions[worktree]
-	if session then vim.fn.delete(session.dir, "rf") end
+
+	if session then
+		vim.fn.delete(session.dir, "rf")
+	end
+
 	sessions[worktree] = nil
 end
 
 --- Forget shell integration files while keeping saved commands, like reports and exports.
-function M.delete(worktree) cleanup(worktree) end
+function M.delete(worktree)
+	cleanup(worktree)
+end
 
 vim.api.nvim_create_autocmd("VimLeavePre", {
 	callback = function()
@@ -223,5 +265,4 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 		end
 	end,
 })
-
 return M

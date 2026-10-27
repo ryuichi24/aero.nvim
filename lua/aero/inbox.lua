@@ -9,20 +9,25 @@ function M.add(chat, kind, block, text)
 	if chat.replaying or chat.task_reloading or not block then
 		return
 	end
+
 	local kinds = seen[block] or {}
 	seen[block] = kinds
+
 	if kinds[kind] then
 		return
 	end
+
 	kinds[kind] = true
 	serial = serial + 1
 	local s = chat.s
 	local binding = s.task_binding
 	local saved = require("aero.store").find_session(s.worktree, s.name)
 	local assignment = saved and saved.task_assignment
+
 	if not chat.inbox_workspace then
 		chat.inbox_workspace = require("aero.git").main_root(s.worktree) or s.worktree
 	end
+
 	table.insert(entries, {
 		key = tostring(serial),
 		order = serial,
@@ -40,6 +45,7 @@ end
 
 function M.items()
 	local sessions = require("aero.session").all()
+
 	-- Resolved permissions and forgotten/replaced conversations cannot be opened.
 	entries = vim.tbl_filter(function(e)
 		return vim.tbl_contains(sessions, e.session)
@@ -61,6 +67,7 @@ end
 
 function M.select(entry)
 	local s, chat = entry.session, entry.chat
+
 	if
 		not vim.tbl_contains(require("aero.session").all(), s)
 		or s.chat ~= chat
@@ -70,24 +77,32 @@ function M.select(entry)
 		vim.notify("Aero: inbox event is no longer available", vim.log.levels.INFO)
 		return
 	end
+
 	if vim.fn.isdirectory(s.worktree) == 0 then
 		vim.notify("Aero: inbox worktree is no longer available", vim.log.levels.WARN)
 		return
 	end
+
 	local win = require("aero").open_worktree(s.worktree)
+
 	if not win then
 		return
 	end
+
 	local panel = require("aero.panel")
+
 	if panel.enabled() then
 		win = panel.open()
 	end
+
 	-- Show the existing transcript, including exited agents, without starting/resuming.
 	win = require("aero.session").prepare_win(win)
 	require("aero.layout").set_buf(win, chat.buf)
+
 	if panel.enabled() then
 		panel.shown(s)
 	end
+
 	api.nvim_set_current_win(win)
 	vim.cmd.stopinsert()
 	chat:goto_block(entry.block, entry.kind == "permission")

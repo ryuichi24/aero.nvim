@@ -249,31 +249,38 @@ M.defaults = {
 		help = "g?",
 	},
 }
-
 M.options = vim.deepcopy(M.defaults)
 
 function M.setup(opts)
 	opts = vim.tbl_extend("force", {}, opts or {})
+
 	-- Accept earlier configuration names; canonical properties take precedence.
 	if opts.reference_finder == nil then
 		opts.reference_finder = opts.context
 	end
+
 	opts.context = nil
+
 	if type(opts.companion) == "table" then
 		opts.companion = vim.tbl_extend("force", {}, opts.companion)
+
 		if opts.companion.reference_finder == nil then
 			opts.companion.reference_finder = opts.companion.context
 		end
+
 		opts.companion.context = nil
 	end
+
 	local agents = opts.agents
 	opts.agents = nil
 	M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
+
 	for _, field in ipairs({ "states", "terminal_states" }) do
 		if opts.tasks and opts.tasks[field] ~= nil then
 			M.options.tasks[field] = vim.deepcopy(opts.tasks[field])
 		end
 	end
+
 	-- agent definitions are replaced wholesale so list-valued commands never get merged index-by-index
 	for name, agent in pairs(agents or {}) do
 		M.options.agents[name] = agent or nil

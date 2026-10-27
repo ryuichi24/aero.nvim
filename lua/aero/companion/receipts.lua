@@ -5,13 +5,16 @@ local M = {}
 function M.new()
 	local entries, count = {}, 0
 	local registry = {}
+
 	function registry.get(id)
 		return entries[id]
 	end
+
 	function registry.check(method, params)
 		if type(params.operation_id) ~= "string" or #params.operation_id < 16 or #params.operation_id > 128 then
 			return nil, "operation_id required (16-128 characters)"
 		end
+
 		local fingerprint = vim.json.encode({
 			method,
 			params.session,
@@ -35,24 +38,31 @@ function M.new()
 			params.transfer_id or false,
 		})
 		local previous = entries[params.operation_id]
+
 		if previous then
 			if previous.fingerprint ~= fingerprint then
 				return nil, "operation_id reused with different arguments"
 			end
+
 			return fingerprint, nil, previous
 		end
+
 		if count >= 10000 then
 			return nil, "operation receipt capacity reached"
 		end
+
 		return fingerprint
 	end
+
 	function registry.finish(id, fingerprint, result, err)
 		if not entries[id] then
 			count = count + 1
 		end
+
 		entries[id] = { fingerprint = fingerprint, result = result, error = err }
 		return result, err
 	end
+
 	return registry
 end
 

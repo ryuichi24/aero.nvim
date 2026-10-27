@@ -8,10 +8,12 @@ local function now()
 end
 
 local pump
+
 local function schedule()
 	if scheduled then
 		return
 	end
+
 	scheduled = true
 	vim.schedule(function()
 		scheduled = false
@@ -30,14 +32,18 @@ pump = function()
 			entry.checking = false
 			entry.completed = now()
 			entry.fetch_err = err
+
 			if statuses then
 				entry.statuses = statuses
 			end
+
 			local listeners = entry.listeners
 			entry.listeners = {}
+
 			for _, listener in pairs(listeners) do
 				listener(entry)
 			end
+
 			schedule()
 		end)
 	end
@@ -45,19 +51,24 @@ end
 
 function M.request(root, callback)
 	local entry = entries[root]
+
 	if not entry then
 		entry = { listeners = {} }
 		entries[root] = entry
 	end
+
 	local interval = require("aero.config").options.dashboard.remote_refresh_interval
+
 	if not entry.checking and (not entry.completed or now() - entry.completed >= interval) then
 		entry.checking = true
 		table.insert(queue, { root = root, entry = entry })
 		schedule()
 	end
+
 	if entry.checking then
 		entry.listeners[callback] = callback
 	end
+
 	return entry
 end
 

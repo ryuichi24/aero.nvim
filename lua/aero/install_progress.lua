@@ -7,11 +7,13 @@ function M.wait(cmd, timeout, opts)
 	local process = vim.system(cmd, opts, function(value)
 		result = value
 	end)
+
 	if vim.wait(timeout, function()
 		return result ~= nil
 	end, 50) then
 		return result
 	end
+
 	return process:wait(0)
 end
 
@@ -42,13 +44,17 @@ function M.download(url, path, progress, stage)
 				if not data then
 					return
 				end
+
 				output[#output + 1] = data
 				pending = pending .. data
 				local percent
+
 				for value in pending:gmatch("([%d%.]+)%%") do
 					percent = tonumber(value)
 				end
+
 				pending = pending:match("[^\r\n]*$") or ""
+
 				if percent then
 					vim.schedule(function()
 						progress.update(stage, 0, ("%.1f%% downloaded"):format(percent))
@@ -56,6 +62,7 @@ function M.download(url, path, progress, stage)
 				else
 					-- Some servers omit Content-Length, so curl cannot report a percentage.
 					local stat = vim.uv.fs_stat(path)
+
 					if stat and stat.size > 0 then
 						local bytes = stat.size
 						vim.schedule(function()
@@ -66,10 +73,12 @@ function M.download(url, path, progress, stage)
 			end,
 		}
 	)
+
 	if result.code ~= 0 then
 		local message = table.concat(output):match("curl: ([^\r\n]+)")
 		return nil, message or vim.trim(result.stderr or table.concat(output))
 	end
+
 	progress.update(stage, 0, "100% downloaded")
 	return true
 end

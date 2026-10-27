@@ -4,9 +4,7 @@ local config = require("aero.config")
 local session = require("aero.session")
 local events = require("aero.events")
 local layout = require("aero.layout")
-
 local M = {}
-
 local api = vim.api
 
 ---@type table<integer, {win?: integer, last?: string}> tabpage -> panel window and the last session key shown
@@ -26,9 +24,11 @@ end
 function M.win(tab)
 	local t = tab and (tabs[tab] or {}) or tab_state()
 	tab = tab or api.nvim_get_current_tabpage()
+
 	if t.win and api.nvim_win_is_valid(t.win) and api.nvim_win_get_tabpage(t.win) == tab then
 		return t.win
 	end
+
 	t.win = nil
 end
 
@@ -37,27 +37,34 @@ function M.owns(win)
 	if win == M.win() then
 		return true
 	end
+
 	return vim.b[api.nvim_win_get_buf(win)].aero_chat_key ~= nil
 end
 
 local function winbar(win)
 	local s = session.from_buf(api.nvim_win_get_buf(win))
+
 	if not s then
 		vim.wo[win].winbar = ""
 		return
 	end
+
 	local st = session.status(s)
 	local hl = ({ busy = "AeroBusy", idle = "AeroIdle", waiting = "AeroWaiting", exited = "AeroExited" })[st]
 		or "AeroStopped"
 	local where = vim.fn.fnamemodify(s.worktree, ":t")
 	local model = s.chat and s.chat:model_title()
+
 	if model then
 		where = where .. " · " .. model
 	end
+
 	local mode = s.chat and s.chat:mode_title()
+
 	if mode then
 		where = where .. " · " .. mode
 	end
+
 	where = where .. " · " .. require("aero.tasks.status").label(s)
 	local bar = (" %%#AeroSession#%s%%* %%#AeroDim#· %s%%*  %%#%s#%s %s%%*"):format(
 		(s.name:gsub("%%", "%%%%")),
@@ -68,12 +75,15 @@ local function winbar(win)
 	)
 	local usage = require("aero.acp.usage").summary(s.chat)
 	local todos = require("aero.acp.todos").winbar(s.chat)
+
 	if todos then
 		bar = todos .. " %*·" .. bar
 	end
+
 	if usage then
 		bar = bar .. " %=%#AeroDim#" .. usage:gsub("%%", "%%%%") .. " %*"
 	end
+
 	if vim.wo[win].winbar ~= bar then
 		vim.wo[win].winbar = bar
 	end
@@ -82,9 +92,11 @@ end
 --- Open the panel (empty) if needed and return its window. Doesn't change focus.
 function M.open()
 	local win = M.win()
+
 	if win then
 		return win
 	end
+
 	local opts = config.options.panel
 	local width = layout.panel_width()
 	local placeholder = api.nvim_create_buf(false, true)
@@ -106,6 +118,7 @@ end
 --- Remember what the panel shows and label it. Call after a session was shown in the panel.
 function M.shown(s)
 	local win = M.win()
+
 	if win and api.nvim_win_get_buf(win) == s.buf then
 		tab_state().last = s.key
 		winbar(win)
@@ -122,14 +135,19 @@ function M.close()
 	if require("aero.fullscreen").close("agent") then
 		return
 	end
+
 	local win = M.win()
+
 	if not win then
 		return
 	end
+
 	layout.remember(win)
+
 	-- take the prompt window along
 	local s = session.from_buf(api.nvim_win_get_buf(win))
 	local prompt = s and s.chat and s.chat.prompt_buf
+
 	if prompt and api.nvim_buf_is_valid(prompt) then
 		for _, w in ipairs(vim.fn.win_findbuf(prompt)) do
 			if api.nvim_win_get_tabpage(w) == api.nvim_get_current_tabpage() and #api.nvim_tabpage_list_wins(0) > 1 then
@@ -137,11 +155,13 @@ function M.close()
 			end
 		end
 	end
+
 	if #api.nvim_tabpage_list_wins(0) > 1 then
 		api.nvim_win_close(win, false)
 	else
 		return
 	end
+
 	tab_state().win = nil
 	events.emit("panel_closed", { win = win, tab = api.nvim_get_current_tabpage() })
 end
@@ -152,15 +172,18 @@ local function default_session()
 	local last = tab_state().last
 	local cwd = vim.fn.getcwd()
 	local in_cwd, any
+
 	for _, s in ipairs(session.all()) do
 		if s.key == last then
 			return s
 		end
+
 		if session.is_running(s) then
 			in_cwd = in_cwd or (vim.fs.normalize(s.worktree) == vim.fs.normalize(cwd) and s) or nil
 			any = any or s
 		end
 	end
+
 	return in_cwd or any
 end
 
@@ -168,9 +191,11 @@ end
 function M.current_session()
 	local win = M.win()
 	local shown = win and session.from_buf(api.nvim_win_get_buf(win))
+
 	if shown then
 		return shown
 	end
+
 	for _, s in ipairs(session.all()) do
 		if s.key == tab_state().last then
 			return s
@@ -181,14 +206,18 @@ end
 --- Show `s` in the panel, opening it if needed. Returns the window, or nil on failure.
 function M.show(s)
 	local panel = M.open()
+
 	if api.nvim_win_get_buf(panel) == s.buf and session.is_running(s) then
 		return panel
 	end
+
 	-- always into the panel, even if the session is also visible in some other window
 	local win = session.show(s, panel, false)
+
 	if win then
 		M.shown(s)
 	end
+
 	return win
 end
 
@@ -197,19 +226,24 @@ function M.toggle()
 	if M.win() then
 		return M.close()
 	end
+
 	local s = default_session()
+
 	if not s then
 		vim.notify("Aero: no session to show; start one from the dashboard", vim.log.levels.INFO)
 		return
 	end
+
 	M.focus(s)
 end
 
 --- Show `s` in the panel and put the cursor in it (the prompt for ACP sessions).
 function M.focus(s)
 	local win = M.show(s)
+
 	if win then
 		api.nvim_set_current_win(win)
+
 		if config.options.start_insert then
 			session.enter(s)
 		end
@@ -220,11 +254,14 @@ end
 function M.prompt()
 	local win = M.win()
 	local s = win and session.from_buf(api.nvim_win_get_buf(win)) or default_session()
+
 	if not s then
 		vim.notify("Aero: no session to show; start one from the dashboard", vim.log.levels.INFO)
 		return
 	end
+
 	local shown = M.show(s)
+
 	if shown then
 		api.nvim_set_current_win(shown)
 		session.enter(s)
@@ -233,6 +270,7 @@ end
 
 local function update_winbars()
 	local busy = false
+
 	for _, t in pairs(tabs) do
 		if t.win and api.nvim_win_is_valid(t.win) then
 			winbar(t.win)
@@ -240,10 +278,10 @@ local function update_winbars()
 			busy = busy or (s ~= nil and session.status(s) == "busy")
 		end
 	end
+
 	return busy
 end
 
 session.on_change(update_winbars)
 require("aero.spinner").on_frame(update_winbars)
-
 return M

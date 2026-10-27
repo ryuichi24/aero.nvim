@@ -13,12 +13,15 @@ function M.describe(session, boards, identity, identities, permissions, conversa
 		target = identity(session, identities),
 		assignment = require("aero.tasks.status").describe(session, boards),
 	}
+
 	if chat then
 		local conversation = chat.session_id or chat.saved_session_id or false
+
 		if conversation_ids[chat] ~= conversation then
 			identities[chat] = nil
 			conversation_ids[chat] = conversation
 		end
+
 		result.conversation = identity(chat, identities)
 		result.acp_session_id = chat.session_id or chat.saved_session_id
 		result.activity = chat:activity()
@@ -26,6 +29,7 @@ function M.describe(session, boards, identity, identities, permissions, conversa
 		result.queue, result.usage = vim.deepcopy(chat.queue), vim.deepcopy(chat.usage)
 		result.commands = vim.deepcopy(chat.commands or {})
 		result.models, result.modes = require("aero.acp.models").options(chat), require("aero.acp.modes").options(chat)
+
 		if chat.permission then
 			result.permission = {
 				id = identity(chat.permission, permissions),
@@ -34,6 +38,7 @@ function M.describe(session, boards, identity, identities, permissions, conversa
 			}
 		end
 	end
+
 	return result
 end
 
@@ -55,22 +60,26 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 		inbox = {},
 		boards = {},
 	}
+
 	for _, tree in ipairs(worktrees) do
 		tree.target = require("aero.companion_lifecycle").target(epoch, tree)
 		local workspace = { root = tree.workspace or require("aero.git").main_root(tree.path) or tree.path }
 		tree.reference_directory = require("aero.reference").directory(tree.path, workspace)
-		tree.reports_directory =
-			require("aero.reports").directory(tree.path, workspace)
+		tree.reports_directory = require("aero.reports").directory(tree.path, workspace)
 	end
+
 	for id, agent in pairs(config.agents) do
 		if agent.type == "acp" then
 			table.insert(result.agents, id)
 		end
 	end
+
 	table.sort(result.agents)
 	local boards = {}
+
 	for _, workspace in ipairs(result.workspaces) do
 		boards[workspace.root] = require("aero.tasks").list(workspace)
+
 		for _, board in ipairs(boards[workspace.root]) do
 			if board.valid then
 				table.insert(
@@ -80,26 +89,27 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 			end
 		end
 	end
+
 	for _, session in ipairs(sessions) do
 		local agent = config.agents[session.agent]
+
 		if session.chat or agent and agent.type == "acp" then
 			table.insert(result.sessions, describe(session, boards))
 		end
 	end
+
 	for _, event in ipairs(require("aero.inbox").items()) do
-		table.insert(
-			result.inbox,
-			{
-				id = event.key,
-				session = event.session.key,
-				conversation = conversation_identity(event.chat),
-				kind = event.kind,
-				text = event.text,
-				workspace = event.workspace,
-				ticket = event.ticket,
-			}
-		)
+		table.insert(result.inbox, {
+			id = event.key,
+			session = event.session.key,
+			conversation = conversation_identity(event.chat),
+			kind = event.kind,
+			text = event.text,
+			workspace = event.workspace,
+			ticket = event.ticket,
+		})
 	end
+
 	return result
 end
 

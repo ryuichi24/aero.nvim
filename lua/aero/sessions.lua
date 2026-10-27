@@ -37,6 +37,7 @@ function M.open()
 			if a.worktree ~= b.worktree then
 				return a.worktree < b.worktree
 			end
+
 			return a.name < b.name
 		end,
 		select = function(s)
@@ -44,14 +45,18 @@ function M.open()
 				vim.notify("Aero: session is no longer active", vim.log.levels.INFO)
 				return
 			end
+
 			local win = require("aero").open_worktree(s.worktree)
 			local panel = require("aero.panel")
+
 			if panel.enabled() then
 				panel.focus(s)
 			else
 				win = session.show(s, win)
+
 				if win then
 					vim.api.nvim_set_current_win(win)
+
 					if require("aero.config").options.start_insert then
 						session.enter(s)
 					end

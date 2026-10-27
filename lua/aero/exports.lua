@@ -18,15 +18,20 @@ end
 
 function M.list(worktree)
 	local result, seen = {}, {}
+
 	for _, dir in ipairs(directories(worktree)) do
 		local scan = vim.uv.fs_scandir(dir)
+
 		if scan then
 			while true do
 				local name, kind = vim.uv.fs_scandir_next(scan)
+
 				if not name then
 					break
 				end
+
 				local path = vim.fs.joinpath(dir, name)
+
 				if kind == "file" and name:match("%.md$") and not seen[path] then
 					seen[path] = true
 					table.insert(result, { path = path, name = name:sub(1, -4) })
@@ -34,6 +39,7 @@ function M.list(worktree)
 			end
 		end
 	end
+
 	table.sort(result, function(a, b)
 		return a.name > b.name
 	end)
@@ -48,20 +54,24 @@ local function write(path, text)
 		local renamed, reason = vim.uv.fs_rename(tmp, path)
 		assert(renamed, reason)
 	end)
+
 	if not ok then
 		os.remove(tmp)
 		vim.notify("Aero: could not export log: " .. tostring(err), vim.log.levels.ERROR)
 		return false
 	end
+
 	require("aero.session").emit()
 	return true
 end
 
 function M.markdown(chat)
 	local copy = vim.deepcopy(chat.blocks)
+
 	for _, block in ipairs(copy) do
 		block.shown, block.cache, block.cache_src = nil, nil, nil
 	end
+
 	local view = {
 		blocks = copy,
 		queue = {},
@@ -94,21 +104,27 @@ local function readable(chat, path, source)
 	local progress = require("aero.exports_progress").start(chat.s.name)
 	local received = 0
 	local stage = "start"
+
 	local function finish(err)
 		if done then
 			return
 		end
+
 		done = true
 		progress.close()
+
 		if client then
 			jobs[client] = nil
 			client:stop()
 		end
+
 		if err then
 			local detail = type(err) == "table" and tostring(err.message) or tostring(err)
+
 			if type(err) == "table" and err.data ~= nil and err.data ~= vim.NIL then
 				detail = detail .. "\n" .. vim.inspect(err.data)
 			end
+
 			vim.notify("Aero: readable export failed (" .. stage .. "): " .. detail, vim.log.levels.ERROR)
 		elseif vim.trim(table.concat(output)) == "" then
 			vim.notify("Aero: readable export returned no text", vim.log.levels.WARN)
@@ -124,12 +140,14 @@ local function readable(chat, path, source)
 			vim.notify("Aero: saved readable log: " .. path)
 		end
 	end
+
 	local err
 	client, err = Client.spawn(cmd, {
 		cwd = chat.s.worktree,
 		env = agent.env,
 		on_notification = function(method, params)
 			local u = params.update
+
 			if
 				method == "session/update"
 				and u
@@ -163,9 +181,11 @@ local function readable(chat, path, source)
 			end
 		end,
 	})
+
 	if not client then
 		return finish(err or "could not start agent")
 	end
+
 	jobs[client] = true
 	stage = "initialize"
 	progress.update("Initializing agent")
@@ -177,12 +197,14 @@ local function readable(chat, path, source)
 		if init_err then
 			return finish(init_err)
 		end
+
 		stage = "session/new"
 		progress.update("Creating formatting conversation")
 		client:request("session/new", { cwd = chat.s.worktree, mcpServers = {} }, function(new_err, res)
 			if new_err then
 				return finish(new_err)
 			end
+
 			stage = "session/prompt"
 			progress.update("Agent preparing readable log")
 			client:request("session/prompt", {
@@ -219,16 +241,21 @@ function M.export(chat, opts)
 		n = n + 1
 		path = vim.fs.joinpath(dir, name .. "-" .. n .. ".md")
 	end
+
 	if not write(path, text) then
 		return
 	end
+
 	vim.notify("Aero: exported log: " .. path)
+
 	if opts then
 		if opts.readable then
 			readable(chat, path:gsub("%.md$", "-readable.md"), text)
 		end
+
 		return path
 	end
+
 	vim.ui.select({ "Keep original only", "Create AI-formatted copy" }, {
 		prompt = "Also create a readable copy? (uses a new agent conversation and tokens)",
 	}, function(choice)
@@ -246,5 +273,4 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 		end
 	end,
 })
-
 return M

@@ -18,6 +18,7 @@ end
 
 function M.filetype(buf, filetype)
 	local win = vim.fn.bufwinid(buf)
+
 	if win ~= -1 then
 		api.nvim_win_call(win, function()
 			vim.bo[buf].filetype = filetype

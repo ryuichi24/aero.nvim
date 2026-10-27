@@ -12,17 +12,22 @@ function M.placements(doc, lines)
 	local text = storage.text(changed, doc.text)
 	local edits, written = {}, {}
 	local board = markdown.parse(text, "board", doc.path)
+
 	for _, state in ipairs(board.states) do
 		for _, item in ipairs(state.entries) do
 			local ticket, err = query.read_ticket(doc.path, item.path)
+
 			if not ticket or not ticket.valid then
 				return nil, err or "invalid ticket metadata"
 			end
+
 			if ticket.metadata.state ~= state.name then
 				local ok, buffer_err = storage.unmodified(ticket.path)
+
 				if not ok then
 					return nil, buffer_err
 				end
+
 				local updated =
 					fm.edit(ticket.lines, ticket.frontmatter, { state = state.name, updated_at = documents.now() })
 				table.insert(
@@ -32,10 +37,12 @@ function M.placements(doc, lines)
 			end
 		end
 	end
+
 	local function rollback(err)
 		for index = #written, 1, -1 do
 			local edit = written[index]
 			local ok, restore_err = storage.write(edit.path, edit.text, edit.original)
+
 			if not ok then
 				err = tostring(err)
 					.. "; ticket state rollback failed at "
@@ -44,19 +51,26 @@ function M.placements(doc, lines)
 					.. tostring(restore_err)
 			end
 		end
+
 		return nil, err
 	end
+
 	for _, edit in ipairs(edits) do
 		local ok, err = storage.write(edit.path, edit.original, edit.text)
+
 		if not ok then
 			return rollback(err)
 		end
+
 		table.insert(written, edit)
 	end
+
 	local ok, err = storage.write(doc.path, doc.text, text)
+
 	if not ok then
 		return rollback(err)
 	end
+
 	return true
 end
 

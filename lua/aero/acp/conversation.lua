@@ -11,9 +11,7 @@ local modes = require("aero.acp.modes")
 local transcript = require("aero.acp.transcript")
 local usage = require("aero.acp.usage")
 require("aero.acp.types")
-
 local M = {}
-
 local api = vim.api
 
 ---@class Aero.acp.Chat
@@ -39,16 +37,21 @@ local function error_text(err)
 	if type(err) ~= "table" then
 		return err and tostring(err) or "unknown error"
 	end
+
 	local text = tostring(err.message or "unknown error")
+
 	if err.code ~= nil then
 		text = text .. " (code " .. tostring(err.code) .. ")"
 	end
+
 	if err.data ~= nil and err.data ~= vim.NIL then
 		local detail = type(err.data) == "string" and err.data or vim.inspect(err.data)
+
 		if detail ~= "" then
 			text = text .. "\n" .. detail
 		end
 	end
+
 	return text
 end
 
@@ -56,6 +59,7 @@ local function content_text(c)
 	if type(c) ~= "table" then
 		return ""
 	end
+
 	if c.type == "text" then
 		return c.text or ""
 	elseif c.type == "resource_link" then
@@ -65,6 +69,7 @@ local function content_text(c)
 	elseif c.type == "image" then
 		return "[image]"
 	end
+
 	return ""
 end
 
@@ -115,12 +120,15 @@ function Chat:activity()
 	elseif not self.busy then
 		return nil
 	end
+
 	local what
+
 	if self.permission then
 		what = "waiting for your permission"
 	else
 		local d = self.doing or {}
 		local tool = d.kind == "tool" and self.tools[d.id]
+
 		if tool then
 			what = truncate(one_line(tool.title or "running a tool"), 60)
 		elseif d.kind == "writing" then
@@ -131,6 +139,7 @@ function Chat:activity()
 			what = "working"
 		end
 	end
+
 	return what .. (self.turn_started and " · " .. spinner.elapsed(self.turn_started) or "")
 end
 
@@ -184,6 +193,7 @@ function Chat:save_history()
 	if self.replaying or chats_by_key[self.s.key] ~= self then
 		return
 	end
+
 	history.save(self.s, function()
 		return require("aero.acp.projection").history(self)
 	end)
@@ -191,12 +201,14 @@ end
 
 function Chat:append(kind, text)
 	local b = self.blocks[#self.blocks]
+
 	if b and b.kind == kind and not b.image then
 		b.text = b.text .. text
 	else
 		b = { kind = kind, text = text, timestamp = not self.replaying and os.time() or nil }
 		table.insert(self.blocks, b)
 	end
+
 	-- live agent output is revealed gradually; replayed history appears at once
 	if (kind == "agent" or kind == "thought") and not self.replaying and not b.shown then
 		b.shown = #b.text - #text
@@ -220,6 +232,7 @@ end
 function Chat:info(text, kind)
 	local block = { kind = "info", text = text, meta_kind = kind, timestamp = not self.replaying and os.time() or nil }
 	table.insert(self.blocks, block)
+
 	if kind == "error" then
 		require("aero.inbox").add(self, "error", block)
 	end
@@ -243,14 +256,17 @@ function Chat:answer_permission()
 		vim.notify("Aero: no pending permission request")
 		return
 	end
+
 	self:goto_permission(true)
 end
 
 --- Answer the pending permission request with option `index`.
 function Chat:choose(index, block)
 	local p = self.permission
+
 	if block then
 		p = nil
+
 		for _, request in ipairs(self.permissions or {}) do
 			if request.block == block then
 				p = request
@@ -258,24 +274,31 @@ function Chat:choose(index, block)
 			end
 		end
 	end
+
 	local choice = p and p.block.options[index]
+
 	if not choice then
 		return
 	end
+
 	for i, request in ipairs(self.permissions or {}) do
 		if request == p then
 			table.remove(self.permissions, i)
 			break
 		end
 	end
+
 	self.permission = self.permissions and self.permissions[1]
 	self:set_option_keys(self.permission ~= nil)
 	self.pending_focus = self.permission ~= nil
 	p.block.answer = choice.name or choice.optionId
+
 	if choice.auto_yes then
 		self.auto_yes = true
 	end
+
 	p.respond({ outcome = { outcome = "selected", optionId = choice.auto_yes or choice.optionId } })
+
 	if choice.auto_yes then
 		for _, request in ipairs(vim.list_extend({}, self.permissions or {})) do
 			for i, option in ipairs(request.block.options) do
@@ -286,15 +309,18 @@ function Chat:choose(index, block)
 			end
 		end
 	end
+
 	-- back to following the output
 	for _, win in ipairs(vim.fn.win_findbuf(self.buf)) do
 		api.nvim_win_set_cursor(win, { api.nvim_buf_line_count(self.buf), 0 })
 	end
+
 	self:changed()
 end
 
 function Chat:toggle_auto_yes()
 	self.auto_yes = not self.auto_yes
+
 	if self.auto_yes then
 		for _, request in ipairs(vim.list_extend({}, self.permissions or {})) do
 			for i, option in ipairs(request.block.options) do
@@ -305,27 +331,33 @@ function Chat:toggle_auto_yes()
 			end
 		end
 	end
+
 	vim.notify("Aero: auto yes " .. (self.auto_yes and "enabled" or "disabled") .. " for this conversation")
 end
 
 --- <CR> in the transcript: choose the option under the cursor, otherwise write a prompt.
 function Chat:enter_key()
 	local o = self.permission and (self.option_lines or {})[api.nvim_win_get_cursor(0)[1]]
+
 	if o then
 		return self:choose(o.index, o.block)
 	end
+
 	self:compose()
 end
 
 --- While a request is pending, the number keys choose an option directly.
 function Chat:set_option_keys(on)
 	local buf = self.buf
+
 	for i = 1, 9 do
 		local lhs = tostring(i)
 		local available = false
+
 		for _, request in ipairs(self.permissions or {}) do
 			available = available or request.block.options[i] ~= nil
 		end
+
 		if on and available then
 			vim.keymap.set("n", lhs, function()
 				local o = (self.option_lines or {})[api.nvim_win_get_cursor(0)[1]]
@@ -349,6 +381,7 @@ function Chat:status()
 	elseif self.busy or self.model_pending or self.mode_pending or self.task_pending or self.state == "starting" then
 		return "busy"
 	end
+
 	return "idle"
 end
 
@@ -366,14 +399,17 @@ function Chat:ready(session_id, response)
 		"session_ready",
 		events.session(self.s, { session_id = session_id, resumed = self.resumed == true, type = "acp" })
 	)
+
 	if self.on_resume then
 		local callback = self.on_resume
 		self.on_resume = nil
 		callback(self)
 	end
+
 	if self.state ~= "ready" then
 		return
 	end
+
 	self:flush_queue()
 end
 
@@ -396,6 +432,7 @@ function Chat:resume_failed(session_id, err)
 	self:changed()
 	self:stop()
 	events.emit("session_resume_failed", events.session(self.s, { session_id = session_id, type = "acp", error = err }))
+
 	if self.on_resume then
 		local callback = self.on_resume
 		self.on_resume = nil
@@ -413,8 +450,10 @@ function Chat:handshake(resume)
 			if self.requested_session_id then
 				return self:resume_failed(self.requested_session_id, err)
 			end
+
 			return self:fail("initialize", err)
 		end
+
 		self.agent_info = res.agentInfo
 		self.caps = res.agentCapabilities or {}
 		store.load()
@@ -423,12 +462,14 @@ function Chat:handshake(resume)
 		local session_id = self.requested_session_id or previous_id
 		self.saved_session_id = self.cache_session_id or previous_id or session_id
 		local base = { cwd = self.s.worktree, mcpServers = self.s.mcp_servers or {} }
+
 		if resume and session_id and self.caps.loadSession then
 			-- Cached errors are not conversation history. A different selected ID must
 			-- replay its own transcript, without relabeling the previous conversation.
 			self.replay_from_cache = self.restored_conversation
 				and (not self.cache_session_id or self.cache_session_id == session_id)
 			local previous_blocks, previous_tools, previous_usage = self.blocks, self.tools, self.usage
+
 			if
 				(self.requested_session_id and self.requested_session_id ~= previous_id)
 				or (self.cache_session_id and self.cache_session_id ~= session_id)
@@ -437,17 +478,20 @@ function Chat:handshake(resume)
 				self.usage = nil
 				self.replay_from_cache = false
 			end
+
 			self.replaying = true
 			self.client:request(
 				"session/load",
 				vim.tbl_extend("force", base, { sessionId = session_id }),
 				function(lerr, response)
 					self.replaying = false
+
 					if not lerr then
 						self.resumed = true
 						self:info("resumed session", "session")
 						return self:ready(session_id, response)
 					end
+
 					-- A transient adapter failure must not replace the original conversation ID.
 					self.blocks, self.tools = previous_blocks, previous_tools
 					self.usage = previous_usage
@@ -461,11 +505,13 @@ function Chat:handshake(resume)
 					{ code = -32601, message = "agent does not advertise session/load support" }
 				)
 			end
+
 			if resume and self.restored_history then
 				local reason = not session_id and "no saved ACP session ID"
 					or "agent does not advertise session/load support"
 				self:info("saved log restored; could not resume (" .. reason .. "), starting a new session")
 			end
+
 			self:new_session(base)
 		end
 	end)
@@ -479,6 +525,7 @@ function Chat:new_session(params)
 		if err then
 			return self:fail("session/new", err)
 		end
+
 		self:ready(res.sessionId, res)
 	end)
 end
@@ -488,59 +535,75 @@ function Chat:prompt(text)
 		if self.state ~= "exited" then
 			return vim.notify("Aero: session is already running", vim.log.levels.INFO)
 		end
+
 		local win = vim.fn.win_findbuf(self.buf)[1]
 		return require("aero.session").start(self.s, win, true)
 	end
+
 	if vim.trim(text) == "/prompt" then
 		return require("aero.prompt_snippets").open(self)
 	end
+
 	if vim.trim(text) == "/export" then
 		return require("aero.exports").export(self)
 	end
+
 	if self.state == "exited" then
 		local message = "Aero: session is stopped; send /resume in the composer to resume it"
 		vim.notify(message, vim.log.levels.WARN)
 		return
 	end
+
 	if vim.trim(text) == "/report" then
 		return require("aero.reports").pick(self.s)
 	end
+
 	if vim.trim(text) == "/reference" or vim.trim(text) == "/context" then -- legacy prompt alias
 		return require("aero.reference").pick(self.s)
 	end
+
 	if vim.trim(text) == "/cancel" then
 		return self:cancel()
 	end
+
 	if self.task_pending then
 		table.insert(self.queue, text)
 		return self:changed()
 	end
+
 	if vim.trim(text):match("^/new%-ticket%s") or vim.trim(text) == "/new-ticket" then
 		if not self.s.task_binding then
 			if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
 				table.insert(self.queue, text)
 				return self:changed()
 			end
+
 			return require("aero.tasks.agent").prepare_new_ticket(self, function()
 				self:prompt(text)
 			end)
 		end
 	end
+
 	local expanded, expansion_err = require("aero.tasks.agent").expand_new_ticket(self.s, text)
+
 	if not expanded then
 		vim.notify("Aero: " .. expansion_err, vim.log.levels.WARN)
 		return
 	end
+
 	text = expanded
+
 	-- queued prompts are shown at the end of the transcript and only become blocks once sent,
 	-- so a resumed session's replayed history (or a failed resume) can't bury or drop them
 	if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
 		table.insert(self.queue, text)
 		return self:changed()
 	end
+
 	if models.handle(self, text) or modes.handle(self, text) then
 		return
 	end
+
 	local prompt_block = { kind = "user", text = text, timestamp = os.time() }
 	table.insert(self.blocks, prompt_block)
 	self.turn = (self.turn or 0) + 1
@@ -555,6 +618,7 @@ function Chat:prompt(text)
 	}, function(err, res)
 		self.busy = false
 		usage.response(self, res, turn)
+
 		if err then
 			self:fail("prompt", err)
 		elseif res and res.stopReason and res.stopReason ~= "end_turn" then
@@ -562,6 +626,7 @@ function Chat:prompt(text)
 		else
 			require("aero.inbox").add(self, "completed", prompt_block, "Turn completed")
 		end
+
 		self:changed()
 		self:flush_queue()
 	end)
@@ -570,6 +635,7 @@ end
 --- Send the next queued prompt, if any.
 function Chat:flush_queue()
 	local text = table.remove(self.queue, 1)
+
 	if text then
 		self:prompt(text)
 	end
@@ -578,25 +644,30 @@ end
 function Chat:cancel()
 	self.queue = {}
 	self.pending_focus = false
+
 	if self.permission then
 		local pending = self.permissions or { self.permission }
 		self.permissions = {}
 		self.permission = nil
 		self:set_option_keys(false)
+
 		for _, p in ipairs(pending) do
 			p.block.answer = "cancelled"
 			p.respond({ outcome = { outcome = "cancelled" } })
 		end
 	end
+
 	if self.busy and self.session_id then
 		self.client:notify("session/cancel", { sessionId = self.session_id })
 	end
+
 	self:changed()
 end
 
 function Chat:stop()
 	self:save_history()
 	history.flush(self.s)
+
 	if self.client then
 		self.client:stop()
 	end
@@ -658,45 +729,57 @@ function M.start(s, buf, agent, resume, session_id, opts)
 	}, Chat)
 	local old = chats_by_key[s.key]
 	local saved = resume and history.load(s)
+
 	if saved and saved.type == "acp" and type(saved.blocks) == "table" then
 		chat.blocks, chat.agent_info = saved.blocks, saved.agent_info
+
 		if type(saved.draft) == "table" and vim.islist(saved.draft) then
 			local valid = true
+
 			for _, line in ipairs(saved.draft) do
 				valid = valid and type(line) == "string" and not line:find("\n", 1, true)
 			end
+
 			if valid then
 				chat.draft = saved.draft
 			end
 		end
+
 		usage.restore(chat, saved.usage)
 		chat.saved_session_id = type(saved.session_id) == "string" and saved.session_id ~= "" and saved.session_id
 			or nil
 		chat.cache_session_id = chat.saved_session_id
 		chat.restored_history = #chat.blocks > 0
+
 		for _, b in ipairs(chat.blocks) do
 			if b.kind ~= "info" then
 				chat.restored_conversation = true
 			end
+
 			if b.kind == "tool" and b.id then
 				chat.tools[b.id] = b
 			end
 		end
 	end
+
 	if old then
 		chat.prompt_buf = old.prompt_buf
 		chat.draft = old.draft
+
 		if resume and old.resume_error then
 			chat.queue = old.queue
 		end
 	end
+
 	chats_by_key[s.key] = chat
 	setup_transcript(chat)
+
 	if opts.history_only then
 		chat.state = "exited"
 		chat:render()
 		return chat
 	end
+
 	local cmd = type(agent.cmd) == "function" and agent.cmd(s) or agent.cmd
 	local client, err = Client.spawn(cmd, {
 		cwd = s.worktree,
@@ -718,24 +801,30 @@ function M.start(s, buf, agent, resume, session_id, opts)
 			chat.exit_code = code
 			local msg = ("agent exited (%d)"):format(code)
 			stderr = vim.trim(stderr or "")
+
 			if code ~= 0 and stderr ~= "" then
 				msg = msg .. ": " .. stderr:sub(-500)
 			end
+
 			if not chat.resume_error then
 				chat:info(msg, code == 0 and "session" or "error")
 			elseif stderr ~= "" then
 				chat:info("adapter stderr: " .. stderr:sub(-2000), code == 0 and "session" or "error")
 			end
+
 			chat:changed()
+
 			if chats_by_key[s.key] == chat then
 				events.emit("session_exited", events.session(s, { exit_code = code, type = "acp" }))
 			end
 		end,
 	})
+
 	if not client then
 		vim.notify(("Aero: failed to start %s: %s"):format(table.concat(cmd, " "), err), vim.log.levels.ERROR)
 		return nil
 	end
+
 	chat.client = client
 	chat:render()
 	spinner.ensure()
@@ -747,6 +836,7 @@ end
 function M.toggle_prompt(s)
 	local key = s and s.key or vim.b.aero_chat_key or vim.b.aero_session
 	local chat = key and chats_by_key[key]
+
 	if chat then
 		chat:toggle_prompt()
 	end
@@ -754,6 +844,7 @@ end
 
 function M.compose(s)
 	local chat = chats_by_key[s.key]
+
 	if chat then
 		chat:compose()
 	end
@@ -761,11 +852,14 @@ end
 
 function M.forget(s)
 	local chat = chats_by_key[s.key]
+
 	if chat then
 		chat:stop()
+
 		if chat.prompt_buf and api.nvim_buf_is_valid(chat.prompt_buf) then
 			api.nvim_buf_delete(chat.prompt_buf, { force = true })
 		end
+
 		chats_by_key[s.key] = nil
 	end
 end
@@ -775,17 +869,22 @@ function M.omnifunc(findstart, base)
 	local line = api.nvim_get_current_line():sub(1, api.nvim_win_get_cursor(0)[2])
 	local prefix = line:match("^(%s*/model%s+)") or line:match("^(%s*/mode%s+)")
 	local selector = prefix and (prefix:match("/model%s") and models or modes)
+
 	if findstart == 1 then
 		if prefix then
 			return #prefix
 		end
+
 		local start = line:find("/[%w%-_]*$")
 		return start and start - 1 or -3
 	end
+
 	local out = {}
+
 	if not prefix and ("/export"):sub(1, #base) == base then
 		table.insert(out, { word = "/export", menu = "Save this conversation as Markdown" })
 	end
+
 	if prefix then
 		for _, choice in ipairs(selector.options(chat).choices) do
 			if choice.id:sub(1, #base) == base then
@@ -795,43 +894,57 @@ function M.omnifunc(findstart, base)
 				)
 			end
 		end
+
 		return out
 	end
+
 	if ("/model"):sub(1, #base) == base then
 		table.insert(out, { word = "/model", menu = "Choose the session's AI model" })
 	end
+
 	if ("/mode"):sub(1, #base) == base then
 		table.insert(out, { word = "/mode", menu = "Choose the session mode" })
 	end
+
 	if ("/report"):sub(1, #base) == base then
 		table.insert(out, { word = "/report", menu = "Attach a worktree report to the draft" })
 	end
+
 	if ("/reading"):sub(1, #base) == base then
 		table.insert(out, { word = "/reading", menu = "Draft a named source-code walkthrough request" })
 	end
+
 	if ("/prompt"):sub(1, #base) == base then
 		table.insert(out, { word = "/prompt", menu = "Insert a custom prompt snippet into the draft" })
 	end
+
 	if ("/history"):sub(1, #base) == base then
 		table.insert(out, { word = "/history", menu = "Reuse a previous session prompt in the draft" })
 	end
+
 	if ("/send"):sub(1, #base) == base then
 		table.insert(out, { word = "/send", menu = "Submit the current draft" })
 	end
+
 	if ("/reference"):sub(1, #base) == base then
 		table.insert(out, { word = "/reference", menu = "Attach a worktree reference file or folder" })
 	end
+
 	if ("/cancel"):sub(1, #base) == base then
 		table.insert(out, { word = "/cancel", menu = "Cancel the current turn and discard queued prompts" })
 	end
+
 	if ("/resume"):sub(1, #base) == base then
 		table.insert(out, { word = "/resume", menu = "Resume the stopped session" })
 	end
+
 	if ("/new-ticket"):sub(1, #base) == base then
 		table.insert(out, { word = "/new-ticket", menu = "Create an Aero ticket with initial content through MCP" })
 	end
+
 	for _, c in ipairs(chat and chat.commands or {}) do
 		local word = "/" .. c.name
+
 		if
 			word ~= "/model"
 			and word ~= "/export"
@@ -850,24 +963,27 @@ function M.omnifunc(findstart, base)
 			table.insert(out, { word = word, menu = c.description })
 		end
 	end
+
 	return out
 end
 
 -- keep the footer and running tool calls of busy transcripts spinning
 spinner.on_frame(function()
 	local any = false
+
 	for _, chat in pairs(chats_by_key) do
 		if
 			(chat.busy or chat.model_pending or chat.mode_pending or chat.state == "starting")
 			and api.nvim_buf_is_valid(chat.buf)
 		then
 			any = true
+
 			if vim.fn.bufwinid(chat.buf) ~= -1 then
 				transcript.spin(chat)
 			end
 		end
 	end
+
 	return any
 end)
-
 return M

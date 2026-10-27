@@ -12,6 +12,7 @@ end
 
 function M.registry(board)
 	local registry = {}
+
 	for _, state in ipairs(board.states) do
 		for _, entry in ipairs(state.entries) do
 			local data = entry.ticket and entry.ticket.metadata
@@ -19,18 +20,24 @@ function M.registry(board)
 			registry[id] = { entry = entry, title = M.title(data and data.title or entry.label) }
 		end
 	end
+
 	-- Retained ticket files let native undo/paste restore a removed reference.
 	local orphans, duplicates = {}, {}
+
 	for _, orphan in ipairs(board.orphans or {}) do
 		local ticket = orphan.ticket
+
 		if ticket and ticket.valid and not orphan.error then
 			local id = ticket.metadata.id
+
 			if orphans[id] then
 				duplicates[id] = true
 			end
+
 			orphans[id] = orphan
 		end
 	end
+
 	for id, orphan in pairs(orphans) do
 		if not registry[id] and not duplicates[id] then
 			registry[id] = {
@@ -40,25 +47,30 @@ function M.registry(board)
 			}
 		end
 	end
+
 	return registry
 end
 
 function M.rows(state)
 	local rows = {}
+
 	for _, entry in ipairs(state.entries) do
 		local data = entry.ticket and entry.ticket.metadata
 		table.insert(rows, identity(entry) .. "  " .. M.title(data and data.title or entry.label))
 	end
+
 	return #rows > 0 and rows or { "" }
 end
 
 function M.parse(states, columns, registry)
 	local layout, errors, seen, new_tickets = {}, {}, {}, {}
 	local removed, restored = {}, {}
+
 	for si, state in ipairs(states) do
 		local column = columns[si]
 		local ids = {}
 		layout[si] = { name = state.name, ticket_ids = ids }
+
 		if not column or column.name ~= state.name or not column.lines then
 			table.insert(errors, { message = "missing state buffer: " .. state.name, state = si })
 		else
@@ -68,6 +80,7 @@ function M.parse(states, columns, registry)
 					local item = id and registry[id]
 					local first = vim.trim(line):match("^(%S+)")
 					local err
+
 					if not item then
 						if
 							registry[first]
@@ -88,12 +101,15 @@ function M.parse(states, columns, registry)
 					elseif label ~= item.title then
 						err = "title changed; use rename or edit ticket metadata"
 					end
+
 					if err then
 						table.insert(errors, { message = err, state = si, row = row })
 					end
+
 					if item then
 						seen[id] = true
 						table.insert(ids, id)
+
 						if item.orphan then
 							restored[id] = true
 						end
@@ -102,11 +118,13 @@ function M.parse(states, columns, registry)
 			end
 		end
 	end
+
 	for id, item in pairs(registry) do
 		if not seen[id] and not item.orphan then
 			removed[id] = true
 		end
 	end
+
 	return layout, errors, new_tickets, removed, restored
 end
 

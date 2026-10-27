@@ -1,5 +1,4 @@
 local M = {}
-
 local did_setup = false
 
 function M.setup(opts)
@@ -20,7 +19,6 @@ function M.setup(opts)
 	end
 
 	did_setup = true
-
 	require("aero.events").emit("setup", {})
 
 	if require("aero.config").options.companion.auto_start then
@@ -49,6 +47,7 @@ local function ensure()
 	if not did_setup then
 		M.setup()
 	end
+
 	return require("aero.dashboard")
 end
 
@@ -135,9 +134,11 @@ end
 function M.reader(action)
 	ensure()
 	local reader = require("aero.reader")
+
 	if vim.tbl_contains({ "source", "exports", "references", "reports", "reading" }, action) then
 		return reader.select(action)
 	end
+
 	return reader.mode(action)
 end
 
@@ -160,9 +161,11 @@ end
 --- Jump to the panel session's prompt (or terminal), opening the panel if needed.
 function M.prompt(action)
 	ensure()
+
 	if action == "send" then
 		return require("aero.commands").send_prompt()
 	end
+
 	require("aero.panel").prompt()
 end
 
@@ -233,19 +236,24 @@ function M.statusline()
 	if not did_setup then
 		return ""
 	end
+
 	local session = require("aero.session")
 	local icons = require("aero.config").options.icons
 	local counts = {}
+
 	for _, s in ipairs(session.all()) do
 		local st = session.status(s)
 		counts[st] = (counts[st] or 0) + 1
 	end
+
 	local out = {}
+
 	for _, st in ipairs({ "waiting", "busy", "idle" }) do
 		if counts[st] then
 			table.insert(out, (st == "busy" and require("aero.spinner").frame() or icons[st]) .. counts[st])
 		end
 	end
+
 	return table.concat(out, " ")
 end
 

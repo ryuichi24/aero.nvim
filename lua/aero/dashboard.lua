@@ -9,11 +9,8 @@ local terminal = require("aero.terminal")
 local spinner = require("aero.spinner")
 local reports = require("aero.reports")
 local navigation = require("aero.navigation")
-
 local M = {}
-
 local api = vim.api
-
 local state = {
 	buf = nil, ---@type integer?
 	win = nil, ---@type integer?
@@ -50,6 +47,7 @@ function M.setup_highlights()
 		AeroStopped = "Comment",
 		AeroDim = "Comment",
 	}
+
 	for group, link in pairs(links) do
 		api.nvim_set_hl(0, group, { link = link, default = true })
 	end
@@ -62,12 +60,13 @@ local status_hl = {
 	exited = "AeroExited",
 	stopped = "AeroStopped",
 }
-
 local remote_render_pending = false
+
 local function remote_changed()
 	if remote_render_pending then
 		return
 	end
+
 	remote_render_pending = true
 	vim.schedule(function()
 		remote_render_pending = false
@@ -77,25 +76,30 @@ end
 
 local function worktrees(ws, force)
 	local cache = state.worktrees[ws.root]
+
 	if force or not cache then
 		local list, err = git.list(ws.root)
 		cache = { list = list, err = err }
 		state.worktrees[ws.root] = cache
 	end
+
 	return cache
 end
 
 -- Loading is explicit: rendering never initiates Git listing or remote requests.
 local function load_worktrees()
 	local roots = {}
+
 	for _, workspace in ipairs(store.data.workspaces) do
 		if workspace.expanded ~= false then
 			worktrees(workspace)
+
 			if state.worktrees[workspace.root].list then
 				table.insert(roots, workspace.root)
 			end
 		end
 	end
+
 	for _, root in ipairs(roots) do
 		require("aero.remote_status").request(root, remote_changed)
 	end
@@ -103,9 +107,11 @@ end
 
 local function wt_expanded(wt, sessions)
 	local e = state.expanded[wt.path]
+
 	if e == nil then
 		return #sessions > 0
 	end
+
 	return e
 end
 
@@ -113,22 +119,27 @@ local function wt_label(wt)
 	if wt.branch then
 		return wt.branch
 	end
+
 	return "(detached " .. (wt.head or ""):sub(1, 7) .. ")"
 end
 
 local function summary(sessions)
 	local counts, order = {}, { "waiting", "busy", "idle", "exited", "stopped" }
+
 	for _, s in ipairs(sessions) do
 		local st = session.status(s)
 		counts[st] = (counts[st] or 0) + 1
 	end
+
 	local chunks = {}
+
 	for _, st in ipairs(order) do
 		if counts[st] then
 			local icon = st == "busy" and spinner.frame() or config.options.icons[st]
 			table.insert(chunks, { " " .. icon .. counts[st], status_hl[st] })
 		end
 	end
+
 	return chunks
 end
 
@@ -142,16 +153,20 @@ local function reference_children(entries)
 	for _, entry in ipairs(entries) do
 		if entry.kind == "directory" then
 			entry.expanded = state.reference_folders_expanded[entry.path] == true
+
 			if entry.expanded then
 				entry.children = {}
 				local scan, err = vim.uv.fs_scandir(entry.path)
 				entry.err = err
+
 				if scan then
 					while true do
 						local name, kind = vim.uv.fs_scandir_next(scan)
+
 						if not name then
 							break
 						end
+
 						table.insert(
 							entry.children,
 							{ name = name, kind = kind, path = vim.fs.joinpath(entry.path, name) }
@@ -169,17 +184,21 @@ end
 
 local function build()
 	local snapshot = { icons = config.options.icons, add_key = config.options.keymaps.add_workspace, workspaces = {} }
+
 	for _, ws in ipairs(store.data.workspaces) do
 		local workspace =
 			{ ws = ws, display_path = " " .. vim.fn.fnamemodify(ws.root, ":~"), worktrees = {}, boards = {} }
 		table.insert(snapshot.workspaces, workspace)
+
 		if ws.expanded ~= false then
 			workspace.cache = state.worktrees[ws.root] or { list = {} }
+
 			if workspace.cache.list then
 				local remote = require("aero.remote_status").peek(ws.root)
 				workspace.cache.checking = remote.checking
 				workspace.cache.statuses, workspace.cache.fetch_err = remote.statuses, remote.fetch_err
 			end
+
 			for _, wt in ipairs(workspace.cache.list or {}) do
 				local sessions = session.list(wt.path)
 				local tree = {
@@ -192,6 +211,7 @@ local function build()
 					reports = {},
 				}
 				table.insert(workspace.worktrees, tree)
+
 				if tree.expanded then
 					for _, selected in ipairs(sessions) do
 						table.insert(tree.sessions, {
@@ -203,6 +223,7 @@ local function build()
 							assignment = require("aero.tasks.status").label(selected),
 						})
 					end
+
 					tree.exports = require("aero.exports").list(wt.path)
 					tree.exports_open = state.exports_expanded[wt.path] ~= false
 					tree.reports, tree.report_err = reports.list(wt.path, ws)
@@ -211,15 +232,18 @@ local function build()
 					tree.reading_open = state.reading_expanded[wt.path] ~= false
 					tree.references, tree.reference_err = require("aero.reference").list(wt.path)
 					tree.reference_open = state.reference_expanded[wt.path] ~= false
+
 					if tree.reference_open then
 						reference_children(tree.references)
 					end
 				end
 			end
+
 			local boards
 			boards, workspace.board_errors = require("aero.tasks").list(ws)
 			workspace.boards_open = state.boards_expanded[ws.root] ~= false
 			workspace.removed_count = workspace.boards_open and #require("aero.tasks").list_removed(ws) or 0
+
 			for _, board in ipairs(boards) do
 				table.insert(workspace.boards, {
 					board = board,
@@ -231,6 +255,7 @@ local function build()
 			end
 		end
 	end
+
 	animation_snapshot = snapshot
 	return require("aero.dashboard.model").build(snapshot)
 end
@@ -240,9 +265,11 @@ local function animate()
 	if not animation_snapshot then
 		return
 	end
+
 	for _, workspace in ipairs(animation_snapshot.workspaces) do
 		for _, tree in ipairs(workspace.worktrees) do
 			tree.summary = summary(session.list(tree.wt.path))
+
 			for _, item in ipairs(tree.sessions) do
 				item.status = session.status(item.session)
 				item.icon = session.icon(item.session)
@@ -251,6 +278,7 @@ local function animate()
 			end
 		end
 	end
+
 	local lines, items, marks = require("aero.dashboard.model").build(animation_snapshot)
 	require("aero.dashboard.view").render(state, lines, items, marks)
 end
@@ -258,9 +286,11 @@ end
 --- Collapse all existing sidebar nodes of a type, including hidden descendants.
 function M.collapse(kind)
 	kind = kind or "all"
+
 	if kind == "context" then
 		kind = "reference"
 	end -- legacy command alias
+
 	local valid = {
 		all = true,
 		workspaces = true,
@@ -271,6 +301,7 @@ function M.collapse(kind)
 		boards = true,
 		reference = true,
 	}
+
 	if not valid[kind] then
 		notify(
 			"use :Aero collapse [all|workspaces|worktrees|reading|reports|exports|boards|reference]",
@@ -278,13 +309,16 @@ function M.collapse(kind)
 		)
 		return
 	end
+
 	if kind == "all" or kind == "reference" then
 		state.reference_folders_expanded = {}
 	end
+
 	for _, ws in ipairs(store.data.workspaces) do
 		if kind == "all" or kind == "boards" then
 			state.boards_expanded[ws.root] = false
 		end
+
 		if
 			kind == "all"
 			or kind == "worktrees"
@@ -295,36 +329,45 @@ function M.collapse(kind)
 		then
 			local cache = state.worktrees[ws.root]
 			local list = cache and cache.list or git.list(ws.root)
+
 			for _, wt in ipairs(list or {}) do
 				if kind == "all" or kind == "reading" then
 					state.reading_expanded[wt.path] = false
 				end
+
 				if kind == "all" or kind == "worktrees" then
 					state.expanded[wt.path] = false
 				end
+
 				if kind == "all" or kind == "reports" then
 					state.reports_expanded[wt.path] = false
 				end
+
 				if kind == "all" or kind == "reference" then
 					state.reference_expanded[wt.path] = false
 				end
+
 				if kind == "all" or kind == "exports" then
 					state.exports_expanded[wt.path] = false
 				end
 			end
 		end
+
 		if kind == "all" or kind == "workspaces" then
 			store.set_expanded(ws.root, false)
 		end
 	end
+
 	M.render()
 end
 
 function M.render()
 	local buf = state.buf
+
 	if not (buf and api.nvim_buf_is_valid(buf)) then
 		return
 	end
+
 	local lines, items, marks = build()
 	require("aero.dashboard.view").render(state, lines, items, marks)
 end
@@ -346,6 +389,7 @@ api.nvim_create_autocmd("TabEnter", {
 	group = api.nvim_create_augroup("Aero.dashboard", { clear = true }),
 	callback = function()
 		state.win, state.target = nil, vim.t.Aero_target
+
 		for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do
 			if state.buf and api.nvim_win_get_buf(w) == state.buf then
 				state.win = w
@@ -372,6 +416,7 @@ local function set_win_options(win)
 		list = false,
 		winfixwidth = config.options.dashboard.position ~= "current",
 	}
+
 	for k, v in pairs(opts) do
 		api.nvim_set_option_value(k, v, { win = win, scope = "local" })
 	end
@@ -387,6 +432,7 @@ local function get_buf()
 	if state.buf and api.nvim_buf_is_valid(state.buf) then
 		return state.buf
 	end
+
 	local buf = api.nvim_create_buf(false, true)
 	state.buf = buf
 	vim.bo[buf].buftype = "nofile"
@@ -402,14 +448,17 @@ end
 
 function M.open(focus_worktree)
 	local cur = api.nvim_get_current_win()
+
 	if is_open() then
 		api.nvim_set_current_win(state.win)
 		M.render()
 		return
 	end
+
 	local buf = get_buf()
 	local pos = config.options.dashboard.position
 	local width = require("aero.layout").dashboard_width()
+
 	if pos == "current" then
 		state.win = cur
 		require("aero.layout").set_buf(cur, buf)
@@ -420,23 +469,30 @@ function M.open(focus_worktree)
 			win = -1,
 			width = width,
 		})
+
 		-- Focusing a new window can apply 'winwidth'; restore the requested sidebar size.
 		api.nvim_win_set_width(state.win, width)
 	end
+
 	set_win_options(state.win)
+
 	if pos ~= "current" then
 		require("aero.layout").track(state.win, "dashboard", nil, width)
 		require("aero.layout").rebalance()
 	end
+
 	-- git state (and other nvim instances' changes) may have changed while the dashboard was hidden
 	store.load()
 	state.worktrees = {}
 	local selected_path
+
 	if focus_worktree then
 		local path = vim.fs.normalize(vim.fn.resolve(vim.t.aero_worktree or vim.fn.getcwd()))
+
 		for _, ws in ipairs(store.data.workspaces) do
 			for _, wt in ipairs(worktrees(ws).list or {}) do
 				local root = vim.fs.normalize(vim.fn.resolve(wt.path))
+
 				if root == path or (not vim.t.aero_worktree and path:sub(1, #root + 1) == root .. "/") then
 					if not selected_path or #wt.path > #selected_path then
 						ws.expanded = true
@@ -446,8 +502,10 @@ function M.open(focus_worktree)
 			end
 		end
 	end
+
 	load_worktrees()
 	M.render()
+
 	if selected_path then
 		for row, item in pairs(state.items) do
 			if item.kind == "worktree" and item.wt.path == selected_path then
@@ -456,6 +514,7 @@ function M.open(focus_worktree)
 			end
 		end
 	end
+
 	require("aero.events").emit(
 		"dashboard_opened",
 		{ win = state.win, buf = state.buf, tab = api.nvim_get_current_tabpage() }
@@ -472,14 +531,18 @@ function M.close()
 	if require("aero.fullscreen").close("dashboard") then
 		return
 	end
+
 	if not is_open() then
 		return
 	end
+
 	require("aero.layout").remember(state.win)
+
 	if config.options.dashboard.position == "current" then
 		local alt = api.nvim_win_call(state.win, function()
 			return vim.fn.bufnr("#")
 		end)
+
 		if alt > 0 and alt ~= state.buf and api.nvim_buf_is_valid(alt) then
 			require("aero.layout").set_buf(state.win, alt)
 		else
@@ -490,6 +553,7 @@ function M.close()
 	else
 		return
 	end
+
 	local win = state.win
 	state.win = nil
 	require("aero.events").emit(
@@ -539,8 +603,10 @@ api.nvim_create_autocmd("BufWritePost", {
 		if not state.buf or not api.nvim_buf_is_valid(state.buf) or vim.fn.bufwinid(state.buf) == -1 then
 			return
 		end
+
 		for _, ws in ipairs(store.data.workspaces) do
 			local directory = require("aero.tasks").directory(ws)
+
 			if directory and require("aero.storage").inside(event.file, directory) then
 				vim.schedule(M.render)
 				return
@@ -577,6 +643,7 @@ end
 function M.report()
 	local s = session.from_buf(0)
 	local key = vim.b.aero_chat_key
+
 	if not s and key then
 		for _, candidate in ipairs(session.all()) do
 			if candidate.key == key then
@@ -585,13 +652,16 @@ function M.report()
 			end
 		end
 	end
+
 	local item = api.nvim_get_current_buf() == state.buf and current_item() or nil
 	s = s or item and item.session
 	local path = s and s.worktree or item and item.wt and item.wt.path
+
 	if item and not path then
 		notify("select a worktree or agent session first", vim.log.levels.WARN)
 		return
 	end
+
 	path = path or vim.t.aero_worktree or vim.fn.getcwd()
 	return reports.choose_session(path, s or panel.current_session(), item and item.ws)
 end
@@ -631,27 +701,35 @@ local function start_agent(item, agent)
 		notify("move the cursor to a worktree first", vim.log.levels.WARN)
 		return
 	end
+
 	local function create(name)
 		local s, err = session.create(item.wt.path, agent, name)
+
 		if not s then
 			notify(err, vim.log.levels.WARN)
 			return
 		end
+
 		state.expanded[item.wt.path] = true
 		open_session(s, "default")
 	end
+
 	if not config.options.prompt_session_name then
 		return create()
 	end
+
 	require("aero.input").input({ prompt = "New session name: ", default = agent }, function(name)
 		if not name or vim.trim(name) == "" then
 			return
 		end
+
 		name = vim.trim(name)
+
 		if name:find("%c") then
 			notify("use a session name without control characters", vim.log.levels.WARN)
 			return
 		end
+
 		create(name)
 	end)
 end
@@ -670,6 +748,7 @@ local function choose_agent(item, label)
 			if index == 1 or (index == nil and choice == "default") then
 				choice = config.options.default_agent
 			end
+
 			start_agent(item, choice)
 		end
 	end)
@@ -686,19 +765,24 @@ function M.add_workspace(path)
 		if not p or p == "" then
 			return
 		end
+
 		local root, err = git.main_root(vim.fn.fnamemodify(vim.fn.expand(p), ":p"))
+
 		if not root then
 			notify(err, vim.log.levels.ERROR)
 			return
 		end
+
 		local _, added = store.add_workspace(root)
 		notify((added and "added " or "already added ") .. vim.fn.fnamemodify(root, ":~"))
 		load_worktrees()
 		M.render()
 	end
+
 	if path then
 		return add(path)
 	end
+
 	vim.ui.input({ prompt = "Add workspace (git repo): ", default = vim.fn.getcwd(), completion = "dir" }, add)
 end
 
@@ -707,16 +791,20 @@ local function add_worktree(ws)
 		if not branch or vim.trim(branch) == "" then
 			return
 		end
+
 		branch = vim.trim(branch)
 		local default_path = config.options.worktree_path(ws, branch)
 		vim.ui.input({ prompt = "Worktree name: ", default = vim.fs.basename(default_path) }, function(name)
 			if not name or vim.trim(name) == "" then
 				return
 			end
+
 			name = vim.trim(name)
+
 			if name == "." or name == ".." or name:find("/", 1, true) then
 				return notify("Worktree name must be a single directory name", vim.log.levels.WARN)
 			end
+
 			local path = vim.fs.joinpath(vim.fs.dirname(default_path), name)
 			notify("creating worktree " .. name .. " (" .. branch .. ") …")
 			git.add(ws.root, branch, path, function(ok, err)
@@ -724,19 +812,23 @@ local function add_worktree(ws)
 					notify(err, vim.log.levels.ERROR)
 					return
 				end
+
 				store.set_expanded(ws.root, true)
 				state.worktrees[ws.root] = nil
 				local cache = worktrees(ws)
+
 				for _, wt in ipairs(cache.list or {}) do
 					if wt.branch == branch then
 						state.expanded[wt.path] = true
 					end
 				end
+
 				notify("created " .. vim.fn.fnamemodify(path, ":~"))
 				M.render()
 			end, remote)
 		end)
 	end
+
 	vim.ui.select({ "Create a new branch", "Check out an existing branch", "Check out a remote branch" }, {
 		prompt = "Add worktree (" .. ws.name .. "):",
 	}, function(choice)
@@ -747,28 +839,36 @@ local function add_worktree(ws)
 				if not branches then
 					return notify(err, vim.log.levels.ERROR)
 				end
+
 				local trees, list_err = git.list(ws.root)
+
 				if not trees then
 					return notify(list_err, vim.log.levels.ERROR)
 				end
+
 				local occupied = {}
+
 				for _, wt in ipairs(trees) do
 					if wt.branch then
 						occupied[wt.branch] = true
 					end
 				end
+
 				local available = {}
+
 				for _, branch in ipairs(branches) do
 					if not branch.remote and not occupied[branch.name] then
 						table.insert(available, branch.name)
 					end
 				end
+
 				if #available == 0 then
 					return notify(
 						"No available local branches; create a new branch or choose a remote branch",
 						vim.log.levels.WARN
 					)
 				end
+
 				vim.ui.select(available, { prompt = "Existing branch:" }, function(branch)
 					create(branch)
 				end)
@@ -778,9 +878,11 @@ local function add_worktree(ws)
 				if not branches then
 					return notify(err, vim.log.levels.ERROR)
 				end
+
 				if #branches == 0 then
 					return notify("No remote branches found; fetch the repository first", vim.log.levels.WARN)
 				end
+
 				vim.ui.select(branches, { prompt = "Remote branch:" }, function(remote)
 					if remote then
 						create(remote:match("^[^/]+/(.+)$"), remote)
@@ -797,7 +899,9 @@ local function open_reading(item, create)
 	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
 		return
 	end
+
 	api.nvim_set_current_win(navigation.code_window())
+
 	if create then
 		state.reading_expanded[item.wt.path] = true
 		require("aero.reading").command("new", item.wt.path)
@@ -810,12 +914,15 @@ local function open_report(item, how)
 	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
 		return
 	end
+
 	local kind = item.kind == "export" and "exports" or item.kind == "reference_item" and "references" or "reports"
 	local win = navigation.code_window(kind)
 	api.nvim_set_current_win(win)
+
 	if how and how ~= "default" then
 		vim.cmd(({ vsplit = "vsplit", split = "split", tab = "tab split" })[how])
 	end
+
 	vim.cmd.edit(vim.fn.fnameescape(item.report.path))
 	state.target = api.nvim_get_current_win()
 	require("aero.buffers").remember(state.target)
@@ -831,9 +938,11 @@ end
 
 function actions.open(how)
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	if item.kind == "board" then
 		require("aero.tasks.view").open(item.ws, item.board.path)
 	elseif item.kind == "board_new" then
@@ -863,9 +972,11 @@ end
 
 function actions.toggle()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	if item.kind == "workspace" then
 		store.set_expanded(item.ws.root, item.ws.expanded == false)
 		load_worktrees()
@@ -885,14 +996,17 @@ function actions.toggle()
 	elseif item.kind == "boards" then
 		state.boards_expanded[item.ws.root] = state.boards_expanded[item.ws.root] == false
 	end
+
 	M.render()
 end
 
 function actions.expand()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	if
 		item.kind == "session"
 		or item.kind == "export"
@@ -908,7 +1022,9 @@ function actions.expand()
 	then
 		return actions.open("default")
 	end
+
 	local expanded
+
 	if item.kind == "workspace" then
 		expanded = item.ws.expanded ~= false
 	elseif item.kind == "exports" then
@@ -926,9 +1042,11 @@ function actions.expand()
 	else
 		expanded = wt_expanded(item.wt, session.list(item.wt.path))
 	end
+
 	if expanded then
 		-- already open: step into the first child
 		local lnum = api.nvim_win_get_cursor(0)[1]
+
 		if state.items[lnum + 1] then
 			api.nvim_win_set_cursor(0, { lnum + 1, 0 })
 		end
@@ -939,9 +1057,11 @@ end
 
 function actions.collapse()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	local lnum = api.nvim_win_get_cursor(0)[1]
 	local is_header = item.id:match("^ws:")
 		or item.id:match("^wt:")
@@ -959,9 +1079,11 @@ function actions.collapse()
 		or item.kind == "reference_item" and state.reference_folders_expanded[item.reference.path] == true
 		or item.kind == "exports" and state.exports_expanded[item.wt.path] ~= false
 		or item.kind == "boards" and state.boards_expanded[item.ws.root] ~= false
+
 	if is_header and open then
 		return actions.toggle()
 	end
+
 	-- jump to the parent line
 	local parent = (item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed")
 			and "boards:" .. item.ws.root
@@ -975,9 +1097,11 @@ function actions.collapse()
 		or item.kind == "reference" and "wt:" .. item.wt.path
 		or (item.kind == "session" or item.kind == "reports") and "wt:" .. item.wt.path
 		or "ws:" .. item.ws.root
+
 	if item.id == parent then
 		parent = "ws:" .. item.ws.root
 	end
+
 	for l = lnum - 1, 1, -1 do
 		if state.items[l] and state.items[l].id == parent then
 			api.nvim_win_set_cursor(0, { l, 0 })
@@ -988,9 +1112,11 @@ end
 
 function actions.add()
 	local item = current_item()
+
 	if not item then
 		return M.add_workspace()
 	end
+
 	if item.kind == "boards" or item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed" then
 		require("aero.tasks.ui").new_board(item.ws)
 	elseif item.kind == "workspace" then
@@ -1012,19 +1138,23 @@ end
 
 function actions.move()
 	local item = current_item()
+
 	if not item or item.kind ~= "report" then
 		return
 	end
+
 	require("aero.workspaces").worktrees({
 		title = "move report to worktree",
 		exclude = item.wt.path,
 		select = function(destination)
 			local wt, ws = destination.wt, destination.ws
 			local report, move_err = reports.move(item.report, wt.path, ws)
+
 			if not report then
 				notify(move_err, vim.log.levels.WARN)
 				return
 			end
+
 			state.expanded[wt.path], state.reports_expanded[wt.path] = true, true
 			store.set_expanded(ws.root, true)
 			item.id = "report:" .. report.path
@@ -1035,9 +1165,11 @@ end
 
 function actions.rename()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	if item.kind == "board" then
 		vim.ui.input(
 			{ prompt = "Rename board: ", default = item.board.metadata and item.board.metadata.title },
@@ -1045,10 +1177,13 @@ function actions.rename()
 				if not name or vim.trim(name) == "" then
 					return
 				end
+
 				local ok, err = require("aero.tasks").rename_board(item.ws, item.board.path, vim.trim(name))
+
 				if not ok then
 					notify(err, vim.log.levels.WARN)
 				end
+
 				M.render()
 			end
 		)
@@ -1063,11 +1198,15 @@ function actions.rename()
 			if not name or vim.trim(name) == "" then
 				return
 			end
+
 			local renamed, err = require("aero.reference").rename(entry, name)
+
 			if not renamed then
 				return notify(err, vim.log.levels.WARN)
 			end
+
 			local expanded = {}
+
 			for path, value in pairs(state.reference_folders_expanded) do
 				if path == entry.path or vim.startswith(path, entry.path .. "/") then
 					expanded[renamed.path .. path:sub(#entry.path + 1)] = value
@@ -1075,6 +1214,7 @@ function actions.rename()
 					expanded[path] = value
 				end
 			end
+
 			state.reference_folders_expanded = expanded
 			item.id = "reference-item:" .. renamed.path
 			require("aero.events").emit("reference_changed", { worktree = item.wt.path })
@@ -1089,12 +1229,16 @@ function actions.rename()
 			if not name or vim.trim(name) == "" then
 				return
 			end
+
 			name = vim.trim(name)
+
 			if name:find("%c") then
 				notify("use a session name without control characters", vim.log.levels.WARN)
 				return
 			end
+
 			local ok, err = session.rename(item.session, name)
+
 			if not ok then
 				notify(err, vim.log.levels.WARN)
 			end
@@ -1104,14 +1248,18 @@ end
 
 function actions.delete()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	if item.kind == "board" then
 		if vim.fn.confirm("Permanently delete board and ALL its tickets?", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
+
 		local ok, err = require("aero.tasks").delete_board(item.ws, item.board.path)
+
 		if not ok then
 			notify(err, vim.log.levels.WARN)
 			return
@@ -1119,27 +1267,35 @@ function actions.delete()
 	elseif item.kind == "reference_item" then
 		local entry = item.reference
 		local label = entry.kind == "directory" and "reference folder and all its contents" or "reference item"
+
 		if vim.fn.confirm("Delete " .. label .. " " .. entry.name .. "?", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
+
 		local ok, err
+
 		if entry.kind == "directory" then
 			ok = vim.fn.delete(entry.path, "rf") == 0
 			err = "could not remove folder: " .. entry.path
 		else
 			ok, err = vim.uv.fs_unlink(entry.path)
 		end
+
 		if not ok then
 			notify("could not delete reference item: " .. tostring(err), vim.log.levels.ERROR)
 			return
 		end
+
 		require("aero.events").emit("reference_changed", { worktree = item.wt.path })
 	elseif item.kind == "report" or item.kind == "export" then
 		local label = item.kind == "export" and "exported log" or "report"
+
 		if vim.fn.confirm("Delete " .. label .. " " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
+
 		local ok, err = vim.uv.fs_unlink(item.report.path)
+
 		if not ok then
 			notify("could not delete " .. label .. ": " .. err, vim.log.levels.ERROR)
 			return
@@ -1147,31 +1303,40 @@ function actions.delete()
 	elseif item.kind == "session" then
 		local s = item.session
 		local prompt = (s.job and "Kill running session " or "Delete session ") .. s.name .. "?"
+
 		if vim.fn.confirm(prompt, "&Yes\n&No", 2) ~= 1 then
 			return
 		end
+
 		session.delete(s)
 	elseif item.kind == "worktree" then
 		local wt, ws = item.wt, item.ws
+
 		if wt.path == ws.root then
 			notify("refusing to remove the main worktree", vim.log.levels.WARN)
 			return
 		end
+
 		local choice =
 			vim.fn.confirm("Remove worktree " .. vim.fn.fnamemodify(wt.path, ":~") .. "?", "&Yes\n&Force\n&No", 3)
+
 		if choice ~= 1 and choice ~= 2 then
 			return
 		end
+
 		git.remove(ws.root, wt.path, choice == 2, function(ok, err)
 			if not ok then
 				notify(err .. (choice == 1 and " (use Force to remove anyway)" or ""), vim.log.levels.ERROR)
 				return
 			end
+
 			session.delete_worktree(wt.path)
 			terminal.delete(wt.path)
+
 			if tabs.enabled() then
 				tabs.close(wt.path)
 			end
+
 			require("aero.buffers").forget(wt.path)
 			state.worktrees[ws.root] = nil
 			notify("removed " .. vim.fn.fnamemodify(wt.path, ":~"))
@@ -1181,21 +1346,26 @@ function actions.delete()
 		return
 	elseif item.kind == "workspace" then
 		local ws = item.ws
+
 		if vim.fn.confirm("Remove workspace " .. ws.name .. " from Aero? (files are kept)", "&Yes\n&No", 2) ~= 1 then
 			return
 		end
+
 		for _, wt in ipairs(worktrees(ws).list or {}) do
 			session.delete_worktree(wt.path)
 			require("aero.buffers").forget(wt.path)
 		end
+
 		store.remove_workspace(ws.root)
 		state.worktrees[ws.root] = nil
 	end
+
 	M.render()
 end
 
 function actions.stop()
 	local item = current_item()
+
 	if item and item.kind == "session" then
 		session.stop(item.session)
 	end
@@ -1203,12 +1373,16 @@ end
 
 function actions.restart()
 	local item = current_item()
+
 	if item and item.kind == "session" then
 		local use_panel = panel.enabled() and config.options.dashboard.position ~= "current"
+
 		if use_panel and not enter_worktree(item.session.worktree) then
 			return
 		end
+
 		local win = session.prepare_win(use_panel and panel.open() or target_win())
+
 		if session.start(item.session, win, true) then
 			if use_panel then
 				panel.shown(item.session)
@@ -1230,19 +1404,24 @@ end
 local function yank(value)
 	if value then
 		vim.fn.setreg(vim.v.register, value, "v")
+
 		if vim.v.register == '"' then
 			vim.fn.setreg("0", value, "v")
 		end
+
 		notify("yanked " .. value)
 	end
 end
 
 function actions.yank_name()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	local name
+
 	if item.kind == "workspace" then
 		name = item.ws.name
 	elseif item.kind == "worktree" then
@@ -1256,15 +1435,19 @@ function actions.yank_name()
 			item.board.metadata and item.board.metadata.title or vim.fs.basename(vim.fs.dirname(item.board.path))
 		)
 	end
+
 	yank(name)
 end
 
 function actions.yank_path()
 	local item = current_item()
+
 	if not item then
 		return
 	end
+
 	local path = item.report and item.report.path or item.board and item.board.path or item_dir(item)
+
 	if path then
 		yank(vim.fs.normalize(vim.fn.fnamemodify(path, ":p")))
 	end
@@ -1275,6 +1458,7 @@ function M.pull(path)
 	if not path then
 		if api.nvim_get_current_buf() == state.buf then
 			path = item_dir(current_item())
+
 			if not path then
 				notify("move the cursor to a worktree first", vim.log.levels.WARN)
 				return
@@ -1284,24 +1468,30 @@ function M.pull(path)
 			path = s and s.worktree or vim.t.aero_worktree or vim.fn.getcwd()
 		end
 	end
+
 	path = vim.fs.normalize(vim.fn.resolve(path))
+
 	if state.pulling[path] then
 		notify("a pull is already running for " .. vim.fn.fnamemodify(path, ":~"), vim.log.levels.WARN)
 		return
 	end
+
 	state.pulling[path] = true
 	notify("pulling " .. vim.fn.fnamemodify(path, ":~") .. " …")
 	return git.pull(path, function(ok, output)
 		state.pulling[path] = nil
+
 		-- Git may have fetched new refs even if it could not fast-forward the checkout.
 		require("aero.remote_status").invalidate()
 		state.worktrees = {}
 		load_worktrees()
 		M.render()
+
 		if not ok then
 			notify("pull failed: " .. output, vim.log.levels.ERROR)
 			return
 		end
+
 		vim.cmd("checktime")
 		notify("pulled " .. vim.fn.fnamemodify(path, ":~") .. (output ~= "" and ("\n" .. output) or ""))
 	end)
@@ -1313,14 +1503,17 @@ end
 
 function actions.switch_branch()
 	local item = current_item()
+
 	if not item or not item.wt then
 		return notify("move the cursor to a worktree first", vim.log.levels.WARN)
 	end
+
 	local path = item.wt.path
 	git.branches(path, function(branches, err)
 		if not branches then
 			return notify(err, vim.log.levels.ERROR)
 		end
+
 		vim.ui.select(branches, {
 			prompt = "Switch branch (" .. wt_label(item.wt) .. "):",
 			format_item = function(branch)
@@ -1331,10 +1524,12 @@ function actions.switch_branch()
 			if not branch then
 				return
 			end
+
 			git.switch_branch(path, branch, function(ok, switch_err)
 				if not ok then
 					return notify("branch switch failed: " .. switch_err, vim.log.levels.ERROR)
 				end
+
 				state.worktrees = {}
 				load_worktrees()
 				M.render()
@@ -1351,10 +1546,12 @@ end
 
 function actions.cd()
 	local dir = item_dir(current_item())
+
 	if dir then
 		if not tabs.available(dir) then
 			return
 		end
+
 		vim.cmd.tcd(vim.fn.fnameescape(dir))
 		notify("tcd " .. vim.fn.fnamemodify(dir, ":~"))
 	end
@@ -1366,21 +1563,27 @@ end
 
 function actions.edit(restore)
 	local item = current_item()
+
 	if item and item.kind == "board" then
 		api.nvim_set_current_win(M.code_window())
 		vim.cmd.edit(vim.fn.fnameescape(item.board.path))
 		return
 	end
+
 	if item and (item.kind == "boards" or item.kind == "board_new") then
 		return require("aero.tasks.ui").new_board(item.ws)
 	end
+
 	if item and (item.kind == "report" or item.kind == "export") then
 		return open_report(item)
 	end
+
 	if item and item.kind == "report_new" then
 		return new_report(item)
 	end
+
 	local dir = item_dir(current_item())
+
 	if dir then
 		if restore then
 			M.open_worktree(dir)
@@ -1392,6 +1595,7 @@ end
 
 function actions.open_board_markdown()
 	local item = current_item()
+
 	if item and item.kind == "board" then
 		actions.edit()
 		vim.b.aero_board_path, vim.b.aero_workspace_root = item.board.path, item.ws.root
@@ -1403,10 +1607,13 @@ function M.open_board_markdown()
 	if api.nvim_get_current_buf() ~= state.buf then
 		return false
 	end
+
 	local item = current_item()
+
 	if not item or item.kind ~= "board" then
 		return false
 	end
+
 	actions.open_board_markdown()
 	return true
 end
@@ -1417,16 +1624,21 @@ end
 
 function actions.edit_mouse()
 	local mouse = vim.fn.getmousepos()
+
 	if mouse.winid == 0 or not api.nvim_win_is_valid(mouse.winid) then
 		return
 	end
+
 	if api.nvim_win_get_buf(mouse.winid) ~= state.buf or mouse.line < 1 then
 		return
 	end
+
 	local item = state.items[mouse.line]
+
 	if not item_dir(item) then
 		return
 	end
+
 	api.nvim_set_current_win(mouse.winid)
 	state.win = mouse.winid
 	api.nvim_win_set_cursor(mouse.winid, { mouse.line, 0 })
@@ -1435,10 +1647,12 @@ end
 
 function actions.terminal()
 	local dir = item_dir(current_item())
+
 	if dir then
 		if not enter_worktree(dir) then
 			return
 		end
+
 		terminal.open(dir, target_win())
 	end
 end
@@ -1448,6 +1662,7 @@ function M.toggle_terminal()
 	if terminal.win() then
 		return terminal.hide()
 	end
+
 	terminal.open(terminal.current_worktree(), target_win())
 end
 
@@ -1456,10 +1671,12 @@ local function jump_workspace(dir)
 	local l = lnum + dir
 	while l >= 1 and l <= api.nvim_buf_line_count(0) do
 		local item = state.items[l]
+
 		if item and item.id:match("^ws:") then
 			api.nvim_win_set_cursor(0, { l, 0 })
 			return
 		end
+
 		l = l + dir
 	end
 end
@@ -1514,32 +1731,41 @@ function actions.help()
 	local keys = config.options.keymaps
 	local names = vim.tbl_keys(descriptions)
 	table.sort(names)
+
 	for _, name in ipairs(names) do
 		if keys[name] then
 			table.insert(lines, ("  %-8s %s"):format(keys[name], descriptions[name]))
 		end
 	end
+
 	if config.options.fullscreen_key then
 		table.insert(lines, ("  %-8s toggle fullscreen"):format(config.options.fullscreen_key))
 	end
+
 	if config.options.quote_key then
 		table.insert(
 			lines,
 			("  %-8s quote selection (Visual mode in code / agent logs)"):format(config.options.quote_key)
 		)
 	end
+
 	local agents = vim.tbl_keys(config.options.agents)
 	table.sort(agents)
+
 	for _, name in ipairs(agents) do
 		local key = config.options.agents[name].key
+
 		if key then
 			table.insert(lines, ("  %-8s open %s on worktree"):format(key, name))
 		end
 	end
+
 	local width = 0
+
 	for _, l in ipairs(lines) do
 		width = math.max(width, vim.fn.strdisplaywidth(l) + 2)
 	end
+
 	local buf = api.nvim_create_buf(false, true)
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false
@@ -1553,6 +1779,7 @@ function actions.help()
 		border = "rounded",
 		title = " Aero ",
 	})
+
 	for _, key in ipairs({ "q", "<Esc>", "g?" }) do
 		vim.keymap.set("n", key, function()
 			api.nvim_win_close(win, true)
@@ -1562,32 +1789,39 @@ end
 
 function M.set_keymaps(buf)
 	buf = buf or state.buf
+
 	if not buf or not api.nvim_buf_is_valid(buf) then
 		return
 	end
+
 	for _, binding in ipairs(state.bindings) do
 		if binding.buf == buf then
 			api.nvim_buf_call(buf, function()
 				local current = vim.fn.maparg(binding.lhs, "n", false, true)
+
 				if current.callback == binding.callback then
 					vim.keymap.del("n", binding.lhs, { buffer = buf })
 				end
 			end)
 		end
 	end
+
 	state.bindings = {}
 	local keys = config.options.keymaps
+
 	local function map(lhs, fn, desc)
 		if lhs then
 			vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true, desc = "Aero: " .. desc })
 			table.insert(state.bindings, { buf = buf, lhs = lhs, callback = fn })
 		end
 	end
+
 	for name, fn in pairs(actions) do
 		if name ~= "open" then
 			map(keys[name], fn, descriptions[name] or name)
 		end
 	end
+
 	map(keys.open, function()
 		actions.open("default")
 	end, descriptions.open)
@@ -1600,6 +1834,7 @@ function M.set_keymaps(buf)
 	map(keys.open_tab, function()
 		actions.open("tab")
 	end, descriptions.open_tab)
+
 	for name, agent in pairs(config.options.agents) do
 		map(agent.key, function()
 			start_agent(current_item(), name)
@@ -1615,8 +1850,10 @@ end
 --- (or the current window when the panel is disabled).
 function M.pick(scope)
 	local choices = {}
+
 	if scope == "current" then
 		local path = vim.t.aero_worktree or vim.fn.getcwd()
+
 		for _, s in ipairs(session.list(path)) do
 			table.insert(choices, { session = s })
 		end
@@ -1629,14 +1866,17 @@ function M.pick(scope)
 			end
 		end
 	end
+
 	if #choices == 0 then
 		notify("no sessions")
 		return
 	end
+
 	vim.ui.select(choices, {
 		prompt = "Agent session",
 		format_item = function(c)
 			local what = session.activity(c.session)
+
 			if scope == "current" then
 				return ("%s %s [%s]%s"):format(
 					session.icon(c.session),
@@ -1645,6 +1885,7 @@ function M.pick(scope)
 					what and "  " .. what or ""
 				)
 			end
+
 			return ("%s %s / %s / %s%s"):format(
 				session.icon(c.session),
 				c.ws.name,
@@ -1658,15 +1899,20 @@ function M.pick(scope)
 			if not enter_worktree(c.session.worktree) then
 				return
 			end
+
 			panel.focus(c.session)
 		elseif c then
 			local win = api.nvim_get_current_win()
+
 			if win == state.win then
 				win = target_win()
 			end
+
 			win = session.show(c.session, win)
+
 			if win then
 				api.nvim_set_current_win(win)
+
 				if config.options.start_insert then
 					session.enter(c.session)
 				end
@@ -1680,7 +1926,6 @@ session.on_change(function()
 		M.render()
 	end
 end)
-
 require("aero.events").on("reports_changed", function()
 	M.render()
 end)
@@ -1712,10 +1957,11 @@ spinner.on_frame(function()
 	local busy = vim.iter(session.all()):any(function(s)
 		return session.status(s) == "busy"
 	end)
+
 	if busy and state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
 		animate()
 	end
+
 	return busy
 end)
-
 return M

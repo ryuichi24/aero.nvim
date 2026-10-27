@@ -6,26 +6,30 @@
 -- a crash mid-write can't leave it truncated.
 local config = require("aero.config")
 local events = require("aero.events")
-
 local M = {}
-
 M.data = { workspaces = {}, sessions = {}, worktree_buffers = {} }
 
 local function read()
 	local f = io.open(config.options.state_file, "r")
+
 	if not f then
 		return nil
 	end
+
 	local ok, data = pcall(vim.json.decode, f:read("*a"))
 	f:close()
+
 	if not (ok and type(data) == "table") then
 		return nil
 	end
+
 	local workspaces = {}
+
 	for _, ws in ipairs(type(data.workspaces) == "table" and data.workspaces or {}) do
 		if type(ws) == "table" then
 			-- Older state files stored the workspace directory as `path`, without a name.
 			local root = ws.root or ws.path
+
 			if type(root) == "string" and root ~= "" then
 				root = vim.fs.normalize(root)
 				table.insert(workspaces, {
@@ -36,6 +40,7 @@ local function read()
 			end
 		end
 	end
+
 	return {
 		workspaces = workspaces,
 		sessions = type(data.sessions) == "table" and data.sessions or {},
@@ -47,11 +52,13 @@ local function write(data)
 	local path = config.options.state_file
 	vim.fn.mkdir(vim.fs.dirname(path), "p")
 	local out = { workspaces = data.workspaces, sessions = vim.empty_dict(), worktree_buffers = vim.empty_dict() }
+
 	if config.options.persist_buffers then
 		for wt, buffer in pairs(data.worktree_buffers) do
 			out.worktree_buffers[wt] = buffer
 		end
 	end
+
 	if config.options.persist_sessions then
 		for wt, list in pairs(data.sessions) do
 			if #list > 0 then
@@ -59,15 +66,19 @@ local function write(data)
 			end
 		end
 	end
+
 	local tmp = ("%s.%d.tmp"):format(path, vim.fn.getpid())
 	local f, err = io.open(tmp, "w")
+
 	if not f then
 		vim.notify("aero: can't save state: " .. tostring(err), vim.log.levels.ERROR)
 		return
 	end
+
 	f:write(vim.json.encode(out))
 	f:close()
 	local ok, rerr = vim.uv.fs_rename(tmp, path)
+
 	if not ok then
 		os.remove(tmp)
 		vim.notify("aero: can't save state: " .. tostring(rerr), vim.log.levels.ERROR)
@@ -77,13 +88,17 @@ end
 --- Pick up changes other instances saved. With persist_sessions off, sessions only live here.
 function M.load()
 	local data = read()
+
 	if not data then
 		return
 	end
+
 	M.data.workspaces = data.workspaces
+
 	if config.options.persist_buffers then
 		M.data.worktree_buffers = data.worktree_buffers
 	end
+
 	if config.options.persist_sessions then
 		M.data.sessions = data.sessions
 	end
@@ -123,27 +138,33 @@ end
 function M.add_workspace(root)
 	local ws, added = update(function()
 		local ws = M.find_workspace(root)
+
 		if ws then
 			return ws, false
 		end
+
 		ws = { name = vim.fs.basename(root), root = root, expanded = true }
 		table.insert(M.data.workspaces, ws)
 		return ws, true
 	end)
+
 	if added then
 		events.emit("workspace_added", { root = ws.root, name = ws.name })
 	end
+
 	return ws, added
 end
 
 function M.remove_workspace(root)
 	local removed = update(function()
 		local ws, i = M.find_workspace(root)
+
 		if i then
 			table.remove(M.data.workspaces, i)
 			return ws
 		end
 	end)
+
 	if removed then
 		events.emit("workspace_removed", { root = removed.root, name = removed.name })
 	end
@@ -152,6 +173,7 @@ end
 function M.set_expanded(root, expanded)
 	update(function()
 		local ws = M.find_workspace(root)
+
 		if ws then
 			ws.expanded = expanded
 		end
@@ -177,9 +199,11 @@ end
 function M.add_session(worktree, agent, taken, requested_name)
 	return update(function(data)
 		local name, n = requested_name or agent, 2
+
 		if requested_name and (M.find_session(worktree, name) or (taken and taken(name))) then
 			return nil, "a session with that name already exists"
 		end
+
 		while M.find_session(worktree, name) or (taken and taken(name)) do
 			name, n = agent .. "-" .. n, n + 1
 		end
@@ -193,6 +217,7 @@ end
 function M.set_session_field(worktree, name, field, value)
 	update(function()
 		local def = M.find_session(worktree, name)
+
 		if def then
 			def[field] = value
 		end
@@ -202,12 +227,15 @@ end
 function M.rename_session(worktree, name, new_name, session_key)
 	return update(function()
 		local def = M.find_session(worktree, name)
+
 		if not def then
 			return nil, "session no longer exists"
 		end
+
 		if new_name ~= name and M.find_session(worktree, new_name) then
 			return nil, "a session with that name already exists"
 		end
+
 		def.key, def.name = session_key, new_name
 		return true
 	end)
@@ -216,12 +244,14 @@ end
 function M.remove_session(worktree, name)
 	update(function(data)
 		local list = data.sessions[worktree] or {}
+
 		for i, def in ipairs(list) do
 			if def.name == name then
 				table.remove(list, i)
 				break
 			end
 		end
+
 		if #list == 0 then
 			data.sessions[worktree] = nil
 		end

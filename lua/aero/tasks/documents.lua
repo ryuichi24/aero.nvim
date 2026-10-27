@@ -18,6 +18,7 @@ function M.create(kind, name, id, options, body)
 			return nil, "invalid metadata field"
 		end
 	end
+
 	local data = vim.tbl_extend("force", options or {}, {
 		aero_type = kind,
 		schema_version = 1,
@@ -26,17 +27,23 @@ function M.create(kind, name, id, options, body)
 		created_at = M.now(),
 		updated_at = M.now(),
 	})
+
 	if kind == "ticket" and data.task_type == nil then
 		data.task_type = "general"
 	end
+
 	local errors = fm.validate(data, kind)
+
 	if #errors > 0 then
 		return nil, table.concat(errors, "; ")
 	end
+
 	local lines = { "---" }
+
 	for _, field in ipairs(vim.tbl_keys(data)) do
 		table.insert(lines, field .. ": " .. vim.json.encode(data[field]))
 	end
+
 	vim.list_extend(lines, { "---", "", "# " .. name, "" })
 	vim.list_extend(lines, body or {})
 	return storage.text(lines)

@@ -1,8 +1,8 @@
 if vim.g.loaded_Aero then
 	return
 end
-vim.g.loaded_Aero = true
 
+vim.g.loaded_Aero = true
 local subcommands = {
 	reading = function(args)
 		require("aero").reading(args[1])
@@ -16,12 +16,15 @@ local subcommands = {
 				vim.notify("Aero: review actions take no additional arguments", vim.log.levels.WARN)
 				return
 			end
+
 			return require("aero.review").command(args[1])
 		end
+
 		if #args > 1 then
 			vim.notify("Aero: use :Aero review [base-ref]", vim.log.levels.WARN)
 			return
 		end
+
 		require("aero").review(nil, args[1])
 	end,
 	reference = function()
@@ -47,6 +50,7 @@ local subcommands = {
 			)
 			return
 		end
+
 		require("aero").collapse(args[1])
 	end,
 	pull = function()
@@ -57,6 +61,7 @@ local subcommands = {
 			vim.notify("Aero: use :Aero pick [current]", vim.log.levels.WARN)
 			return
 		end
+
 		require("aero").pick(args[1])
 	end,
 	new = function()
@@ -94,6 +99,7 @@ local subcommands = {
 			vim.notify("Aero: use :Aero prompt [send]", vim.log.levels.WARN)
 			return
 		end
+
 		require("aero").prompt(args[1])
 	end,
 	file = function()
@@ -107,6 +113,7 @@ local subcommands = {
 			vim.notify("Aero: use :Aero snippet [global|workspace] [filename]", vim.log.levels.WARN)
 			return
 		end
+
 		require("aero.prompt_snippet_files").new(args[1], args[2])
 	end,
 	cancel = function()
@@ -123,18 +130,21 @@ local subcommands = {
 			vim.notify("Aero: use :Aero board [new|markdown|work] [board-id]", vim.log.levels.WARN)
 			return
 		end
+
 		require("aero").board(args[1], nil, args[2])
 	end,
 	ticket = function(args)
 		if args[1] == "work" then
 			return require("aero.tasks.agent").work(args[2], args[3])
 		end
+
 		require("aero").ticket(args[1])
 	end,
 	tasks = function(args)
 		if args[1] == "install" then
 			return require("aero.tasks.install").install()
 		end
+
 		vim.notify("Aero: use :Aero tasks install", vim.log.levels.WARN)
 	end,
 	quote = function(_, opts)
@@ -144,96 +154,116 @@ local subcommands = {
 		if args[1] == "history" and #args == 1 then
 			return require("aero.terminal").history()
 		end
+
 		if #args > 0 then
 			vim.notify("Aero: use :Aero term [history]", vim.log.levels.WARN)
 			return
 		end
+
 		require("aero").terminal()
 	end,
 	add = function(args)
 		require("aero").add_workspace(args[1])
 	end,
 }
-
 vim.api.nvim_create_user_command("Aero", function(opts)
 	local args = opts.fargs
 	local sub = table.remove(args, 1) or "toggle"
+
 	if sub == "context" then
 		sub = "reference"
 	end -- legacy command alias
+
 	local fn = subcommands[sub]
+
 	if not fn then
 		vim.notify("Aero: unknown subcommand " .. sub, vim.log.levels.ERROR)
 		return
 	end
+
 	fn(args, opts)
 end, {
 	nargs = "*",
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+
 		if words[2] == "reading" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "new", "add", "edit", "next", "source", "toggle", "note", "note-toggle" })
 		end
+
 		if words[2] == "pick" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then
 				return {}
 			end
+
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "current" })
 		end
+
 		if words[2] == "term" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "history" })
 		end
+
 		if words[2] == "review" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then
 				return {}
 			end
+
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "diff", "refresh", "base", "local" })
 		end
+
 		if words[2] == "reader" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "tabs", "panes", "source", "exports", "references", "reports", "reading" })
 		end
+
 		if words[2] == "prompt" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then
 				return {}
 			end
+
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "send" })
 		end
+
 		if words[2] == "snippet" and (#words > 2 or cmdline:match("%s$")) then
 			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then
 				return {}
 			end
+
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "global", "workspace" })
 		end
+
 		if words[2] == "collapse" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "all", "workspaces", "worktrees", "reading", "reports", "exports", "boards", "reference" })
 		end
+
 		if words[2] == "companion" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "install", "start", "stop", "pair", "devices", "revoke" })
 		end
+
 		if words[2] == "tasks" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "install" })
 		end
+
 		if
 			words[2] == "board"
 			and (words[3] == "markdown" or words[3] == "work")
@@ -241,6 +271,7 @@ end, {
 		then
 			return require("aero.tasks.ui").board_ids(arglead)
 		end
+
 		if #words >= 2 and (words[2] == "board" or words[2] == "ticket") and (#words > 2 or cmdline:match("%s$")) then
 			local choices = words[2] == "board" and { "new", "markdown", "work" }
 				or { "new", "move", "work", "removed", "recover" }
@@ -248,9 +279,11 @@ end, {
 				return vim.startswith(s, arglead)
 			end, choices)
 		end
+
 		if #words >= 2 and words[2] == "add" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.fn.getcompletion(arglead, "dir")
 		end
+
 		return vim.tbl_filter(function(s)
 			return s:find(arglead, 1, true) == 1
 		end, vim.tbl_keys(subcommands))

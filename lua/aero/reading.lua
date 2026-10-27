@@ -16,6 +16,7 @@ end
 function M.load(worktree, id)
 	local text = files.read(path(worktree, id))
 	local ok, list = pcall(vim.json.decode, text or "")
+
 	if ok and type(list) == "table" and type(list.items) == "table" then
 		return list
 	end
@@ -32,6 +33,7 @@ end
 
 local function project(worktree, list, id)
 	local items, count = {}, 0
+
 	for _, item in ipairs(list.items) do
 		count = count + (item.read and 1 or 0)
 		table.insert(items, {
@@ -42,18 +44,22 @@ local function project(worktree, list, id)
 			user_data = { reading_item_id = item.id },
 		})
 	end
+
 	local opts = {
 		title = ("Aero: %s (%d/%d read)"):format(list.title, count, #items),
 		context = { aero_reading = true, worktree = worktree, reading_list_id = list.id },
 		items = items,
 	}
+
 	if id then
 		opts.id = id
 		opts.idx = vim.fn.getqflist({ id = id, idx = 0 }).idx
 	end
+
 	vim.fn.setqflist({}, id and "r" or " ", opts)
 	local qid = id or vim.fn.getqflist({ id = 0 }).id
 	projections[qid] = { worktree = worktree, id = list.id }
+
 	if refresh_note then
 		refresh_note()
 	end
@@ -77,9 +83,11 @@ local function publish(binding, args, manual)
 		local previous = M.load(worktree, id)
 		assert(manual or not previous or previous.session_key == binding.session_key, "list belongs to another session")
 		local progress, seen, items = {}, {}, {}
+
 		for _, item in ipairs(previous and previous.items or {}) do
 			progress[item.id] = item.read
 		end
+
 		for _, item in ipairs(args.items) do
 			assert(
 				type(item.id) == "string" and item.id ~= "" and not seen[item.id],
@@ -126,6 +134,7 @@ local function publish(binding, args, manual)
 				read = progress[item.id] == true,
 			})
 		end
+
 		local list = {
 			id = id,
 			title = args.title,
@@ -133,19 +142,24 @@ local function publish(binding, args, manual)
 			items = items,
 		}
 		save(worktree, list)
+
 		for qid, ref in pairs(projections) do
 			local context = vim.fn.getqflist({ id = qid, context = 0 }).context
+
 			if type(context) ~= "table" or not context.aero_reading then
 				projections[qid] = nil
 			elseif ref.worktree == worktree and ref.id == id then
 				project(worktree, list, qid)
 			end
 		end
+
 		return { id = id, count = #items, message = "Saved. Open with :Aero reading" }
 	end)
+
 	if ok then
 		return result
 	end
+
 	return nil, { code = "INVALID_ARGUMENT", message = tostring(result) }
 end
 
@@ -159,16 +173,19 @@ end
 
 function M.list(worktree)
 	local lists = {}
+
 	if vim.fn.isdirectory(directory(worktree)) == 1 then
 		for name, kind in vim.fs.dir(directory(worktree)) do
 			if kind == "file" and name:match("%.json$") then
 				local list = M.load(worktree, name:sub(1, -6))
+
 				if list then
 					table.insert(lists, list)
 				end
 			end
 		end
 	end
+
 	table.sort(lists, function(a, b)
 		return a.title == b.title and a.id < b.id or a.title < b.title
 	end)
@@ -177,9 +194,11 @@ end
 
 local function pick(worktree, callback)
 	local lists = M.list(worktree)
+
 	if #lists == 0 then
 		return vim.notify("Aero: no reading lists in this worktree; use :Aero reading new")
 	end
+
 	vim.ui.select(lists, {
 		prompt = "Reading lists",
 		format_item = function(list)
@@ -194,17 +213,21 @@ end
 
 local function editable(list)
 	local document = { title = list.title, items = vim.deepcopy(list.items) }
+
 	for _, item in ipairs(document.items) do
 		item.read = nil
 	end
+
 	return document
 end
 
 local function document_lines(document)
 	local lines = { "{", '  "title": ' .. vim.json.encode(document.title) .. ",", '  "items": [' }
+
 	for i, item in ipairs(document.items) do
 		table.insert(lines, "    " .. vim.json.encode(item) .. (i < #document.items and "," or ""))
 	end
+
 	vim.list_extend(lines, { "  ]", "}" })
 	return lines
 end
@@ -212,10 +235,12 @@ end
 local function edit(worktree, list)
 	local name = "Aero://reading/" .. storage.folder(worktree) .. "/" .. list.id
 	local existing = vim.fn.bufnr(name)
+
 	if existing ~= -1 then
 		vim.cmd.sbuffer(existing)
 		return
 	end
+
 	local buf = vim.api.nvim_create_buf(true, false)
 	vim.api.nvim_buf_set_name(buf, name)
 	vim.bo[buf].buftype = "acwrite"
@@ -229,26 +254,33 @@ local function edit(worktree, list)
 		buffer = buf,
 		callback = function()
 			local latest = M.load(worktree, list.id)
+
 			if not latest or not vim.deep_equal(editable(latest), baseline) then
 				return vim.notify(
 					"Aero: reading list changed since opening; reopen the editor before saving",
 					vim.log.levels.ERROR
 				)
 			end
+
 			local ok, args = pcall(vim.json.decode, table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
+
 			if not ok or type(args) ~= "table" or type(args.items) ~= "table" then
 				return vim.notify("Aero: expected JSON with title and items", vim.log.levels.ERROR)
 			end
+
 			for _, item in ipairs(args.items) do
 				if type(item) == "table" and item.id == nil then
 					item.id = files.id("step")
 				end
 			end
+
 			args.id = list.id
 			local result, err = publish({ worktree = worktree }, args, true)
+
 			if not result then
 				return vim.notify("Aero: " .. err.message, vim.log.levels.ERROR)
 			end
+
 			-- Keep newly generated IDs in the editable document for subsequent saves.
 			baseline = editable(M.load(worktree, list.id))
 			vim.api.nvim_buf_set_lines(buf, 0, -1, false, document_lines(baseline))
@@ -263,9 +295,11 @@ end
 local function add(worktree)
 	local source = storage.canonical(vim.api.nvim_buf_get_name(0))
 	local line = vim.api.nvim_win_get_cursor(0)[1]
+
 	if vim.bo.buftype ~= "" or not storage.inside(source, worktree) or vim.fn.filereadable(source) ~= 1 then
 		return vim.notify("Aero: add requires a saved source file in this worktree", vim.log.levels.WARN)
 	end
+
 	local default = vim.trim(vim.api.nvim_get_current_line())
 	pick(worktree, function(list)
 		vim.ui.input(
@@ -274,16 +308,21 @@ local function add(worktree)
 				if not label or vim.trim(label) == "" then
 					return
 				end
+
 				-- Reload after the input so recent progress is retained.
 				local latest = M.load(worktree, list.id)
+
 				if not latest then
 					return
 				end
+
 				table.insert(latest.items, { id = files.id("step"), path = source, lnum = line, label = label })
 				local result, err = publish({ worktree = worktree }, latest, true)
+
 				if not result then
 					return vim.notify("Aero: " .. err.message, vim.log.levels.ERROR)
 				end
+
 				vim.notify("Aero: added to " .. latest.title)
 			end
 		)
@@ -293,12 +332,15 @@ end
 local function selected()
 	local qf = vim.fn.getqflist({ context = 0, idx = 0, id = 0, items = 0 })
 	local ctx = qf.context
+
 	if type(ctx) ~= "table" or not ctx.aero_reading then
 		return
 	end
+
 	local list = M.load(ctx.worktree, ctx.reading_list_id)
 	local index = vim.bo.buftype == "quickfix" and vim.fn.line(".") or qf.idx
 	local entry = qf.items[index]
+
 	for i, item in ipairs(list and list.items or {}) do
 		if entry and type(entry.user_data) == "table" and item.id == entry.user_data.reading_item_id then
 			return list, i, ctx.worktree, qf.id
@@ -310,17 +352,21 @@ end
 refresh_note = function(open)
 	local win = vim.t.aero_reading_note_win
 	local visible = win and vim.api.nvim_win_is_valid(win)
+
 	-- Never render into a source buffer if another command replaced the pane.
 	if visible and not vim.b[vim.api.nvim_win_get_buf(win)].aero_reading_note then
 		vim.w[win].aero_reading_note = nil
 		vim.t.aero_reading_note_win = nil
 		visible = false
 	end
+
 	if not visible and not open then
 		return
 	end
+
 	local list, index = selected()
 	local lines = { "# Reading explanation", "", "Select an item in an Aero reading list." }
+
 	if list then
 		local item = list.items[index]
 		lines = { "# " .. item.label, "", list.title, "", ("`%s:%d` "):format(item.path, item.lnum), "" }
@@ -329,6 +375,7 @@ refresh_note = function(open)
 			vim.split(item.note or "No explanation was provided for this item.", "\n", { plain = true })
 		)
 	end
+
 	if not visible then
 		local buf = vim.api.nvim_create_buf(false, true)
 		vim.bo[buf].bufhidden = "wipe"
@@ -351,9 +398,11 @@ refresh_note = function(open)
 		vim.wo[win].linebreak = true
 		vim.wo[win].number = false
 		vim.wo[win].relativenumber = false
+
 		if require("aero.config").options.reading.explanation.unfold then
 			vim.wo[win].foldlevel = 99
 		end
+
 		-- Let side-by-side reader panes share width when the agent panel opens.
 		vim.wo[win].winfixwidth = false
 		vim.wo[win].winfixheight = not right
@@ -363,7 +412,9 @@ refresh_note = function(open)
 		end, { buffer = buf, desc = "Close reading explanation" })
 		require("aero.layout").rebalance()
 	end
+
 	local buf = vim.api.nvim_win_get_buf(win)
+
 	if not vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), lines) then
 		vim.bo[buf].modifiable = true
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -371,7 +422,6 @@ refresh_note = function(open)
 		vim.api.nvim_win_set_cursor(win, { 1, 0 })
 	end
 end
-
 local note_group = vim.api.nvim_create_augroup("Aero.reading.notes", { clear = true })
 vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter", "WinEnter", "QuickFixCmdPost" }, {
 	group = note_group,
@@ -382,9 +432,11 @@ vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter", "WinEnter", "QuickFixCm
 
 local function jump(index, kind)
 	local context = vim.fn.getqflist({ context = 0 }).context
+
 	if type(context) == "table" and context.aero_reading then
 		require("aero.reader").select(kind or "reading")
 		local entry = vim.fn.getqflist()[index]
+
 		if entry and entry.valid == 1 then
 			vim.fn.setqflist({}, "a", { idx = index })
 			vim.cmd("buffer " .. entry.bufnr)
@@ -392,17 +444,22 @@ local function jump(index, kind)
 			vim.cmd("normal! zv")
 			refresh_note()
 		end
+
 		return
 	end
+
 	vim.cmd("cc " .. index)
 end
 
 function M.open(worktree, id)
 	local list = M.load(worktree, id)
+
 	if not list then
 		return vim.notify("Aero: reading list no longer exists", vim.log.levels.WARN)
 	end
+
 	project(worktree, list)
+
 	-- Native quickfix jumps use the window preceding :copen. In particular,
 	-- an acwrite Source buffer (such as Oil) would otherwise force a split.
 	require("aero.reader").select("reading")
@@ -422,24 +479,31 @@ end
 
 function M.command(action, worktree)
 	worktree = worktree or current_worktree()
+
 	if action == "note-toggle" then
 		local win = vim.t.aero_reading_note_win
+
 		if win and vim.api.nvim_win_is_valid(win) then
 			vim.api.nvim_win_close(win, true)
 			return
 		end
+
 		-- Opening still requires a selected reading item, like :Aero reading note.
 		action = "note"
 	end
+
 	if action == "new" then
 		return vim.ui.input({ prompt = "Reading list title: " }, function(title)
 			if not title or vim.trim(title) == "" then
 				return
 			end
+
 			local result, err = publish({ worktree = worktree }, { title = title, items = {} }, true)
+
 			if not result then
 				return vim.notify("Aero: " .. err.message, vim.log.levels.ERROR)
 			end
+
 			edit(worktree, M.load(worktree, result.id))
 		end)
 	elseif action == "add" then
@@ -449,11 +513,14 @@ function M.command(action, worktree)
 			edit(worktree, list)
 		end)
 	end
+
 	if action then
 		local list, index, worktree, qid = selected()
+
 		if not list then
 			return vim.notify("Aero: open a reading list first", vim.log.levels.WARN)
 		end
+
 		if action == "toggle" then
 			list.items[index].read = not list.items[index].read
 			save(worktree, list)
@@ -465,10 +532,12 @@ function M.command(action, worktree)
 		elseif action == "next" then
 			for offset = 1, #list.items do
 				local next_index = (index + offset - 1) % #list.items + 1
+
 				if not list.items[next_index].read then
 					return jump(next_index)
 				end
 			end
+
 			vim.notify("Aero: all items read")
 		else
 			vim.notify(
@@ -476,8 +545,10 @@ function M.command(action, worktree)
 				vim.log.levels.WARN
 			)
 		end
+
 		return
 	end
+
 	pick(worktree, function(list)
 		M.open(worktree, list.id)
 	end)

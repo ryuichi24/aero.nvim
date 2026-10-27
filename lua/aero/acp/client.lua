@@ -40,15 +40,19 @@ function Client.spawn(cmd, opts)
 			self.closed = true
 			local pending = self.pending
 			self.pending = {}
+
 			for _, cb in pairs(pending) do
 				cb({ code = -32000, message = "agent process exited" })
 			end
+
 			opts.on_exit(r.code, table.concat(self.stderr))
 		end)
 	end)
+
 	if not ok then
 		return nil, tostring(proc)
 	end
+
 	self.proc = proc
 	return self
 end
@@ -57,6 +61,7 @@ function Client:_send(msg)
 	if self.closed then
 		return
 	end
+
 	msg.jsonrpc = "2.0"
 	pcall(self.proc.write, self.proc, vim.json.encode(msg) .. "\n")
 end
@@ -65,13 +70,17 @@ function Client:_feed(data)
 	self.partial = self.partial .. data
 	while true do
 		local nl = self.partial:find("\n", 1, true)
+
 		if not nl then
 			return
 		end
+
 		local line = self.partial:sub(1, nl - 1)
 		self.partial = self.partial:sub(nl + 1)
+
 		if line:match("%S") then
 			local ok, msg = pcall(vim.json.decode, line, { luanil = { object = true, array = true } })
+
 			if ok and type(msg) == "table" then
 				self:_dispatch(msg)
 			end
@@ -86,7 +95,9 @@ function Client:_dispatch(msg)
 			if answered then
 				return
 			end
+
 			answered = true
+
 			if err then
 				self:_send({ id = id, error = err })
 			else
@@ -98,6 +109,7 @@ function Client:_dispatch(msg)
 	elseif msg.id ~= nil then
 		local cb = self.pending[msg.id]
 		self.pending[msg.id] = nil
+
 		if cb then
 			cb(msg.error, msg.result)
 		end
@@ -109,6 +121,7 @@ function Client:request(method, params, cb)
 	if self.closed then
 		return cb({ code = -32000, message = "agent process exited" })
 	end
+
 	self.next_id = self.next_id + 1
 	self.pending[self.next_id] = cb
 	self:_send({ id = self.next_id, method = method, params = params })

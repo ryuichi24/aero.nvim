@@ -13,23 +13,31 @@ local function resolve(binding, board_only)
 	if type(binding) == "table" and binding.revoked then
 		return failure("NOT_FOUND", "task binding expired")
 	end
+
 	if type(binding) ~= "table" or not binding.workspace or not binding.board_id then
 		return failure("INVALID_ARGUMENT", "invalid task binding")
 	end
+
 	local board, err = tasks.resolve_board(binding.workspace, binding.board_id)
+
 	if not board then
 		return nil, err
 	end
+
 	if not binding.ticket_id then
 		if board_only then
 			return { board = board }
 		end
+
 		return failure("INVALID_ARGUMENT", "this session is bound to a board, not a ticket")
 	end
+
 	local ticket, state = tasks.resolve_ticket(board, binding.ticket_id)
+
 	if not ticket then
 		return nil, state
 	end
+
 	return { board = board, ticket = ticket, state = state }
 end
 
@@ -39,6 +47,7 @@ end
 
 local function snapshot(context)
 	local board, ticket = context.board, context.ticket
+
 	if not ticket then
 		return {
 			board_id = board.metadata.id,
@@ -51,10 +60,13 @@ local function snapshot(context)
 			},
 		}
 	end
+
 	local states = {}
+
 	for _, state in ipairs(board.states) do
 		table.insert(states, state.name)
 	end
+
 	return {
 		board_id = board.metadata.id,
 		ticket_id = ticket.metadata.id,
@@ -78,29 +90,37 @@ end
 
 function M.get_ticket(binding)
 	local context, err = resolve(binding)
+
 	if not context then
 		return nil, err
 	end
+
 	return snapshot(context)
 end
 
 function M.get_board(binding)
 	local context, err = resolve(binding, true)
+
 	if not context then
 		return nil, err
 	end
+
 	local board = context.board
 	local states = {}
+
 	for _, state in ipairs(board.states) do
 		local tickets = {}
+
 		for _, item in ipairs(state.entries) do
 			table.insert(
 				tickets,
 				{ id = item.ticket and item.ticket.metadata.id, path = item.path, error = item.error }
 			)
 		end
+
 		table.insert(states, { name = state.name, tickets = tickets })
 	end
+
 	return {
 		id = board.metadata.id,
 		path = board.path,
@@ -115,10 +135,13 @@ end
 
 function M.list_boards(binding)
 	local context, err = resolve(binding, true)
+
 	if not context then
 		return nil, err
 	end
+
 	local result = {}
+
 	for _, board in ipairs(tasks.list(binding.workspace)) do
 		table.insert(result, {
 			id = board.metadata and board.metadata.id,
@@ -128,6 +151,7 @@ function M.list_boards(binding)
 			diagnostics = board.diagnostics,
 		})
 	end
+
 	return { boards = result }
 end
 
@@ -140,10 +164,13 @@ local function mutate(binding, method, request)
 	then
 		return failure("INVALID_ARGUMENT", "a bounded operation_id is required")
 	end
+
 	local context, err = resolve(binding, method == "create_ticket")
+
 	if not context then
 		return nil, err
 	end
+
 	local key = vim.json.encode({
 		binding.workspace.root,
 		binding.board_id,
@@ -151,14 +178,18 @@ local function mutate(binding, method, request)
 		binding.session_key or "",
 		request.operation_id,
 	})
+
 	-- Deep equality is independent of JSON object key order.
 	local payload = { method = method, request = request }
+
 	if cache[key] then
 		if not vim.deep_equal(cache[key].payload, payload) then
 			return failure("INVALID_ARGUMENT", "operation_id was already used with different arguments")
 		end
+
 		return unpack(vim.deepcopy(cache[key].result), 1, 2)
 	end
+
 	if method == "create_report" then
 		if
 			type(request.name) ~= "string"
@@ -169,14 +200,18 @@ local function mutate(binding, method, request)
 		then
 			return failure("INVALID_ARGUMENT", "a report filename without separators and a Markdown body are required")
 		end
+
 		if type(binding.worktree) ~= "string" or binding.worktree == "" then
 			return failure("INVALID_ARGUMENT", "an execution worktree is required")
 		end
+
 		local reports = require("aero.reports")
 		local report, report_err = reports.create_file(binding.worktree, binding.workspace, request.name, request.body)
+
 		if not report then
 			return failure("IO_ERROR", report_err)
 		end
+
 		local result = {
 			name = report.name,
 			path = report.path,
@@ -187,40 +222,51 @@ local function mutate(binding, method, request)
 		}
 		cache[key] = { payload = vim.deepcopy(payload), result = { result } }
 		table.insert(order, key)
+
 		if #order > limit then
 			cache[table.remove(order, 1)] = nil
 		end
+
 		require("aero.events").emit("reports_changed", { worktree = binding.worktree })
 		return result
 	end
+
 	local creating = method == "create_ticket"
 	local placement = method == "move_ticket" or creating
 	local expected = placement and request.expected_board_revision or request.expected_ticket_revision
+
 	if type(expected) ~= "string" then
 		return failure("INVALID_ARGUMENT", "expected document revision is required")
 	end
+
 	local options = {
 		guard = function(board, ticket_path, document)
 			local latest, resolve_err = resolve(binding, creating)
+
 			if not latest then
 				return nil, resolve_err
 			end
+
 			if latest.board.path ~= board.path or (not creating and latest.ticket.path ~= ticket_path) then
 				return failure("CONFLICT", "task identity changed")
 			end
+
 			local actual = snapshot(latest)
+
 			if
 				(placement and board.text ~= latest.board.text)
 				or (not placement and document.text ~= latest.ticket.text)
 			then
 				return failure("CONFLICT", "task changed during validation; reread before retrying", actual)
 			end
+
 			if
 				expected ~= (placement and actual.board_revision or actual.ticket_revision)
 				or (request.expected_state ~= nil and request.expected_state ~= actual.state)
 			then
 				return failure("CONFLICT", "committed task changed; reread before retrying", actual)
 			end
+
 			if
 				placement
 				and (
@@ -231,13 +277,16 @@ local function mutate(binding, method, request)
 			then
 				return failure("UNSAVED_BOARD", "save or discard the board draft before changing ticket placements")
 			end
+
 			if not creating and actual.dirty.ticket then
 				return failure("UNSAVED_DOCUMENT", "save or discard the ticket draft before updating it")
 			end
+
 			return true
 		end,
 	}
 	local ok
+
 	if creating then
 		if
 			request.task_type ~= nil
@@ -245,13 +294,17 @@ local function mutate(binding, method, request)
 		then
 			return failure("INVALID_ARGUMENT", "task_type must be general, implementation, or report")
 		end
+
 		options.task_type = request.task_type
+
 		if type(request.title) ~= "string" or vim.trim(request.title) == "" or request.title:find("%c") then
 			return failure("INVALID_ARGUMENT", "title must be nonempty and single-line")
 		end
+
 		if type(request.body) ~= "string" then
 			return failure("INVALID_ARGUMENT", "body must be a Markdown string")
 		end
+
 		if
 			type(request.target_state) ~= "string"
 			or not vim.iter(context.board.states):any(function(state)
@@ -260,6 +313,7 @@ local function mutate(binding, method, request)
 		then
 			return failure("INVALID_ARGUMENT", "target_state must name an existing board state")
 		end
+
 		ok, err = tasks.create_ticket(
 			binding.workspace,
 			context.board.path,
@@ -272,6 +326,7 @@ local function mutate(binding, method, request)
 		if type(request.target_state) ~= "string" then
 			return failure("INVALID_ARGUMENT", "target_state is required")
 		end
+
 		if
 			not vim.iter(context.board.states):any(function(state)
 				return state.name == request.target_state
@@ -279,22 +334,26 @@ local function mutate(binding, method, request)
 		then
 			return failure("INVALID_ARGUMENT", "unknown target state")
 		end
+
 		if
 			request.position ~= nil
 			and (type(request.position) ~= "number" or request.position % 1 ~= 0 or request.position < 1)
 		then
 			return failure("INVALID_ARGUMENT", "position must be a positive integer")
 		end
+
 		if request.position then
 			for _, state in ipairs(context.board.states) do
 				if state.name == request.target_state then
 					local maximum = #state.entries + (state.name == context.state and 0 or 1)
+
 					if request.position > maximum then
 						return failure("INVALID_ARGUMENT", "position exceeds the target state's ticket count")
 					end
 				end
 			end
 		end
+
 		ok, err = tasks.move_ticket(
 			binding.workspace,
 			context.board.path,
@@ -308,31 +367,41 @@ local function mutate(binding, method, request)
 	else
 		local allowed =
 			{ task_type = true, priority = true, tags = true, assignees = true, due_date = true, estimate = true }
+
 		if type(request.changes) ~= "table" then
 			return failure("INVALID_ARGUMENT", "changes must be an object")
 		end
+
 		for field in pairs(request.changes) do
 			if not allowed[field] then
 				return failure("INVALID_ARGUMENT", "unsupported metadata field: " .. tostring(field))
 			end
 		end
+
 		local validation = require("aero.tasks.frontmatter").validate(
 			vim.tbl_extend("force", context.ticket.metadata, request.changes),
 			"ticket"
 		)
+
 		if #validation > 0 then
 			return failure("INVALID_ARGUMENT", table.concat(validation, "; "))
 		end
+
 		ok, err =
 			tasks.update_metadata(binding.workspace, context.board.path, context.ticket.path, request.changes, options)
 	end
+
 	local result
+
 	if ok then
 		local result_binding = binding
+
 		if creating then
 			result_binding = vim.tbl_extend("force", binding, { ticket_id = ok.metadata.id })
 		end
+
 		result, err = M.get_ticket(result_binding)
+
 		if result then
 			vim.schedule(function()
 				vim.api.nvim_exec_autocmds("User", {
@@ -353,6 +422,7 @@ local function mutate(binding, method, request)
 		local latest = resolve(binding, creating)
 		local actual = latest and snapshot(latest)
 		local code = "IO_ERROR"
+
 		if tostring(err):find("lock is held", 1, true) then
 			code = "LOCK_HELD"
 		elseif actual then
@@ -364,13 +434,17 @@ local function mutate(binding, method, request)
 				code = "CONFLICT"
 			end
 		end
+
 		err = { code = code, message = tostring(err), actual = code == "CONFLICT" and actual or nil }
 	end
+
 	cache[key] = { payload = vim.deepcopy(payload), result = { result, err } }
 	table.insert(order, key)
+
 	if #order > limit then
 		cache[table.remove(order, 1)] = nil
 	end
+
 	return result, err
 end
 

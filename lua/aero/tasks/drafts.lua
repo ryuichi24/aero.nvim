@@ -14,22 +14,27 @@ function M.dirty(view)
 			return true
 		end
 	end
+
 	return false
 end
 
 function M.status(path)
 	local view = sessions[require("aero.storage").canonical(path)]
 	local status = { dirty = false, stale = false, missing_column = false }
+
 	if not view then
 		return status
 	end
+
 	status.dirty = M.dirty(view)
 	status.stale = require("aero.tasks.storage").read(view.board.path) ~= view.baseline_text
+
 	for _, column in ipairs(view.columns or {}) do
 		if not api.nvim_buf_is_valid(column.buf) then
 			status.missing_column = true
 		end
 	end
+
 	return status
 end
 

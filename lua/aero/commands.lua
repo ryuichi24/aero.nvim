@@ -12,42 +12,53 @@ end
 function M.file()
 	local buf = vim.api.nvim_get_current_buf()
 	local path = vim.api.nvim_buf_get_name(buf)
+
 	if vim.bo[buf].buftype ~= "" or path == "" or vim.fn.isdirectory(path) == 1 then
 		notify("focus a named source file buffer first", vim.log.levels.WARN)
 		return
 	end
+
 	local selected = target.resolve("viewed")
+
 	if not selected then
 		notify("select an agent session in the dashboard or focus its panel first", vim.log.levels.WARN)
 		return
 	end
+
 	local text = path:find("%s") and vim.json.encode(path) or path
+
 	-- A leading absolute path can be consumed as an unknown slash command by
 	-- the agent instead of starting a model turn.
 	local ok, err = require("aero.compose").append(selected, "File: " .. text)
+
 	if not ok then
 		notify(err, vim.log.levels.WARN)
 		return
 	end
+
 	return selected
 end
 
 function M.send_prompt()
 	local selected = target.resolve("viewed")
+
 	if not selected or not selected.chat then
 		notify("select an ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
 		return
 	end
+
 	selected.chat:send_prompt_buf()
 	return selected
 end
 
 function M.cancel()
 	local selected = target.resolve("cancel")
+
 	if not selected or not selected.chat or not selected.chat:alive() then
 		notify("select a running ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
 		return
 	end
+
 	selected.chat:cancel()
 	return selected
 end
@@ -57,34 +68,43 @@ function M.resume(session_id)
 		notify("use :Aero resume <session-id>", vim.log.levels.WARN)
 		return
 	end
+
 	local selected = target.resolve("resume")
 	local agent = selected and config.options.agents[selected.agent]
+
 	if not agent or agent.type ~= "acp" then
 		notify("select an ACP session in the dashboard or focus its panel first", vim.log.levels.WARN)
 		return
 	end
+
 	local win = session.prepare_win(panel.win() or require("aero.navigation").code_window())
+
 	if session.start(selected, win, true, vim.trim(session_id)) then
 		panel.shown(selected)
 		vim.api.nvim_set_current_win(win)
 	end
+
 	return selected
 end
 
 function M.usage()
 	local selected = target.resolve("viewed")
+
 	if not selected then
 		notify("select an agent session in the dashboard or focus its panel first", vim.log.levels.WARN)
 		return
 	end
+
 	local usage = require("aero.acp.usage")
 	local data = selected.chat and selected.chat.usage
+
 	if not selected.chat then
 		local saved = require("aero.history").load(selected)
 		local restored = {}
 		usage.restore(restored, saved and saved.usage)
 		data = restored.usage
 	end
+
 	notify("Usage for " .. selected.name .. "\n" .. table.concat(usage.lines({ usage = data }), "\n"))
 	return data and vim.deepcopy(data) or nil
 end

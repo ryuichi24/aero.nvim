@@ -11,9 +11,11 @@ function M.describe(session, workspace_boards)
 				ticket_id = binding.ticket_id,
 			}
 		or saved and saved.task_assignment
+
 	if type(assignment) ~= "table" then
 		return nil
 	end
+
 	local result = vim.deepcopy(assignment)
 	result.pending = session.task_assignment_pending or session.chat and session.chat.task_pending or false
 	local tasks = require("aero.tasks")
@@ -22,15 +24,20 @@ function M.describe(session, workspace_boards)
 		assignment.board_id,
 		workspace_boards and workspace_boards[assignment.workspace_root]
 	)
+
 	if not board then
 		result.error = type(err) == "table" and err.message or tostring(err)
 		return result
 	end
+
 	result.board_title = board.metadata.title
+
 	if assignment.ticket_id then
 		local ticket, ticket_err = tasks.resolve_ticket(board, assignment.ticket_id)
+
 		if ticket then
 			result.ticket_title = ticket.metadata.title
+
 			for _, state in ipairs(board.states) do
 				for _, entry in ipairs(state.entries) do
 					if entry.path == ticket.path then
@@ -42,14 +49,17 @@ function M.describe(session, workspace_boards)
 			result.error = type(ticket_err) == "table" and ticket_err.message or tostring(ticket_err)
 		end
 	end
+
 	return result
 end
 
 function M.label(session)
 	local assignment = M.describe(session)
+
 	if not assignment then
 		return "Board: none · Ticket: none"
 	end
+
 	return ("Board: %s [%s] · Ticket: %s%s%s")
 		:format(
 			assignment.board_title or assignment.board_id,

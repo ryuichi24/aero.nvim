@@ -12,10 +12,13 @@ end
 
 local function source_session(buf)
 	local s = sessions.from_buf(buf)
+
 	if s then
 		return s
 	end
+
 	local key = vim.b[buf].aero_chat_key
+
 	if key then
 		for _, candidate in ipairs(sessions.all()) do
 			if candidate.key == key then
@@ -29,6 +32,7 @@ local function selection(range)
 	local buf = api.nvim_get_current_buf()
 	local mode = vim.fn.mode()
 	local first, last, lines
+
 	if mode == "v" or mode == "V" or mode == "\022" then
 		first, last = vim.fn.getpos("v"), vim.fn.getpos(".")
 		lines = vim.fn.getregion(first, last, { type = mode, exclusive = vim.o.selection == "exclusive" })
@@ -39,9 +43,11 @@ local function selection(range)
 		notify("select text in Visual mode first")
 		return
 	end
+
 	if #lines == 0 then
 		return
 	end
+
 	return {
 		lines = lines,
 		first = math.min(first[2], last[2]),
@@ -56,23 +62,29 @@ end
 
 local function format_quote(source, target)
 	local name, language
+
 	if source.session then
 		name, language = "agent log: " .. source.session.name, "text"
 	else
 		name = source.name ~= "" and source.name or "[No Name]"
 		local root = vim.fs.normalize(vim.fn.resolve(target.worktree)) .. "/"
 		local path = vim.fs.normalize(vim.fn.resolve(name))
+
 		if vim.startswith(path, root) then
 			name = path:sub(#root + 1)
 		else
 			name = vim.fn.fnamemodify(name, ":~")
 		end
+
 		language = source.filetype:gsub("[^%w_-]", "")
 	end
+
 	local length = 3
+
 	for ticks in table.concat(source.lines, "\n"):gmatch("`+") do
 		length = math.max(length, #ticks + 1)
 	end
+
 	local fence = string.rep("`", length)
 	local lines = { ("Quoted from %s (lines %d-%d):"):format(name, source.first, source.last), "", fence .. language }
 	vim.list_extend(lines, source.lines)
@@ -84,11 +96,13 @@ local function show(target, source)
 	if panel.enabled() then
 		return panel.show(target)
 	end
+
 	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
 		if api.nvim_win_get_buf(win) == target.buf then
 			return sessions.show(target, win, false)
 		end
 	end
+
 	local source_win = api.nvim_win_is_valid(source.win) and source.win or api.nvim_get_current_win()
 	local win = api.nvim_open_win(api.nvim_create_buf(false, true), false, { split = "right", win = source_win })
 	return sessions.show(target, win, false)
@@ -96,30 +110,42 @@ end
 
 local function append(source, target)
 	local win = show(target, source)
+
 	if not win then
 		return
 	end
+
 	local lines = format_quote(source, target)
 	local ok, err = require("aero.compose").append(target, table.concat(lines, "\n"), win)
+
 	if not ok then
 		notify(err)
 	end
 end
 
 function M.quote(range)
-	if require("aero.review").quote() then return end
+	if require("aero.review").quote() then
+		return
+	end
+
 	local source = selection(range)
+
 	if not source then
 		return
 	end
+
 	if source.visual then
 		vim.cmd("normal! " .. api.nvim_replace_termcodes("<Esc>", true, false, true))
 	end
+
 	local target = source.session or panel.current_session()
+
 	if target then
 		return append(source, target)
 	end
+
 	local candidates = sessions.list(vim.t.aero_worktree or vim.fn.getcwd())
+
 	if #candidates == 0 then
 		notify("start an agent session in this worktree before quoting text")
 	elseif #candidates == 1 then
@@ -141,11 +167,14 @@ end
 function M.setup()
 	if mapped_key then
 		local map = vim.fn.maparg(mapped_key, "x", false, true)
+
 		if map.callback == M.quote and map.buffer == 0 then
 			vim.keymap.del("x", mapped_key)
 		end
 	end
+
 	mapped_key = config.options.quote_key
+
 	if mapped_key then
 		vim.keymap.set("x", mapped_key, M.quote, { desc = "Aero: quote selection into agent prompt" })
 	end

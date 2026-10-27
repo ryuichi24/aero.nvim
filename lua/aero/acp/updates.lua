@@ -5,11 +5,14 @@ function M.apply(chat, update)
 	if chat.task_reloading then
 		return
 	end
+
 	local kind = update.sessionUpdate
 	local todo_update = kind == "plan" or kind == "tool_call" or kind == "tool_call_update"
+
 	if todo_update then
 		chat.todo_notification_snapshot = vim.deepcopy(require("aero.acp.todos").latest(chat))
 	end
+
 	if
 		chat.replaying
 		and chat.replay_from_cache
@@ -21,6 +24,7 @@ function M.apply(chat, update)
 	then
 		return
 	end
+
 	if kind == "user_message_chunk" then
 		chat:append_content("user", update.content)
 	elseif kind == "agent_message_chunk" then
@@ -37,17 +41,21 @@ function M.apply(chat, update)
 		else
 			chat.doing = { kind = "tool", id = update.toolCallId }
 		end
+
 		local block = chat.tools[update.toolCallId]
+
 		if not block then
 			block = { kind = "tool", id = update.toolCallId, timestamp = not chat.replaying and os.time() or nil }
 			chat.tools[update.toolCallId] = block
 			table.insert(chat.blocks, block)
 		end
+
 		for _, field in ipairs({ "title", "status", "content", "locations", "rawInput", "rawOutput" }) do
 			if update[field] ~= nil then
 				block[field] = update[field]
 			end
 		end
+
 		block.tool_kind = update.kind or block.tool_kind
 	elseif kind == "plan" then
 		if chat.plan and chat.plan.turn == chat.turn then
@@ -72,9 +80,11 @@ function M.apply(chat, update)
 	else
 		return
 	end
+
 	if todo_update then
 		require("aero.acp.todo_notifications").update(chat)
 	end
+
 	chat:save_history()
 	chat:render()
 end
