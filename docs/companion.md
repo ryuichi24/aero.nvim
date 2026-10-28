@@ -18,6 +18,28 @@ Browse and manage stored files under **Workspace → References**, or attach the
 to conversation drafts with `/reference`. See [worktree references](references.md)
 for finder staging, host source access, and transfer limits.
 
+## Submodule repositories
+
+Open **Submodules** in the workspace review context, or under a worktree in the
+grouped session browser. Expand an initialized entry to discover its repository's
+worktrees, including checkouts outside the parent project. Discovery works from
+the companion without first expanding the Neovim sidebar.
+
+The checkout mounted in the parent is marked **in parent**. Each child worktree
+offers **Browse checkout**, ACP session creation, branch renaming, and worktree
+removal where applicable. Use **New worktree** on the submodule repository to
+create another checkout. Child worktrees also expose their own Submodules section.
+Uninitialized entries are displayed without cloning or initializing them.
+
+Selecting a parent workspace scope includes its discovered submodule repositories,
+their external worktrees, and nested descendants. Repository ownership comes from
+Git metadata rather than directory prefixes. Group headings show the parent mount
+context, and actions target the child repository and exact checkout.
+
+Discovery is local, asynchronous, cached, and limited to two concurrent Git
+processes. Collapsed sections do not poll or recursively scan. Use **Refresh
+submodules** to revalidate a section or retry a discovery error.
+
 ## Source folding
 
 Source files open with code folds expanded by default. To open them collapsed:

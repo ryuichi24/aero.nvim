@@ -115,6 +115,7 @@ export interface Snapshot {
   }[];
   epoch?: string;
   agents?: string[];
+  submodules?: { worktree: string; path: string; name: string; workspace: string }[];
 }
 
 export interface Selection {

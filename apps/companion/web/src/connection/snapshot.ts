@@ -44,7 +44,9 @@ export function parseSnapshot(text: string): Snapshot {
       strings(event, ['id', 'session', 'conversation', 'kind', 'text']),
     ) ||
     !list(value.workspaces, (workspace) => strings(workspace, ['root', 'name'])) ||
-    !list(value.worktrees, (tree) => strings(tree, ['path']))
+    !list(value.worktrees, (tree) => strings(tree, ['path'])) ||
+    (value.submodules !== undefined &&
+      !list(value.submodules, (entry) => strings(entry, ['worktree', 'path', 'name', 'workspace'])))
   )
     throw new Error('Invalid stream snapshot');
   return value as unknown as Snapshot;

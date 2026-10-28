@@ -16,6 +16,8 @@ it('rejects malformed nested session and permission data before screens consume 
       sessions: [{ ...fixture.sessions[0], permission: { id: 'p', title: 'Read', options: null } }],
     },
     { ...fixture, worktrees: [{ path: 42 }] },
+    { ...fixture, submodules: [{ worktree: '/repo', path: '/repo/core', name: 'core' }] },
+    { ...fixture, submodules: null },
   ]) {
     expect(() => parseSnapshot(JSON.stringify(invalid))).toThrow('Invalid stream snapshot');
   }

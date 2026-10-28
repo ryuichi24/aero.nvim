@@ -5,6 +5,7 @@ import type { Selection, Session, Snapshot } from './types';
 import { LifecycleForm } from './lifecycle-controls';
 import type { LifecycleAction } from './lifecycle-controls';
 import { SessionCreate } from './session-create';
+import { SubmoduleBrowser } from './submodule-browser';
 
 function countLabel(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -23,6 +24,7 @@ interface Props {
   onAction?: LifecycleAction;
   actionsDisabled?: boolean;
   creationRequest?: number;
+  onOpenWorktree?: (path: string) => void;
 }
 
 export function SessionBrowser({
@@ -33,6 +35,7 @@ export function SessionBrowser({
   onAction,
   actionsDisabled = true,
   creationRequest = 0,
+  onOpenWorktree,
 }: Props) {
   const groups = useMemo(() => (snapshot ? groupSessions(snapshot) : []), [snapshot]);
   const [grouped, setGrouped] = useState(false);
@@ -225,6 +228,11 @@ export function SessionBrowser({
                     <span className="navigation-label">
                       <span className="workspace-name">{workspace.name}</span>
                       {workspace.root && <span className="navigation-path">{workspace.root}</span>}
+                      {workspace.mounts?.map((mount) => (
+                        <span className="navigation-path" key={mount.path}>
+                          Submodule {mount.name} in {mount.worktree}
+                        </span>
+                      ))}
                       <span className="navigation-count">
                         {countLabel(workspace.worktrees.length, 'worktree')} ·{' '}
                         {countLabel(allSessions.length, 'session')}
@@ -284,6 +292,9 @@ export function SessionBrowser({
                                 <span className="text-slate-400 font-normal">
                                   ({worktree.branch || 'detached'})
                                 </span>
+                                {worktree.inParent && (
+                                  <span className="navigation-count"> · in parent</span>
+                                )}
                               </span>
                               <span className="navigation-path">{worktree.path}</span>
                               <span className="navigation-count">
@@ -298,6 +309,16 @@ export function SessionBrowser({
                           id={worktreeID}
                           hidden={!worktreeExpanded}
                         >
+                          {snapshot && worktreeExpanded && (
+                            <SubmoduleBrowser
+                              tree={{ ...worktree, workspace: workspace.root }}
+                              snapshot={snapshot}
+                              online={snapshot.connected && active}
+                              disabled={actionsDisabled}
+                              onAction={onAction}
+                              onOpen={onOpenWorktree}
+                            />
+                          )}
                           {onAction && workspace.root && (
                             <>
                               <LifecycleForm

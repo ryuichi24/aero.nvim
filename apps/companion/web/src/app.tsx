@@ -12,6 +12,7 @@ import { useCompanionActions } from './actions/use-companion-actions';
 import { useCompanionRoute } from './navigation/use-companion-route';
 import { useSessionPosition } from './navigation/use-session-position';
 import { scopeSnapshot, reviewGroups as selectReviewGroups } from './selectors/workspace-scope';
+import { SubmoduleBrowser } from './submodule-browser';
 import { CompanionProvider, useCompanionDispatch, useCompanionState } from './companion-context';
 import { draftKey } from './companion-state';
 import { TodoNotifications } from './todo-notifications';
@@ -565,7 +566,7 @@ function Companion() {
                       <span>{tree.path}</span>
                     </button>
                   ));
-                  return workspaceScope ? (
+                  return workspaceScope && reviewGroups.length === 1 ? (
                     <div key={workspace.key}>{worktrees}</div>
                   ) : (
                     <details key={workspace.key} open={contextSearch.trim() ? true : undefined}>
@@ -621,6 +622,16 @@ function Companion() {
                   />
                 )}
               </details>
+            )}
+            {reviewTree && snapshot && (
+              <SubmoduleBrowser
+                tree={reviewTree}
+                snapshot={snapshot}
+                online={online}
+                disabled={!online || !!pending || !snapshot.epoch}
+                onAction={act}
+                onOpen={(path) => navigate(view, path)}
+              />
             )}
             <nav className="local-nav" aria-label="Workspace tools">
               {(
@@ -713,6 +724,7 @@ function Companion() {
           onAction={act}
           actionsDisabled={!online || !!pending || !snapshot?.epoch}
           creationRequest={creationRequest}
+          onOpenWorktree={(path) => navigate('source', path)}
         />
         {!pairing && (
           <WorkspaceReview

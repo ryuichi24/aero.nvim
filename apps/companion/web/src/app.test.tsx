@@ -7,6 +7,50 @@ import type { Snapshot } from './types';
 import { FakeEvents, initial, response, connect, open, draft } from './test/companion-harness';
 
 describe('mobile companion', () => {
+  it('keeps submodule sessions and external review checkouts available within the parent workspace scope', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ entries: [] }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect({
+      ...initial,
+      workspaces: [
+        { root: '/project', name: 'Project' },
+        { root: '/project/libs/core', name: 'Core' },
+      ],
+      worktrees: [
+        { path: '/project', workspace: '/project', branch: 'main' },
+        { path: '/project/libs/core', workspace: '/project/libs/core', branch: 'main' },
+        { path: '/checkouts/core-fix', workspace: '/project/libs/core', branch: 'fix' },
+      ],
+      submodules: [
+        {
+          worktree: '/project',
+          path: '/project/libs/core',
+          name: 'libs/core',
+          workspace: '/project/libs/core',
+        },
+      ],
+      sessions: [{ ...initial.sessions[0], worktree: '/checkouts/core-fix' }],
+    });
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Workspace scope' }),
+      '/project',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(screen.getByRole('button', { name: /Test agent ·/ })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    const context = screen.getByRole('region', { name: 'Workspace review context' });
+    await userEvent.click(within(context).getByText('Core', { selector: 'summary' }));
+    await userEvent.click(within(context).getByRole('button', { name: /core-fix \(fix\)/ }));
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(
+          ([, init]) => JSON.parse(String(init.body)).worktree === '/checkouts/core-fix',
+        ),
+      ).toBe(true),
+    );
+  });
+
   it('quotes transcript text into an existing draft, reveals and focuses input without submitting', async () => {
     const fetch = vi.fn().mockResolvedValue(response({}));
     vi.stubGlobal('fetch', fetch);

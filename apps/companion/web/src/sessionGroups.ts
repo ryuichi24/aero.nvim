@@ -5,6 +5,7 @@ export interface WorktreeGroup {
   label: string;
   branch?: string;
   target?: string;
+  inParent?: boolean;
   sessions: Session[];
 }
 
@@ -13,6 +14,7 @@ export interface WorkspaceGroup {
   root?: string;
   name: string;
   worktrees: WorktreeGroup[];
+  mounts?: NonNullable<Snapshot['submodules']>;
 }
 
 export function pathName(path: string): string {
@@ -38,6 +40,7 @@ export function groupSessions(snapshot: Snapshot): WorkspaceGroup[] {
       root,
       name: workspace.name || pathName(root),
       worktrees: [],
+      mounts: snapshot.submodules?.filter((entry) => entry.workspace === root),
     });
   }
   const worktrees = new Map<string, WorktreeGroup>();
@@ -65,6 +68,7 @@ export function groupSessions(snapshot: Snapshot): WorkspaceGroup[] {
       branch: worktree.branch,
       target: worktree.target,
       label: worktreeLabel(worktree),
+      inParent: snapshot.submodules?.some((entry) => entry.path === path),
       sessions: [],
     };
     worktrees.set(path, group);
