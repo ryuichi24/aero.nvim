@@ -84,14 +84,63 @@ function M.dispatch(method, params)
 		end)
 	end
 
-	if method == "reference_browse" then
+	if method == "reference_browse" or method == "submodule_browse" then
 		for _, tree in ipairs(worktrees()) do
 			if
 				tree.path == params.worktree
 				and params.epoch == epoch
 				and params.target == require("aero.companion_lifecycle").target(epoch, tree)
 			then
-				return require("aero.companion.reference").browse(params)
+				if method == "reference_browse" then
+					return require("aero.companion.reference").browse(params)
+				end
+
+				local modules = require("aero.submodules")
+
+				if params.refresh == true then
+					modules.invalidate(true)
+				end
+
+				local function changed()
+					require("aero.events").emit("repositories_changed", {})
+				end
+
+				local discovered = modules.entries(tree.path, changed)
+				local result = { entries = {}, loading = discovered.loading == true, error = discovered.err }
+
+				for _, entry in ipairs(discovered.list or {}) do
+					local initialized = modules.initialized(entry.path)
+					table.insert(result.entries, { name = entry.name, path = entry.path, initialized = initialized })
+
+					if params.path == entry.path then
+						if not initialized then
+							return nil, "submodule not initialized"
+						end
+
+						local listing = modules.worktrees(entry.path, changed)
+						result.loading, result.error = listing.loading == true, listing.err
+						result.worktrees = listing.list
+						result.workspace = listing.list and listing.list[1] and listing.list[1].path
+
+						if listing.list then
+							result.worktrees = vim.tbl_map(function(wt)
+								return vim.tbl_extend(
+									"force",
+									wt,
+									{ target = require("aero.companion_lifecycle").target(epoch, wt) }
+								)
+							end, listing.list)
+						end
+
+						return result
+					end
+				end
+
+				if params.path and params.path ~= "" and not discovered.loading then
+					return nil, "submodule unavailable"
+				end
+
+				return result
 			end
 		end
 

@@ -56,6 +56,7 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 		agents = {},
 		workspaces = {},
 		worktrees = worktrees,
+		submodules = require("aero.submodules").relationships(),
 		sessions = {},
 		inbox = {},
 		boards = {},

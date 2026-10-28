@@ -42,6 +42,15 @@ key; `target` identifies the current runtime object. `conversation` identifies
 the current chat generation, not the agent's external ACP session ID. `epoch`
 identifies the current Lua host. These fields prevent acting on stale selections.
 
+`POST /api/submodule_browse` is a read-only discovery request with `epoch`,
+`target`, and `worktree`. Without `path`, it returns that checkout's submodule
+entries (`name`, absolute `path`, `initialized`). Supply an entry's exact path to
+discover its repository's `workspace` and `worktrees`, including lifecycle targets.
+`loading: true` means bounded asynchronous discovery is pending; clients may poll
+while the section is open. Optional `refresh: true` invalidates discovery caches
+before reading. Errors and uninitialized entries do not initialize or clone Git
+repositories, and paths not declared in the selected checkout are rejected.
+
 ```json
 {
   "operation_id": "example-operation-0001",
@@ -82,6 +91,11 @@ Required envelope: `connected`, `cursor`, `sessions`, `inbox`, `workspaces`,
 `worktrees`. Connected host data also supplies `epoch`, `agents`, `boards`, and
 optional companion UI preferences. Go normalizes missing list envelopes when the
 host is unavailable, marks the snapshot disconnected, and owns cursor revisions.
+
+Optional `submodules` entries link a parent `worktree` and mount `path`/`name` to
+the child repository's `workspace`. These relationships describe discovered mounts,
+allowing clients to scope nested repositories and external worktrees without
+guessing ownership from filesystem paths.
 
 Session blocks contain protocol/content fields. Typewriter/cache state is excluded;
 live permission callbacks are never serialized. Persisted ACP history additionally

@@ -433,6 +433,61 @@ assert(vim.wait(5000, function()
 end))
 assert(edited ~= before and #edited.list == #before.list + 1, "edited submodule entries remained stale")
 
+-- Companion discovery works without relying on expanded Neovim sidebar nodes.
+snapshot = bridge.dispatch("snapshot")
+local parent_target
+
+for _, tree in ipairs(snapshot.worktrees) do
+	if tree.path == parent_path then
+		parent_target = tree.target
+	end
+end
+
+local params = { epoch = snapshot.epoch, target = parent_target, worktree = parent_path }
+local browsing
+
+assert(vim.wait(5000, function()
+	browsing = assert(bridge.dispatch("submodule_browse", params))
+	return not browsing.loading
+end))
+assert(#browsing.entries == 3)
+
+params.path = child_root
+
+assert(vim.wait(5000, function()
+	browsing = assert(bridge.dispatch("submodule_browse", params))
+	return not browsing.loading
+end))
+assert(browsing.workspace == child_root and #browsing.worktrees == 3)
+assert(browsing.worktrees[1].target, "submodule lifecycle target missing")
+
+local relationships = bridge.dispatch("snapshot").submodules
+
+assert(
+	vim.tbl_contains(
+		vim.tbl_map(function(entry)
+			return entry.worktree == parent_path and entry.path == child_root and entry.workspace == child_root
+		end, relationships),
+		true
+	),
+	"snapshot lost submodule ownership"
+)
+
+params.path = parent_path .. "/libs/missing"
+local rejected, rejection = bridge.dispatch("submodule_browse", params)
+
+assert(not rejected and rejection == "submodule not initialized")
+
+params.path = "/outside"
+rejected, rejection = bridge.dispatch("submodule_browse", params)
+
+assert(not rejected and rejection == "submodule unavailable")
+
+params.target = "stale"
+rejected, rejection = bridge.dispatch("submodule_browse", params)
+
+assert(not rejected and rejection == "stale worktree or host epoch")
+
 modules.invalidate()
 vim.wait(100, function()
 	return false

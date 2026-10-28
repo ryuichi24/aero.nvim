@@ -194,6 +194,30 @@ function M.known_repositories()
 	return vim.tbl_values(repositories)
 end
 
+function M.relationships()
+	local result = {}
+
+	for _, repository in pairs(repositories) do
+		for mount in pairs(repository.mounts) do
+			local parent = parents[mount]
+
+			if parent then
+				table.insert(result, {
+					worktree = parent,
+					path = mount,
+					name = vim.fs.relpath(parent, mount),
+					workspace = repository.ws.root,
+				})
+			end
+		end
+	end
+
+	table.sort(result, function(a, b)
+		return a.path < b.path
+	end)
+	return result
+end
+
 function M.initialized(path)
 	return vim.uv.fs_stat(vim.fs.joinpath(path, ".git")) ~= nil
 end

@@ -151,6 +151,24 @@ func TestReferenceActionsForwardWorktreeScope(t *testing.T) {
 	c.json("POST", "/api/reference_cancel", map[string]any{"operation_id": "reference-cancellation-0001", "epoch": "epoch", "target": "target", "worktree": "/repo", "transfer_id": "reference-operation-0001"}, http.StatusOK)
 }
 
+func TestSubmoduleDiscoveryForwardsCheckoutScope(t *testing.T) {
+	c := newClient(t, hostFunc(func(_ context.Context, method string, params any) (hostResponse, error) {
+		encoded, _ := json.Marshal(params)
+
+		var input map[string]any
+
+		_ = json.Unmarshal(encoded, &input)
+		if method != "submodule_browse" || input["worktree"] != "/parent" || input["path"] != "/parent/libs/core" || input["epoch"] != "epoch" || input["target"] != "target" || input["refresh"] != true {
+			t.Fatalf("lost submodule scope: %s %s", method, encoded)
+		}
+
+		return hostResponse{Result: json.RawMessage(`{"entries":[],"loading":false,"workspace":"/parent/libs/core","worktrees":[{"path":"/external/core"}]}`)}, nil
+	}))
+	c.json("POST", "/api/submodule_browse", map[string]any{}, http.StatusUnauthorized)
+	c.pair()
+	c.json("POST", "/api/submodule_browse", map[string]any{"epoch": "epoch", "target": "target", "worktree": "/parent", "path": "/parent/libs/core", "refresh": true}, http.StatusOK)
+}
+
 func TestReferenceTransferPollsIdenticalReceipt(t *testing.T) {
 	calls := 0
 
