@@ -54,12 +54,20 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 			},
 		},
 		agents = {},
-		workspaces = require("aero.store").data.workspaces,
+		workspaces = {},
 		worktrees = worktrees,
 		sessions = {},
 		inbox = {},
 		boards = {},
 	}
+
+	for _, repository in
+		ipairs(require("aero.repositories").list(function()
+			return {}
+		end))
+	do
+		table.insert(result.workspaces, repository.ws)
+	end
 
 	for _, tree in ipairs(worktrees) do
 		tree.target = require("aero.companion_lifecycle").target(epoch, tree)

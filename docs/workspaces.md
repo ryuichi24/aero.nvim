@@ -8,6 +8,35 @@ A **workspace** is a Git repository (its main worktree), registered across resta
 **Worktrees** are read live from `git worktree list`. Each worktree can have multiple
 terminal or ACP sessions. See [agents](agents.md) for session controls.
 
+### Submodule repositories
+
+Expand a worktree, then its **Submodules** section to discover the submodule
+entries from that checkout's `.gitmodules`. Expand an initialized submodule to
+show its repository's worktrees, including worktrees outside the parent project.
+The checkout used by the parent is marked **[in parent]**. Each child worktree
+has the usual session controls and its own Submodules section for nested modules.
+Uninitialized entries are shown without initializing or cloning them.
+
+Discovery is local, asynchronous, and limited to two concurrent Git processes.
+Collapsed submodule sections are not scanned recursively. Worktree lists are
+cached by resolved Git common directory, so appearances sharing Git storage reuse
+the same result; independent clones remain separate. Nested discovery does not
+fetch remotes. `:Aero refresh` invalidates discovery caches and reloads expanded
+sections; expansion state lasts for the current Neovim instance. Reopening Aero,
+returning to Neovim, pulling, and changing branches also revalidate already
+discovered repositories. Edits to `.gitmodules` are detected when its section is
+next prepared. Revalidation uses the same bounded local queue and retains cached
+rows while fresh results arrive.
+
+Discovered submodule worktrees also appear in the worktree picker and report-move
+destination picker. Expand a submodule repository once to make its worktrees
+available there; the pickers reuse discovery results without recursive scans.
+The global session picker and companion use this same repository inventory.
+The companion can create sessions and manage worktrees in discovered submodule
+repositories. Opening Aero from a known submodule worktree reveals its containing
+sidebar sections and selects that checkout; collapse commands include discovered
+descendants even when they were automatically expanded by existing sessions.
+
 ## Commands
 
 | Command | Description |

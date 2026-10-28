@@ -31,14 +31,23 @@ local function worktrees()
 		worktree_cache, worktree_cache_at, worktree_roots = {}, uv.now(), roots
 
 		for _, workspace in ipairs(workspaces) do
-			for _, wt in ipairs(require("aero.git").list(workspace.root) or {}) do
-				wt.workspace = workspace.root
-				worktree_cache[wt.path] = wt
-			end
+			worktree_cache[workspace.root] = require("aero.git").list(workspace.root) or {}
 		end
 	end
 
-	local list = vim.deepcopy(worktree_cache)
+	local list = {}
+
+	for _, repository in
+		ipairs(require("aero.repositories").list(function(ws)
+			return worktree_cache[ws.root]
+		end))
+	do
+		for _, tree in ipairs(repository.list) do
+			local wt = vim.deepcopy(tree)
+			wt.workspace = repository.ws.root
+			list[wt.path] = wt
+		end
+	end
 
 	for path in pairs(require("aero.store").data.sessions) do
 		list[path] = list[path] or { path = path }
@@ -150,6 +159,10 @@ function M.dispatch(method, params)
 			worktree_cache_at = -5000
 		end
 
+		if method:match("^worktree_") and result and result.status == "accepted" then
+			require("aero.submodules").invalidate(true)
+		end
+
 		return result, err
 	end
 
@@ -200,7 +213,7 @@ function M.dispatch(method, params)
 			return finish(nil, "board_id and replacement choice required")
 		end
 
-		local workspace = require("aero.store").find_workspace(params.workspace)
+		local workspace = require("aero.repositories").find(params.workspace)
 
 		if not workspace then
 			return finish(nil, "workspace unavailable")

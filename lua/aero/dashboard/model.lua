@@ -7,6 +7,14 @@ local status_hl = {
 	exited = "AeroExited",
 	stopped = "AeroStopped",
 }
+local section_parent = {
+	export = "exports:",
+	report = "reports:",
+	report_new = "reports:",
+	reading_list = "reading:",
+	reading_new = "reading:",
+	reference_new = "reference:",
+}
 
 function M.worktree_label(worktree)
 	return worktree.branch or "(detached " .. (worktree.head or ""):sub(1, 7) .. ")"
@@ -114,9 +122,77 @@ function M.build(snapshot)
 
 				local virt = expanded and {} or vim.deepcopy(tree.summary)
 				local item = { kind = "worktree", id = "wt:" .. wt.path, ws = ws, wt = wt }
+
+				if wt.path == ws.submodule_checkout then
+					table.insert(segments, { " [in parent]", "AeroDim" })
+				end
+
 				add(segments, item, virt)
 
 				if expanded then
+					local modules_id = "submodules:" .. wt.path
+					add({
+						{ "     " .. (tree.submodules_open and icons.expanded or icons.collapsed) .. " " },
+						{ "Submodules", "AeroWorkspace" },
+					}, { kind = "submodules", id = modules_id, parent = item.id, ws = ws, wt = wt })
+
+					if tree.submodules_open then
+						if tree.submodules_loading then
+							add({ { "       Loading…", "AeroDim" } })
+						elseif tree.submodules_err and tree.submodules_err ~= "" then
+							add({ { "       ! " .. tree.submodules_err:gsub("[%c]", " "), "AeroExited" } })
+						elseif #(tree.submodules or {}) == 0 then
+							add({ { "       No submodules", "AeroDim" } })
+						end
+
+						for _, child in ipairs(tree.submodules or {}) do
+							local child_id = "submodule:" .. child.path
+							add({
+								{ "       " .. (child.expanded and icons.expanded or icons.collapsed) .. " " },
+								{ child.name:gsub("[%c]", " "), "AeroWorkspace" },
+								{ child.initialized and "" or " [not initialized]", "AeroDim" },
+							}, child.initialized and {
+								kind = "submodule",
+								id = child_id,
+								parent = modules_id,
+								ws = { root = child.path, name = child.name },
+								wt = { path = child.path },
+								submodule = child,
+							} or nil)
+
+							if child.loading then
+								add({ { "         Loading…", "AeroDim" } })
+							elseif child.workspace then
+								local nested_lines, nested_items, nested_marks = M.build({
+									icons = icons,
+									workspaces = { child.workspace },
+									nested = true,
+								})
+								local prefix = child_id .. ":"
+
+								for index = 4, #nested_lines do
+									local nested = nested_items[index]
+									local mark = nested_marks[index]
+									table.insert(lines, "      " .. nested_lines[index])
+
+									if nested then
+										nested.id = prefix .. nested.id
+										nested.parent = nested.parent and prefix .. nested.parent
+											or nested.kind == "worktree" and child_id
+											or prefix .. (section_parent[nested.kind] or "wt:") .. nested.wt.path
+										items[#lines] = nested
+									end
+
+									for _, highlight in ipairs(mark.hls) do
+										highlight[1], highlight[2] = highlight[1] + 6, highlight[2] + 6
+									end
+
+									marks[#lines] = mark
+								end
+							end
+						end
+					end
+
 					if #tree.sessions == 0 then
 						add(
 							{ { "       no agents — press a to start one", "AeroDim" } },
@@ -283,50 +359,54 @@ function M.build(snapshot)
 				end
 			end
 
-			add({
-				{ "   " .. (workspace.boards_open and icons.expanded or icons.collapsed) .. " " },
-				{ "Boards", "AeroWorkspace" },
-			}, { kind = "boards", id = "boards:" .. ws.root, ws = ws }, { { " " .. #workspace.boards, "AeroDim" } })
+			if not snapshot.nested then
+				add({
+					{ "   " .. (workspace.boards_open and icons.expanded or icons.collapsed) .. " " },
+					{ "Boards", "AeroWorkspace" },
+				}, { kind = "boards", id = "boards:" .. ws.root, ws = ws }, {
+					{ " " .. #workspace.boards, "AeroDim" },
+				})
 
-			if workspace.boards_open then
-				for _, entry in ipairs(workspace.boards) do
-					local board, data = entry.board, entry.board.metadata or {}
-					local description = " " .. board.count .. " tickets" .. (data.archived and " · archived" or "")
+				if workspace.boards_open then
+					for _, entry in ipairs(workspace.boards) do
+						local board, data = entry.board, entry.board.metadata or {}
+						local description = " " .. board.count .. " tickets" .. (data.archived and " · archived" or "")
 
-					if #board.orphans > 0 then
-						description = description .. " · " .. #board.orphans .. " removed"
-					end
+						if #board.orphans > 0 then
+							description = description .. " · " .. #board.orphans .. " removed"
+						end
 
-					if type(data.description) == "string" then
-						description = description .. " · " .. data.description:gsub("[%c]", " ")
-					end
+						if type(data.description) == "string" then
+							description = description .. " · " .. data.description:gsub("[%c]", " ")
+						end
 
-					if type(data.tags) == "table" then
-						description = description .. " · " .. table.concat(vim.tbl_map(tostring, data.tags), ", ")
-					end
+						if type(data.tags) == "table" then
+							description = description .. " · " .. table.concat(vim.tbl_map(tostring, data.tags), ", ")
+						end
 
-					if #board.diagnostics > 0 then
-						description = description .. " · ! " .. #board.diagnostics
+						if #board.diagnostics > 0 then
+							description = description .. " · ! " .. #board.diagnostics
+						end
+
+						add(
+							{ { "     " }, { entry.label, "AeroSession" } },
+							{ kind = "board", id = "board:" .. board.path, ws = ws, board = board },
+							{ { description, "AeroDim" } }
+						)
 					end
 
 					add(
-						{ { "     " }, { entry.label, "AeroSession" } },
-						{ kind = "board", id = "board:" .. board.path, ws = ws, board = board },
-						{ { description, "AeroDim" } }
+						{ { "     Removed tickets", "AeroSession" } },
+						{ kind = "tickets_removed", id = "tickets-removed:" .. ws.root, ws = ws },
+						{ { " " .. workspace.removed_count, "AeroDim" } }
 					)
+
+					for _, err in ipairs(workspace.board_errors) do
+						add({ { "     ! " .. tostring(err):gsub("[%c]", " "), "AeroExited" } })
+					end
+
+					add({ { "     New +", "AeroDim" } }, { kind = "board_new", id = "board-new:" .. ws.root, ws = ws })
 				end
-
-				add(
-					{ { "     Removed tickets", "AeroSession" } },
-					{ kind = "tickets_removed", id = "tickets-removed:" .. ws.root, ws = ws },
-					{ { " " .. workspace.removed_count, "AeroDim" } }
-				)
-
-				for _, err in ipairs(workspace.board_errors) do
-					add({ { "     ! " .. tostring(err):gsub("[%c]", " "), "AeroExited" } })
-				end
-
-				add({ { "     New +", "AeroDim" } }, { kind = "board_new", id = "board-new:" .. ws.root, ws = ws })
 			end
 		end
 	end

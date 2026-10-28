@@ -122,6 +122,11 @@ assert(
 
 expand("One")
 api.nvim_win_set_cursor(win, { assert(line("main")), 0 })
+
+-- Drain checks queued by expansion before checking that rendering starts none.
+vim.wait(50, function()
+	return false
+end)
 require("aero.git").list = function()
 	error("render must not list Git worktrees")
 end

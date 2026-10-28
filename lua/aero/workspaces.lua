@@ -40,16 +40,13 @@ end
 function M.worktrees(opts)
 	opts = opts or {}
 	store.load()
-	local items, errors = {}, {}
+	local items = {}
+	local repositories, errors = require("aero.repositories").list()
 
-	for _, ws in ipairs(store.data.workspaces) do
-		local worktrees, err = require("aero.git").list(ws.root)
+	for _, repository in ipairs(repositories) do
+		local ws = repository.ws
 
-		if not worktrees then
-			table.insert(errors, ws.name .. ": " .. err)
-		end
-
-		for _, wt in ipairs(worktrees or {}) do
+		for _, wt in ipairs(repository.list) do
 			if wt.path ~= opts.exclude then
 				table.insert(items, { key = ws.root .. "::" .. wt.path, ws = ws, wt = wt })
 			end

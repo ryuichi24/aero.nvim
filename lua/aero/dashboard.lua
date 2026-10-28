@@ -24,6 +24,8 @@ local state = {
 	reference_folders_expanded = {}, -- reference directory path -> expanded
 	exports_expanded = {}, -- worktree path -> exported logs section expanded
 	boards_expanded = {}, -- workspace root -> board section expanded
+	submodules_expanded = {}, -- checkout path -> submodule section expanded
+	repositories_expanded = {}, -- submodule checkout path -> repository expanded
 	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
 	pulling = {}, -- worktree path -> in-flight pull
 }
@@ -86,7 +88,8 @@ local function worktrees(ws, force)
 	return cache
 end
 
--- Loading is explicit: rendering never initiates Git listing or remote requests.
+-- Top-level repository loading and remote requests are explicit. Nested local
+-- discovery is queued only for expanded submodule sections while preparing snapshots.
 local function load_worktrees()
 	local roots = {}
 
@@ -148,6 +151,7 @@ end
 ---------------------------------------------------------------------------
 
 local animation_snapshot
+local rendering, render_again = false, false
 
 local function reference_children(entries)
 	for _, entry in ipairs(entries) do
@@ -185,13 +189,12 @@ end
 local function build()
 	local snapshot = { icons = config.options.icons, add_key = config.options.keymaps.add_workspace, workspaces = {} }
 
-	for _, ws in ipairs(store.data.workspaces) do
+	local function prepare(ws, ancestors, supplied_cache)
 		local workspace =
 			{ ws = ws, display_path = " " .. vim.fn.fnamemodify(ws.root, ":~"), worktrees = {}, boards = {} }
-		table.insert(snapshot.workspaces, workspace)
 
 		if ws.expanded ~= false then
-			workspace.cache = state.worktrees[ws.root] or { list = {} }
+			workspace.cache = supplied_cache or state.worktrees[ws.root] or { list = {} }
 
 			if workspace.cache.list then
 				local remote = require("aero.remote_status").peek(ws.root)
@@ -213,6 +216,35 @@ local function build()
 				table.insert(workspace.worktrees, tree)
 
 				if tree.expanded then
+					tree.submodules_open = state.submodules_expanded[wt.path] == true
+					tree.submodules = {}
+
+					if tree.submodules_open then
+						local modules = require("aero.submodules")
+						local discovered = modules.entries(wt.path, remote_changed)
+						tree.submodules_loading, tree.submodules_err = discovered.loading, discovered.err
+
+						for _, entry in ipairs(discovered.list or {}) do
+							local child = vim.tbl_extend("force", entry, {
+								initialized = modules.initialized(entry.path),
+								expanded = state.repositories_expanded[entry.path] == true,
+							})
+							table.insert(tree.submodules, child)
+
+							if child.initialized and child.expanded and not ancestors[entry.path] then
+								local visited = vim.tbl_extend("force", ancestors, { [entry.path] = true })
+								local cache = modules.worktrees(entry.path, remote_changed)
+								child.loading = cache.loading
+								local root = cache.list and cache.list[1] and cache.list[1].path or entry.path
+								child.workspace = prepare(
+									{ root = root, name = entry.name, submodule_checkout = entry.path },
+									visited,
+									cache
+								)
+							end
+						end
+					end
+
 					for _, selected in ipairs(sessions) do
 						table.insert(tree.sessions, {
 							session = selected,
@@ -239,6 +271,11 @@ local function build()
 				end
 			end
 
+			if supplied_cache then
+				workspace.board_errors = {}
+				return workspace
+			end
+
 			local boards
 			boards, workspace.board_errors = require("aero.tasks").list(ws)
 			workspace.boards_open = state.boards_expanded[ws.root] ~= false
@@ -254,6 +291,12 @@ local function build()
 				})
 			end
 		end
+
+		return workspace
+	end
+
+	for _, ws in ipairs(store.data.workspaces) do
+		table.insert(snapshot.workspaces, prepare(ws, { [ws.root] = true }))
 	end
 
 	animation_snapshot = snapshot
@@ -262,11 +305,11 @@ end
 
 -- Animation must not rescan the filesystem or invoke task metadata subprocesses.
 local function animate()
-	if not animation_snapshot then
+	if rendering or not animation_snapshot then
 		return
 	end
 
-	for _, workspace in ipairs(animation_snapshot.workspaces) do
+	local function update(workspace)
 		for _, tree in ipairs(workspace.worktrees) do
 			tree.summary = summary(session.list(tree.wt.path))
 
@@ -276,7 +319,17 @@ local function animate()
 				item.activity = session.activity(item.session)
 				item.usage = require("aero.acp.usage").summary(item.session.chat)
 			end
+
+			for _, child in ipairs(tree.submodules or {}) do
+				if child.workspace then
+					update(child.workspace)
+				end
+			end
 		end
+	end
+
+	for _, workspace in ipairs(animation_snapshot.workspaces) do
+		update(workspace)
 	end
 
 	local lines, items, marks = require("aero.dashboard.model").build(animation_snapshot)
@@ -312,6 +365,36 @@ function M.collapse(kind)
 
 	if kind == "all" or kind == "reference" then
 		state.reference_folders_expanded = {}
+	end
+
+	if kind == "all" then
+		state.submodules_expanded, state.repositories_expanded = {}, {}
+	end
+
+	local sections = {
+		worktrees = state.expanded,
+		reports = state.reports_expanded,
+		reading = state.reading_expanded,
+		exports = state.exports_expanded,
+		reference = state.reference_expanded,
+	}
+
+	for name, section in pairs(sections) do
+		if kind == "all" or kind == name then
+			for path in pairs(section) do
+				section[path] = false
+			end
+		end
+	end
+
+	for _, repository in ipairs(require("aero.submodules").known_repositories()) do
+		for _, wt in ipairs(repository.list) do
+			for name, section in pairs(sections) do
+				if kind == "all" or kind == name then
+					section[wt.path] = false
+				end
+			end
+		end
 	end
 
 	for _, ws in ipairs(store.data.workspaces) do
@@ -368,8 +451,37 @@ function M.render()
 		return
 	end
 
-	local lines, items, marks = build()
+	if rendering then
+		render_again = true
+		return
+	end
+
+	rendering = true
+	local ok, lines, items, marks = pcall(build)
+
+	if not ok then
+		rendering = false
+		error(lines)
+	end
+
 	require("aero.dashboard.view").render(state, lines, items, marks)
+
+	if state.reveal_path and state.win and api.nvim_win_is_valid(state.win) then
+		for row, item in pairs(items) do
+			if item.kind == "worktree" and item.wt.path == state.reveal_path then
+				api.nvim_win_set_cursor(state.win, { row, 0 })
+				state.reveal_path = nil
+				break
+			end
+		end
+	end
+
+	rendering = false
+
+	if render_again then
+		render_again = false
+		vim.schedule(M.render)
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -489,8 +601,15 @@ function M.open(focus_worktree)
 	if focus_worktree then
 		local path = vim.fs.normalize(vim.fn.resolve(vim.t.aero_worktree or vim.fn.getcwd()))
 
-		for _, ws in ipairs(store.data.workspaces) do
-			for _, wt in ipairs(worktrees(ws).list or {}) do
+		for _, repository in
+			ipairs(require("aero.repositories").list(function(ws)
+				local cache = worktrees(ws)
+				return cache.list, cache.err
+			end))
+		do
+			local ws = repository.ws
+
+			for _, wt in ipairs(repository.list) do
 				local root = vim.fs.normalize(vim.fn.resolve(wt.path))
 
 				if root == path or (not vim.t.aero_worktree and path:sub(1, #root + 1) == root .. "/") then
@@ -501,8 +620,27 @@ function M.open(focus_worktree)
 				end
 			end
 		end
+
+		local ancestor = selected_path and require("aero.submodules").ancestry(selected_path)
+		while ancestor do
+			state.expanded[ancestor.worktree] = true
+			state.submodules_expanded[ancestor.worktree] = true
+			state.repositories_expanded[ancestor.mount] = true
+
+			for _, ws in ipairs(store.data.workspaces) do
+				for _, wt in ipairs(worktrees(ws).list or {}) do
+					if wt.path == ancestor.worktree then
+						ws.expanded = true
+					end
+				end
+			end
+
+			ancestor = ancestor.parent
+		end
+		state.reveal_path = selected_path
 	end
 
+	require("aero.submodules").invalidate(true)
 	load_worktrees()
 	M.render()
 
@@ -573,6 +711,7 @@ end
 
 function M.refresh()
 	store.load()
+	require("aero.submodules").invalidate(true)
 	require("aero.remote_status").invalidate()
 	state.worktrees = {}
 	load_worktrees()
@@ -585,6 +724,7 @@ api.nvim_create_autocmd("FocusGained", {
 	callback = function()
 		if state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
 			store.load()
+			require("aero.submodules").invalidate(true)
 			load_worktrees()
 			M.render()
 		end
@@ -814,6 +954,7 @@ local function add_worktree(ws)
 				end
 
 				store.set_expanded(ws.root, true)
+				require("aero.submodules").invalidate(true)
 				state.worktrees[ws.root] = nil
 				local cache = worktrees(ws)
 
@@ -977,7 +1118,15 @@ function actions.toggle()
 		return
 	end
 
-	if item.kind == "workspace" then
+	if item.kind == "submodules" then
+		state.submodules_expanded[item.wt.path] = not state.submodules_expanded[item.wt.path]
+	elseif item.kind == "submodule" then
+		if not item.submodule.initialized then
+			return
+		end
+
+		state.repositories_expanded[item.submodule.path] = not state.repositories_expanded[item.submodule.path]
+	elseif item.kind == "workspace" then
 		store.set_expanded(item.ws.root, item.ws.expanded == false)
 		load_worktrees()
 	elseif item.kind == "worktree" then
@@ -1025,7 +1174,11 @@ function actions.expand()
 
 	local expanded
 
-	if item.kind == "workspace" then
+	if item.kind == "submodules" then
+		expanded = state.submodules_expanded[item.wt.path] == true
+	elseif item.kind == "submodule" then
+		expanded = state.repositories_expanded[item.submodule.path] == true
+	elseif item.kind == "workspace" then
 		expanded = item.ws.expanded ~= false
 	elseif item.kind == "exports" then
 		expanded = state.exports_expanded[item.wt.path] ~= false
@@ -1064,6 +1217,9 @@ function actions.collapse()
 
 	local lnum = api.nvim_win_get_cursor(0)[1]
 	local is_header = item.id:match("^ws:")
+		or item.kind == "worktree"
+		or item.kind == "submodules"
+		or item.kind == "submodule"
 		or item.id:match("^wt:")
 		or item.kind == "reports"
 		or item.kind == "reading"
@@ -1072,6 +1228,8 @@ function actions.collapse()
 		or item.kind == "boards"
 		or item.kind == "exports"
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
+		or item.kind == "submodules" and state.submodules_expanded[item.wt.path] == true
+		or item.kind == "submodule" and state.repositories_expanded[item.submodule.path] == true
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
 		or item.kind == "reports" and state.reports_expanded[item.wt.path] ~= false
 		or item.kind == "reading" and state.reading_expanded[item.wt.path] ~= false
@@ -1085,8 +1243,8 @@ function actions.collapse()
 	end
 
 	-- jump to the parent line
-	local parent = (item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed")
-			and "boards:" .. item.ws.root
+	local parent = item.parent
+		or (item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed") and "boards:" .. item.ws.root
 		or item.kind == "export" and "exports:" .. item.wt.path
 		or item.kind == "exports" and "wt:" .. item.wt.path
 		or (item.kind == "report" or item.kind == "report_new") and "reports:" .. item.wt.path
@@ -1119,7 +1277,7 @@ function actions.add()
 
 	if item.kind == "boards" or item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed" then
 		require("aero.tasks.ui").new_board(item.ws)
-	elseif item.kind == "workspace" then
+	elseif item.kind == "workspace" or item.kind == "submodule" then
 		add_worktree(item.ws)
 	elseif item.kind == "reports" or item.kind == "report" or item.kind == "report_new" then
 		new_report(item)
@@ -1338,6 +1496,7 @@ function actions.delete()
 			end
 
 			require("aero.buffers").forget(wt.path)
+			require("aero.submodules").invalidate(true)
 			state.worktrees[ws.root] = nil
 			notify("removed " .. vim.fn.fnamemodify(wt.path, ":~"))
 			load_worktrees()
@@ -1482,6 +1641,7 @@ function M.pull(path)
 		state.pulling[path] = nil
 
 		-- Git may have fetched new refs even if it could not fast-forward the checkout.
+		require("aero.submodules").invalidate(true)
 		require("aero.remote_status").invalidate()
 		state.worktrees = {}
 		load_worktrees()
@@ -1531,6 +1691,7 @@ function actions.switch_branch()
 				end
 
 				state.worktrees = {}
+				require("aero.submodules").invalidate(true)
 				load_worktrees()
 				M.render()
 				vim.cmd("checktime")
@@ -1858,8 +2019,15 @@ function M.pick(scope)
 			table.insert(choices, { session = s })
 		end
 	else
-		for _, ws in ipairs(store.data.workspaces) do
-			for _, wt in ipairs(worktrees(ws).list or {}) do
+		for _, repository in
+			ipairs(require("aero.repositories").list(function(ws)
+				local cache = worktrees(ws)
+				return cache.list, cache.err
+			end))
+		do
+			local ws = repository.ws
+
+			for _, wt in ipairs(repository.list) do
 				for _, s in ipairs(session.list(wt.path)) do
 					table.insert(choices, { ws = ws, wt = wt, session = s })
 				end
@@ -1935,6 +2103,7 @@ end)
 require("aero.events").on("reference_changed", function()
 	M.render()
 end)
+require("aero.events").on("repositories_changed", remote_changed)
 require("aero.events").on("tasks_view_changed", function()
 	M.render()
 end)

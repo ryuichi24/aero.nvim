@@ -11,7 +11,6 @@ end
 
 function M.run(method, p, sessions, finish)
 	local session = require("aero.session")
-	local store = require("aero.store")
 	local git = require("aero.git")
 	local config = require("aero.config").options
 	local selected
@@ -52,7 +51,7 @@ function M.run(method, p, sessions, finish)
 		end
 	end
 
-	local ws = store.find_workspace(p.workspace)
+	local ws = require("aero.repositories").find(p.workspace)
 
 	if not ws then
 		return finish(nil, "workspace unavailable")
