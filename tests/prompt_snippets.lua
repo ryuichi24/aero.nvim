@@ -262,6 +262,12 @@ assert(context.date:match("^%d%d%d%d%-%d%d%-%d%d$") and context.time:match("^%d%
 assert(snippets.render("{{ session }} {{unknown}}", context) == "test {{unknown}}")
 
 local result
+local completion = require("aero.acp.completion")
+local original_setup, variable_candidates = completion.setup
+completion.setup = function(input, root, candidates)
+	variable_candidates = candidates
+	original_setup(input, root, candidates)
+end
 
 local function answer(lines)
 	local input = vim.list_extend(vim.deepcopy(lines), { "/confirm" })
@@ -280,6 +286,33 @@ snippets.expand("{{session}}: {{topic}} / {{ topic }} / {{focus}}", context, fun
 end)
 
 assert(api.nvim_win_get_config(0).title[1][1]:find("topic", 1, true))
+
+completion.setup = original_setup
+local input_buf = api.nvim_get_current_buf()
+
+for _, text in ipairs({ "/", "/con", "  /conf" }) do
+	api.nvim_buf_set_lines(input_buf, 0, -1, false, { text .. " " })
+	api.nvim_win_set_cursor(0, { 1, #text })
+	local start, suggestions = variable_candidates()
+
+	assert(start == (text:find("/", 1, true)))
+	assert(#suggestions == 1 and suggestions[1].word == "/confirm")
+
+	require("aero.acp.path_menu").show(input_buf, start, suggestions)
+
+	assert(vim.fn.maparg("<CR>", "i", false, true).callback() == "")
+	assert(vim.wait(100, function()
+		return api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] == text:match("^%s*") .. "/confirm "
+	end))
+	assert(result == nil and api.nvim_buf_is_valid(input_buf))
+end
+
+for _, text in ipairs({ "/other", "Text /", "/confirm extra" }) do
+	api.nvim_buf_set_lines(input_buf, 0, -1, false, { text .. " " })
+	api.nvim_win_set_cursor(0, { 1, #text })
+
+	assert(variable_candidates() == nil)
+end
 
 api.nvim_buf_set_lines(0, 0, -1, false, { "Text with /confirm inside it" })
 

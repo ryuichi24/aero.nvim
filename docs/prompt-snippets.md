@@ -36,6 +36,9 @@ Custom variables open a multiline editor. Type or paste the full value, using
 Enter for newlines, then type `/confirm` on its own line and press Enter to confirm
 each variable. The command line is removed from the value. Press Escape followed
 by `q` to cancel and preserve the draft.
+Typing `/` on its own line automatically suggests `/confirm`; Enter accepts the
+suggestion, then Enter again confirms the value. Use Ctrl-n/Ctrl-p to navigate
+suggestions or Ctrl-e to dismiss them.
 Long values, blank lines, and trailing newlines are preserved.
 
 You can also choose the scope or supply the filename directly:

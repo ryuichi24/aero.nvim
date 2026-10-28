@@ -68,7 +68,7 @@ function M.candidates()
 	return start + 1, acp.omnifunc(0, before:sub(start + 1))
 end
 
-function M.setup(buf, root)
+function M.setup(buf, root, candidates)
 	vim.bo[buf].completeopt = "menu,menuone,noinsert,noselect"
 	local saved
 	local paths = require("aero.acp.paths")
@@ -182,7 +182,7 @@ function M.setup(buf, root)
 				vim.fn.complete(cursor[2] + 1, {})
 			end
 
-			start, items = M.candidates()
+			start, items = (candidates or M.candidates)()
 		end
 
 		if start and items then

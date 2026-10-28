@@ -265,6 +265,15 @@ local function variable_input(name, callback)
 		title = " " .. name .. " · /confirm + Enter · q cancel ",
 	})
 	vim.wo[win].wrap = true
+	require("aero.acp.completion").setup(buf, nil, function()
+		local line = api.nvim_get_current_line()
+		local before = line:sub(1, api.nvim_win_get_cursor(0)[2])
+		local prefix, command = before:match("^(%s*)(/[%a]*)$")
+
+		if command and ("/confirm"):sub(1, #command) == command and line:sub(#before + 1):match("^%s*$") then
+			return #prefix + 1, { { word = "/confirm", menu = "Confirm variable value" } }
+		end
+	end)
 	local finished = false
 
 	local function finish(value)
@@ -287,6 +296,13 @@ local function variable_input(name, callback)
 	end
 
 	vim.keymap.set({ "n", "i" }, "<CR>", function()
+		if require("aero.acp.path_menu").visible(buf) then
+			vim.schedule(function()
+				require("aero.acp.path_menu").accept(buf)
+			end)
+			return ""
+		end
+
 		local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
 		local row = api.nvim_win_get_cursor(win)[1]
 
