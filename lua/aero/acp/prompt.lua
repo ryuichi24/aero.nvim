@@ -27,6 +27,22 @@ function M.command(chat)
 	local row = api.nvim_win_get_cursor(0)[1]
 	local text = vim.trim(api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
 
+	if text == "/reading-update" then
+		require("aero.reading").update_prompt(chat.s, function(request)
+			if not api.nvim_buf_is_valid(buf) then
+				return false
+			end
+
+			if vim.trim(api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "") ~= text then
+				return false
+			end
+
+			api.nvim_buf_set_lines(buf, row - 1, row, false, vim.split(request, "\n", { plain = true }))
+			return true
+		end)
+		return true
+	end
+
 	if text == "/reading" or text:match("^/reading%s") then
 		local function insert(title)
 			if not title or vim.trim(title) == "" or not api.nvim_buf_is_valid(buf) then
@@ -106,7 +122,10 @@ function M.send(chat, submitting)
 
 	local text = vim.trim(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"))
 
-	if not text:find("\n", 1, true) and (text == "/reading" or text:match("^/reading%s")) then
+	if
+		not text:find("\n", 1, true)
+		and (text == "/reading" or text == "/reading-update" or text:match("^/reading%s"))
+	then
 		return M.command(chat)
 	end
 

@@ -146,6 +146,15 @@ history is discarded. Source line numbers are snapshots and can become stale aft
 
 ## Publication API
 
+To update an existing list from the current ACP session, type `/reading-update`
+in its composer and press Enter. Choose a list from the worktree picker; Aero
+replaces the command with an editable request containing its ID, title, and
+items. Add your instructions and submit when ready. Cancelling leaves the draft
+unchanged. Selecting a list transfers update ownership to the current session,
+so lists from older sessions and manually created lists can also be updated.
+Publishing the update refreshes its open quickfix projections and retains read
+progress for stable item IDs.
+
 `aero_reading_list_publish` accepts `title` and an ordered `items` array (1–500
 entries). Each item needs a unique stable `id`, worktree-relative `path`, one-based
 `lnum`, and single-line `label`; `end_lnum` and `note` are optional. Files must exist

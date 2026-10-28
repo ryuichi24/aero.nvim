@@ -914,6 +914,10 @@ function M.omnifunc(findstart, base)
 		table.insert(out, { word = "/reading", menu = "Draft a named source-code walkthrough request" })
 	end
 
+	if ("/reading-update"):sub(1, #base) == base then
+		table.insert(out, { word = "/reading-update", menu = "Select an existing reading list to update" })
+	end
+
 	if ("/prompt"):sub(1, #base) == base then
 		table.insert(out, { word = "/prompt", menu = "Insert a custom prompt snippet into the draft" })
 	end
@@ -951,6 +955,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/mode"
 			and word ~= "/report"
 			and word ~= "/reading"
+			and word ~= "/reading-update"
 			and word ~= "/prompt"
 			and word ~= "/history"
 			and word ~= "/send"

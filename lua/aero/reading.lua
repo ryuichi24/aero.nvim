@@ -232,6 +232,33 @@ local function document_lines(document)
 	return lines
 end
 
+function M.update_prompt(session, insert)
+	local worktree = storage.canonical(session.worktree)
+	pick(worktree, function(list)
+		local latest = M.load(worktree, list.id)
+
+		if not latest then
+			return vim.notify("Aero: reading list no longer exists", vim.log.levels.WARN)
+		end
+
+		local document = editable(latest)
+		document.id = latest.id
+		local request = "Update this existing reading list for the current source code and my instructions. "
+			.. "Use aero_reading_list_publish with the exact list id below and the complete updated items array. "
+			.. "Preserve stable item IDs for retained stops so read progress survives. "
+			.. "Verify source paths and line numbers, and refresh labels and explanations where needed.\n\n"
+			.. "Existing reading list (JSON):\n```json\n"
+			.. vim.json.encode(document)
+			.. "\n```"
+
+		if insert(request) then
+			-- Explicit selection hands ownership to the current AI session.
+			latest.session_key = session.key
+			save(worktree, latest)
+		end
+	end)
+end
+
 local function edit(worktree, list)
 	local name = "Aero://reading/" .. storage.folder(worktree) .. "/" .. list.id
 	local existing = vim.fn.bufnr(name)
