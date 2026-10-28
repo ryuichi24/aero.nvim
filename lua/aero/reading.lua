@@ -241,15 +241,17 @@ function M.update_prompt(session, insert)
 			return vim.notify("Aero: reading list no longer exists", vim.log.levels.WARN)
 		end
 
-		local document = editable(latest)
-		document.id = latest.id
+		local source = path(worktree, latest.id)
+		local reference = source:find("%s") and vim.json.encode(source) or source
 		local request = "Update this existing reading list for the current source code and my instructions. "
-			.. "Use aero_reading_list_publish with the exact list id below and the complete updated items array. "
+			.. "Read the referenced JSON file for its title, items, and notes. "
+			.. "Use aero_reading_list_publish with list id "
+			.. vim.json.encode(latest.id)
+			.. " and the complete updated items array. "
 			.. "Preserve stable item IDs for retained stops so read progress survives. "
-			.. "Verify source paths and line numbers, and refresh labels and explanations where needed.\n\n"
-			.. "Existing reading list (JSON):\n```json\n"
-			.. vim.json.encode(document)
-			.. "\n```"
+			.. "Verify source paths and line numbers, and refresh labels and explanations where needed. "
+			.. "Publish through the MCP tool rather than editing the JSON file directly.\n\n@"
+			.. reference
 
 		if insert(request) then
 			-- Explicit selection hands ownership to the current AI session.

@@ -74,9 +74,24 @@ local updated = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 local request = table.concat(updated, "\n")
 
 assert(updated[1] == "My instructions" and updated[#updated] == "Keep this too")
-assert(request:find(result.id, 1, true) and request:find('"id":"entry"', 1, true))
+assert(request:find(result.id, 1, true))
+assert(not request:find('"id":"entry"', 1, true))
 assert(request:find("aero_reading_list_publish", 1, true))
 assert(reading.load(root, result.id).session_key == chat.s.key)
+
+local reference = updated[#updated - 1]
+local source = reference:sub(2)
+
+if source:sub(1, 1) == '"' then
+	source = vim.json.decode(source)
+end
+
+assert(reference:sub(1, 1) == "@" and source:sub(1, 1) == "/")
+assert(vim.fn.filereadable(source) == 1)
+
+local referenced = vim.json.decode(table.concat(vim.fn.readfile(source), "\n"))
+
+assert(referenced.id == result.id and referenced.items[1].id == "entry")
 
 vim.ui.select = function(_, _, callback)
 	callback(nil)
