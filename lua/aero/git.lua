@@ -1,5 +1,39 @@
 local M = {}
 local events = require("aero.events")
+local roots = {}
+
+local function canonical(path)
+	return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+end
+
+-- Both synchronous callers and bounded asynchronous discovery seed this cache.
+function M.remember_repository(list, alias)
+	local root = list[1] and canonical(list[1].path)
+
+	if root then
+		for _, tree in ipairs(list) do
+			roots[canonical(tree.path)] = root
+		end
+
+		if alias then
+			roots[canonical(alias)] = root
+		end
+	end
+
+	return root
+end
+
+function M.invalidate()
+	roots = {}
+end
+
+function M.correct_main(list, common, main)
+	for _, tree in ipairs(list) do
+		if canonical(tree.path) == canonical(common) then
+			tree.path = canonical(main)
+		end
+	end
+end
 
 local function run(args)
 	local r = require("aero.install_progress").wait(args, 10000, { text = true })
@@ -52,20 +86,38 @@ function M.list(root)
 		end
 	end
 
-	return vim.tbl_filter(function(wt)
+	list = vim.tbl_filter(function(wt)
 		return not wt.bare
 	end, list)
+	local first = list[1]
+
+	-- Absorbed submodules can expose their Git directory as the main checkout.
+	if
+		first
+		and vim.uv.fs_stat(vim.fs.joinpath(first.path, "HEAD"))
+		and vim.uv.fs_stat(vim.fs.joinpath(first.path, "config"))
+	then
+		local resolved, main = run({ "git", "-C", first.path, "rev-parse", "--show-toplevel" })
+
+		if resolved then
+			M.correct_main(list, first.path, main)
+		end
+	end
+
+	M.remember_repository(list, root)
+	return list
 end
 
 --- Resolve any path inside a repository (or one of its worktrees) to the main worktree path.
 function M.main_root(path)
-	local ok, out, err = run({ "git", "-C", path, "worktree", "list", "--porcelain" })
+	local cached = roots[canonical(path)]
 
-	if not ok then
-		return nil, err ~= "" and err or "not a git repository"
+	if cached then
+		return cached
 	end
 
-	return out:match("^worktree ([^\n]+)")
+	local list, err = M.list(path)
+	return list and list[1] and list[1].path or nil, err
 end
 
 local function branch_exists(root, branch)
