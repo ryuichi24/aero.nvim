@@ -6,7 +6,6 @@ local session = require("aero.session")
 local panel = require("aero.panel")
 local tabs = require("aero.tabs")
 local terminal = require("aero.terminal")
-local spinner = require("aero.spinner")
 local reports = require("aero.reports")
 local navigation = require("aero.navigation")
 local M = {}
@@ -16,7 +15,7 @@ local state = {
 	win = nil, ---@type integer?
 	target = nil, ---@type integer? window sessions and files are opened in
 	items = {}, ---@type table<integer, table> line number -> item
-	worktrees = {}, ---@type table<string, {list?: Aero.Worktree[], err?: string}> workspace root -> cache
+	worktrees = {}, ---@type table<string, {list?: aero.Worktree[], err?: string}> workspace root -> cache
 	expanded = {}, ---@type table<string, boolean> worktree path -> expanded
 	reports_expanded = {}, -- worktree path -> report section expanded
 	reading_expanded = {}, -- worktree path -> reading lists section expanded
@@ -26,8 +25,6 @@ local state = {
 	boards_expanded = {}, -- workspace root -> board section expanded
 	submodules_expanded = {}, -- checkout path -> submodule section expanded
 	repositories_expanded = {}, -- submodule checkout path -> repository expanded
-	bindings = {}, -- mappings installed by Aero, replaced when setup runs again
-	pulling = {}, -- worktree path -> in-flight pull
 }
 
 local function notify(msg, level)
@@ -55,25 +52,12 @@ function M.setup_highlights()
 	end
 end
 
-local status_hl = {
-	busy = "AeroBusy",
-	idle = "AeroIdle",
-	waiting = "AeroWaiting",
-	exited = "AeroExited",
-	stopped = "AeroStopped",
-}
-local remote_render_pending = false
+local invalidate = function()
+	M.render()
+end
 
 local function remote_changed()
-	if remote_render_pending then
-		return
-	end
-
-	remote_render_pending = true
-	vim.schedule(function()
-		remote_render_pending = false
-		M.render()
-	end)
+	invalidate()
 end
 
 local function worktrees(ws, force)
@@ -109,13 +93,7 @@ local function load_worktrees()
 end
 
 local function wt_expanded(wt, sessions)
-	local e = state.expanded[wt.path]
-
-	if e == nil then
-		return #sessions > 0
-	end
-
-	return e
+	return require("aero.dashboard.snapshot").worktree_expanded(state, wt, sessions)
 end
 
 local function wt_label(wt)
@@ -126,26 +104,6 @@ local function wt_label(wt)
 	return "(detached " .. (wt.head or ""):sub(1, 7) .. ")"
 end
 
-local function summary(sessions)
-	local counts, order = {}, { "waiting", "busy", "idle", "exited", "stopped" }
-
-	for _, s in ipairs(sessions) do
-		local st = session.status(s)
-		counts[st] = (counts[st] or 0) + 1
-	end
-
-	local chunks = {}
-
-	for _, st in ipairs(order) do
-		if counts[st] then
-			local icon = st == "busy" and spinner.frame() or config.options.icons[st]
-			table.insert(chunks, { " " .. icon .. counts[st], status_hl[st] })
-		end
-	end
-
-	return chunks
-end
-
 ---------------------------------------------------------------------------
 -- Rendering
 ---------------------------------------------------------------------------
@@ -153,152 +111,8 @@ end
 local animation_snapshot
 local rendering, render_again = false, false
 
-local function reference_children(entries)
-	for _, entry in ipairs(entries) do
-		if entry.kind == "directory" then
-			entry.expanded = state.reference_folders_expanded[entry.path] == true
-
-			if entry.expanded then
-				entry.children = {}
-				local scan, err = vim.uv.fs_scandir(entry.path)
-				entry.err = err
-
-				if scan then
-					while true do
-						local name, kind = vim.uv.fs_scandir_next(scan)
-
-						if not name then
-							break
-						end
-
-						table.insert(
-							entry.children,
-							{ name = name, kind = kind, path = vim.fs.joinpath(entry.path, name) }
-						)
-					end
-					table.sort(entry.children, function(a, b)
-						return a.name < b.name
-					end)
-					reference_children(entry.children)
-				end
-			end
-		end
-	end
-end
-
 local function build()
-	local snapshot = { icons = config.options.icons, add_key = config.options.keymaps.add_workspace, workspaces = {} }
-
-	local function prepare(ws, ancestors, supplied_cache)
-		local workspace =
-			{ ws = ws, display_path = " " .. vim.fn.fnamemodify(ws.root, ":~"), worktrees = {}, boards = {} }
-
-		if ws.expanded ~= false then
-			workspace.cache = supplied_cache or state.worktrees[ws.root] or { list = {} }
-
-			if workspace.cache.list then
-				local remote = require("aero.remote_status").peek(ws.root)
-				workspace.cache.checking = remote.checking
-				workspace.cache.statuses, workspace.cache.fetch_err = remote.statuses, remote.fetch_err
-			end
-
-			for _, wt in ipairs(workspace.cache.list or {}) do
-				local sessions = session.list(wt.path)
-				local tree = {
-					wt = wt,
-					basename = vim.fs.basename(wt.path),
-					expanded = wt_expanded(wt, sessions),
-					summary = summary(sessions),
-					sessions = {},
-					exports = {},
-					reports = {},
-				}
-				table.insert(workspace.worktrees, tree)
-
-				if tree.expanded then
-					tree.submodules_open = state.submodules_expanded[wt.path] == true
-					tree.submodules = {}
-
-					if tree.submodules_open then
-						local modules = require("aero.submodules")
-						local discovered = modules.entries(wt.path, remote_changed)
-						tree.submodules_loading, tree.submodules_err = discovered.loading, discovered.err
-
-						for _, entry in ipairs(discovered.list or {}) do
-							local child = vim.tbl_extend("force", entry, {
-								initialized = modules.initialized(entry.path),
-								expanded = state.repositories_expanded[entry.path] == true,
-							})
-							table.insert(tree.submodules, child)
-
-							if child.initialized and child.expanded and not ancestors[entry.path] then
-								local visited = vim.tbl_extend("force", ancestors, { [entry.path] = true })
-								local cache = modules.worktrees(entry.path, remote_changed)
-								child.loading = cache.loading
-								local root = cache.list and cache.list[1] and cache.list[1].path or entry.path
-								child.workspace = prepare(
-									{ root = root, name = entry.name, submodule_checkout = entry.path },
-									visited,
-									cache
-								)
-							end
-						end
-					end
-
-					for _, selected in ipairs(sessions) do
-						table.insert(tree.sessions, {
-							session = selected,
-							status = session.status(selected),
-							icon = session.icon(selected),
-							activity = session.activity(selected),
-							usage = require("aero.acp.usage").summary(selected.chat),
-							assignment = require("aero.tasks.status").label(selected),
-						})
-					end
-
-					tree.exports = require("aero.exports").list(wt.path)
-					tree.exports_open = state.exports_expanded[wt.path] ~= false
-					tree.reports, tree.report_err = reports.list(wt.path, ws)
-					tree.reports_open = state.reports_expanded[wt.path] ~= false
-					tree.reading_lists = require("aero.reading").list(wt.path)
-					tree.reading_open = state.reading_expanded[wt.path] ~= false
-					tree.references, tree.reference_err = require("aero.reference").list(wt.path)
-					tree.reference_open = state.reference_expanded[wt.path] ~= false
-
-					if tree.reference_open then
-						reference_children(tree.references)
-					end
-				end
-			end
-
-			if supplied_cache then
-				workspace.board_errors = {}
-				return workspace
-			end
-
-			local boards
-			boards, workspace.board_errors = require("aero.tasks").list(ws)
-			workspace.boards_open = state.boards_expanded[ws.root] ~= false
-			workspace.removed_count = workspace.boards_open and #require("aero.tasks").list_removed(ws) or 0
-
-			for _, board in ipairs(boards) do
-				table.insert(workspace.boards, {
-					board = board,
-					label = tostring((board.metadata or {}).title or vim.fs.basename(vim.fs.dirname(board.path))):gsub(
-						"[%c]",
-						" "
-					),
-				})
-			end
-		end
-
-		return workspace
-	end
-
-	for _, ws in ipairs(store.data.workspaces) do
-		table.insert(snapshot.workspaces, prepare(ws, { [ws.root] = true }))
-	end
-
+	local snapshot = require("aero.dashboard.snapshot").prepare(store.data.workspaces, state, remote_changed)
 	animation_snapshot = snapshot
 	return require("aero.dashboard.model").build(snapshot)
 end
@@ -309,29 +123,7 @@ local function animate()
 		return
 	end
 
-	local function update(workspace)
-		for _, tree in ipairs(workspace.worktrees) do
-			tree.summary = summary(session.list(tree.wt.path))
-
-			for _, item in ipairs(tree.sessions) do
-				item.status = session.status(item.session)
-				item.icon = session.icon(item.session)
-				item.activity = session.activity(item.session)
-				item.usage = require("aero.acp.usage").summary(item.session.chat)
-			end
-
-			for _, child in ipairs(tree.submodules or {}) do
-				if child.workspace then
-					update(child.workspace)
-				end
-			end
-		end
-	end
-
-	for _, workspace in ipairs(animation_snapshot.workspaces) do
-		update(workspace)
-	end
-
+	require("aero.dashboard.snapshot").refresh_sessions(animation_snapshot)
 	local lines, items, marks = require("aero.dashboard.model").build(animation_snapshot)
 	require("aero.dashboard.view").render(state, lines, items, marks)
 end
@@ -837,60 +629,14 @@ end
 
 --- Start a fresh session of `agent` on the worktree under the cursor.
 local function start_agent(item, agent)
-	if not (item and item.wt) then
-		notify("move the cursor to a worktree first", vim.log.levels.WARN)
-		return
-	end
-
-	local function create(name)
-		local s, err = session.create(item.wt.path, agent, name)
-
-		if not s then
-			notify(err, vim.log.levels.WARN)
-			return
-		end
-
-		state.expanded[item.wt.path] = true
-		open_session(s, "default")
-	end
-
-	if not config.options.prompt_session_name then
-		return create()
-	end
-
-	require("aero.input").input({ prompt = "New session name: ", default = agent }, function(name)
-		if not name or vim.trim(name) == "" then
-			return
-		end
-
-		name = vim.trim(name)
-
-		if name:find("%c") then
-			notify("use a session name without control characters", vim.log.levels.WARN)
-			return
-		end
-
-		create(name)
+	return require("aero.dashboard.session_actions").start(item, agent, function(s)
+		state.expanded[s.worktree] = true
 	end)
 end
 
 local function choose_agent(item, label)
-	local names = vim.tbl_keys(config.options.agents)
-	table.sort(names)
-	table.insert(names, 1, "default")
-	vim.ui.select(names, {
-		prompt = "New agent for " .. (label or wt_label(item.wt)),
-		format_item = function(name)
-			return name == "default" and ("default (" .. config.options.default_agent .. ")") or name
-		end,
-	}, function(choice, index)
-		if choice then
-			if index == 1 or (index == nil and choice == "default") then
-				choice = config.options.default_agent
-			end
-
-			start_agent(item, choice)
-		end
+	return require("aero.dashboard.session_actions").choose(item, label, function(s)
+		state.expanded[s.worktree] = true
 	end)
 end
 
@@ -901,176 +647,44 @@ function M.new()
 end
 
 function M.add_workspace(path)
-	local function add(p)
-		if not p or p == "" then
-			return
-		end
-
-		local root, err = git.main_root(vim.fn.fnamemodify(vim.fn.expand(p), ":p"))
-
-		if not root then
-			notify(err, vim.log.levels.ERROR)
-			return
-		end
-
-		local _, added = store.add_workspace(root)
-		notify((added and "added " or "already added ") .. vim.fn.fnamemodify(root, ":~"))
+	return require("aero.dashboard.repository_actions").add_workspace(path, function()
 		load_worktrees()
 		M.render()
-	end
-
-	if path then
-		return add(path)
-	end
-
-	vim.ui.input({ prompt = "Add workspace (git repo): ", default = vim.fn.getcwd(), completion = "dir" }, add)
+	end)
 end
 
 local function add_worktree(ws)
-	local function create(branch, remote)
-		if not branch or vim.trim(branch) == "" then
-			return
+	return require("aero.dashboard.repository_actions").add_worktree(ws, function(workspace, branch)
+		state.worktrees[workspace.root] = nil
+
+		for _, wt in ipairs(worktrees(workspace).list or {}) do
+			if wt.branch == branch then
+				state.expanded[wt.path] = true
+			end
 		end
 
-		branch = vim.trim(branch)
-		local default_path = config.options.worktree_path(ws, branch)
-		vim.ui.input({ prompt = "Worktree name: ", default = vim.fs.basename(default_path) }, function(name)
-			if not name or vim.trim(name) == "" then
-				return
-			end
-
-			name = vim.trim(name)
-
-			if name == "." or name == ".." or name:find("/", 1, true) then
-				return notify("Worktree name must be a single directory name", vim.log.levels.WARN)
-			end
-
-			local path = vim.fs.joinpath(vim.fs.dirname(default_path), name)
-			notify("creating worktree " .. name .. " (" .. branch .. ") …")
-			git.add(ws.root, branch, path, function(ok, err)
-				if not ok then
-					notify(err, vim.log.levels.ERROR)
-					return
-				end
-
-				store.set_expanded(ws.root, true)
-				require("aero.submodules").invalidate(true)
-				state.worktrees[ws.root] = nil
-				local cache = worktrees(ws)
-
-				for _, wt in ipairs(cache.list or {}) do
-					if wt.branch == branch then
-						state.expanded[wt.path] = true
-					end
-				end
-
-				notify("created " .. vim.fn.fnamemodify(path, ":~"))
-				M.render()
-			end, remote)
-		end)
-	end
-
-	vim.ui.select({ "Create a new branch", "Check out an existing branch", "Check out a remote branch" }, {
-		prompt = "Add worktree (" .. ws.name .. "):",
-	}, function(choice)
-		if choice == "Create a new branch" then
-			vim.ui.input({ prompt = "New worktree branch (" .. ws.name .. "): " }, create)
-		elseif choice == "Check out an existing branch" then
-			git.branches(ws.root, function(branches, err)
-				if not branches then
-					return notify(err, vim.log.levels.ERROR)
-				end
-
-				local trees, list_err = git.list(ws.root)
-
-				if not trees then
-					return notify(list_err, vim.log.levels.ERROR)
-				end
-
-				local occupied = {}
-
-				for _, wt in ipairs(trees) do
-					if wt.branch then
-						occupied[wt.branch] = true
-					end
-				end
-
-				local available = {}
-
-				for _, branch in ipairs(branches) do
-					if not branch.remote and not occupied[branch.name] then
-						table.insert(available, branch.name)
-					end
-				end
-
-				if #available == 0 then
-					return notify(
-						"No available local branches; create a new branch or choose a remote branch",
-						vim.log.levels.WARN
-					)
-				end
-
-				vim.ui.select(available, { prompt = "Existing branch:" }, function(branch)
-					create(branch)
-				end)
-			end)
-		elseif choice == "Check out a remote branch" then
-			git.remote_branches(ws.root, function(branches, err)
-				if not branches then
-					return notify(err, vim.log.levels.ERROR)
-				end
-
-				if #branches == 0 then
-					return notify("No remote branches found; fetch the repository first", vim.log.levels.WARN)
-				end
-
-				vim.ui.select(branches, { prompt = "Remote branch:" }, function(remote)
-					if remote then
-						create(remote:match("^[^/]+/(.+)$"), remote)
-					end
-				end)
-			end)
-		end
+		M.render()
 	end)
 end
 
 local actions = {}
 
 local function open_reading(item, create)
-	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
-		return
-	end
-
-	api.nvim_set_current_win(navigation.code_window())
-
-	if create then
+	return require("aero.dashboard.document_actions").reading(item, create, function()
 		state.reading_expanded[item.wt.path] = true
-		require("aero.reading").command("new", item.wt.path)
-	else
-		require("aero.reading").open(item.wt.path, item.reading.id)
-	end
+	end)
 end
 
 local function open_report(item, how)
-	if not navigation.enter_worktree(item.wt.path, { browse = true }) then
-		return
+	local win = require("aero.dashboard.document_actions").open(item, how)
+
+	if win then
+		state.target = win
 	end
-
-	local kind = item.kind == "export" and "exports" or item.kind == "reference_item" and "references" or "reports"
-	local win = navigation.code_window(kind)
-	api.nvim_set_current_win(win)
-
-	if how and how ~= "default" then
-		vim.cmd(({ vsplit = "vsplit", split = "split", tab = "tab split" })[how])
-	end
-
-	vim.cmd.edit(vim.fn.fnameescape(item.report.path))
-	state.target = api.nvim_get_current_win()
-	require("aero.buffers").remember(state.target)
 end
 
 local function new_report(item)
-	reports.create(item.wt.path, item.ws, function(report)
+	require("aero.dashboard.document_actions").create_report(item, function(report)
 		state.expanded[item.wt.path], state.reports_expanded[item.wt.path] = true, true
 		M.render()
 		open_report(vim.tbl_extend("force", item, { report = report }))
@@ -1296,29 +910,12 @@ end
 
 function actions.move()
 	local item = current_item()
-
-	if not item or item.kind ~= "report" then
-		return
-	end
-
-	require("aero.workspaces").worktrees({
-		title = "move report to worktree",
-		exclude = item.wt.path,
-		select = function(destination)
-			local wt, ws = destination.wt, destination.ws
-			local report, move_err = reports.move(item.report, wt.path, ws)
-
-			if not report then
-				notify(move_err, vim.log.levels.WARN)
-				return
-			end
-
-			state.expanded[wt.path], state.reports_expanded[wt.path] = true, true
-			store.set_expanded(ws.root, true)
-			item.id = "report:" .. report.path
-			M.render()
-		end,
-	})
+	return require("aero.dashboard.document_actions").move(item, function(report, wt, ws)
+		state.expanded[wt.path], state.reports_expanded[wt.path] = true, true
+		store.set_expanded(ws.root, true)
+		item.id = "report:" .. report.path
+		M.render()
+	end)
 end
 
 function actions.rename()
@@ -1328,41 +925,13 @@ function actions.rename()
 		return
 	end
 
-	if item.kind == "board" then
-		vim.ui.input(
-			{ prompt = "Rename board: ", default = item.board.metadata and item.board.metadata.title },
-			function(name)
-				if not name or vim.trim(name) == "" then
-					return
-				end
+	if item.kind == "session" then
+		return require("aero.dashboard.session_actions").rename(item.session, M.render)
+	end
 
-				local ok, err = require("aero.tasks").rename_board(item.ws, item.board.path, vim.trim(name))
-
-				if not ok then
-					notify(err, vim.log.levels.WARN)
-				end
-
-				M.render()
-			end
-		)
-	elseif item.kind == "reference_item" then
-		local entry = item.reference
-		local stem = entry.kind ~= "directory" and entry.name:match("^(.+)%.[^.]+$")
-		require("aero.input").input({
-			prompt = "Rename reference item: ",
-			default = entry.name,
-			select_length = stem and #stem or nil,
-		}, function(name)
-			if not name or vim.trim(name) == "" then
-				return
-			end
-
-			local renamed, err = require("aero.reference").rename(entry, name)
-
-			if not renamed then
-				return notify(err, vim.log.levels.WARN)
-			end
-
+	local entry = item.reference
+	require("aero.dashboard.document_actions").rename(item, function(renamed)
+		if item.kind == "reference_item" then
 			local expanded = {}
 
 			for path, value in pairs(state.reference_folders_expanded) do
@@ -1375,33 +944,12 @@ function actions.rename()
 
 			state.reference_folders_expanded = expanded
 			item.id = "reference-item:" .. renamed.path
-			require("aero.events").emit("reference_changed", { worktree = item.wt.path })
-		end)
-	elseif item.kind == "report" then
-		reports.rename(item.report, function(report)
-			item.id = "report:" .. report.path
-			M.render()
-		end)
-	elseif item.kind == "session" then
-		require("aero.input").input({ prompt = "Rename session: ", default = item.session.name }, function(name)
-			if not name or vim.trim(name) == "" then
-				return
-			end
+		elseif item.kind == "report" then
+			item.id = "report:" .. renamed.path
+		end
 
-			name = vim.trim(name)
-
-			if name:find("%c") then
-				notify("use a session name without control characters", vim.log.levels.WARN)
-				return
-			end
-
-			local ok, err = session.rename(item.session, name)
-
-			if not ok then
-				notify(err, vim.log.levels.WARN)
-			end
-		end)
-	end
+		M.render()
+	end)
 end
 
 function actions.delete()
@@ -1411,115 +959,20 @@ function actions.delete()
 		return
 	end
 
-	if item.kind == "board" then
-		if vim.fn.confirm("Permanently delete board and ALL its tickets?", "&Yes\n&No", 2) ~= 1 then
-			return
-		end
+	if require("aero.dashboard.document_actions").delete(item, M.render) then
+		return
+	end
 
-		local ok, err = require("aero.tasks").delete_board(item.ws, item.board.path)
-
-		if not ok then
-			notify(err, vim.log.levels.WARN)
-			return
-		end
-	elseif item.kind == "reference_item" then
-		local entry = item.reference
-		local label = entry.kind == "directory" and "reference folder and all its contents" or "reference item"
-
-		if vim.fn.confirm("Delete " .. label .. " " .. entry.name .. "?", "&Yes\n&No", 2) ~= 1 then
-			return
-		end
-
-		local ok, err
-
-		if entry.kind == "directory" then
-			ok = vim.fn.delete(entry.path, "rf") == 0
-			err = "could not remove folder: " .. entry.path
-		else
-			ok, err = vim.uv.fs_unlink(entry.path)
-		end
-
-		if not ok then
-			notify("could not delete reference item: " .. tostring(err), vim.log.levels.ERROR)
-			return
-		end
-
-		require("aero.events").emit("reference_changed", { worktree = item.wt.path })
-	elseif item.kind == "report" or item.kind == "export" then
-		local label = item.kind == "export" and "exported log" or "report"
-
-		if vim.fn.confirm("Delete " .. label .. " " .. item.report.name .. "?", "&Yes\n&No", 2) ~= 1 then
-			return
-		end
-
-		local ok, err = vim.uv.fs_unlink(item.report.path)
-
-		if not ok then
-			notify("could not delete " .. label .. ": " .. err, vim.log.levels.ERROR)
-			return
-		end
-	elseif item.kind == "session" then
-		local s = item.session
-		local prompt = (s.job and "Kill running session " or "Delete session ") .. s.name .. "?"
-
-		if vim.fn.confirm(prompt, "&Yes\n&No", 2) ~= 1 then
-			return
-		end
-
-		session.delete(s)
-	elseif item.kind == "worktree" then
-		local wt, ws = item.wt, item.ws
-
-		if wt.path == ws.root then
-			notify("refusing to remove the main worktree", vim.log.levels.WARN)
-			return
-		end
-
-		local choice =
-			vim.fn.confirm("Remove worktree " .. vim.fn.fnamemodify(wt.path, ":~") .. "?", "&Yes\n&Force\n&No", 3)
-
-		if choice ~= 1 and choice ~= 2 then
-			return
-		end
-
-		git.remove(ws.root, wt.path, choice == 2, function(ok, err)
-			if not ok then
-				notify(err .. (choice == 1 and " (use Force to remove anyway)" or ""), vim.log.levels.ERROR)
-				return
-			end
-
-			session.delete_worktree(wt.path)
-			terminal.delete(wt.path)
-
-			if tabs.enabled() then
-				tabs.close(wt.path)
-			end
-
-			require("aero.buffers").forget(wt.path)
-			require("aero.submodules").invalidate(true)
+	if item.kind == "session" then
+		require("aero.dashboard.session_actions").delete(item.session)
+		M.render()
+	else
+		require("aero.dashboard.repository_actions").delete(item, worktrees, function(ws)
 			state.worktrees[ws.root] = nil
-			notify("removed " .. vim.fn.fnamemodify(wt.path, ":~"))
 			load_worktrees()
 			M.render()
 		end)
-		return
-	elseif item.kind == "workspace" then
-		local ws = item.ws
-
-		if vim.fn.confirm("Remove workspace " .. ws.name .. " from Aero? (files are kept)", "&Yes\n&No", 2) ~= 1 then
-			return
-		end
-
-		for _, wt in ipairs(worktrees(ws).list or {}) do
-			session.delete_worktree(wt.path)
-			require("aero.buffers").forget(wt.path)
-		end
-
-		store.remove_workspace(ws.root)
-		state.worktrees[ws.root] = nil
 	end
-
-	M.render()
 end
 
 function actions.stop()
@@ -1534,20 +987,10 @@ function actions.restart()
 	local item = current_item()
 
 	if item and item.kind == "session" then
-		local use_panel = panel.enabled() and config.options.dashboard.position ~= "current"
+		local win, use_panel = require("aero.dashboard.session_actions").restart(item.session, target_win)
 
-		if use_panel and not enter_worktree(item.session.worktree) then
-			return
-		end
-
-		local win = session.prepare_win(use_panel and panel.open() or target_win())
-
-		if session.start(item.session, win, true) then
-			if use_panel then
-				panel.shown(item.session)
-			else
-				state.target = win
-			end
+		if win and not use_panel then
+			state.target = win
 		end
 	end
 end
@@ -1628,32 +1071,10 @@ function M.pull(path)
 		end
 	end
 
-	path = vim.fs.normalize(vim.fn.resolve(path))
-
-	if state.pulling[path] then
-		notify("a pull is already running for " .. vim.fn.fnamemodify(path, ":~"), vim.log.levels.WARN)
-		return
-	end
-
-	state.pulling[path] = true
-	notify("pulling " .. vim.fn.fnamemodify(path, ":~") .. " …")
-	return git.pull(path, function(ok, output)
-		state.pulling[path] = nil
-
-		-- Git may have fetched new refs even if it could not fast-forward the checkout.
-		require("aero.submodules").invalidate(true)
-		require("aero.remote_status").invalidate()
+	return require("aero.dashboard.repository_actions").pull(path, function()
 		state.worktrees = {}
 		load_worktrees()
 		M.render()
-
-		if not ok then
-			notify("pull failed: " .. output, vim.log.levels.ERROR)
-			return
-		end
-
-		vim.cmd("checktime")
-		notify("pulled " .. vim.fn.fnamemodify(path, ":~") .. (output ~= "" and ("\n" .. output) or ""))
 	end)
 end
 
@@ -1662,42 +1083,10 @@ function actions.pull()
 end
 
 function actions.switch_branch()
-	local item = current_item()
-
-	if not item or not item.wt then
-		return notify("move the cursor to a worktree first", vim.log.levels.WARN)
-	end
-
-	local path = item.wt.path
-	git.branches(path, function(branches, err)
-		if not branches then
-			return notify(err, vim.log.levels.ERROR)
-		end
-
-		vim.ui.select(branches, {
-			prompt = "Switch branch (" .. wt_label(item.wt) .. "):",
-			format_item = function(branch)
-				return branch.name
-					.. (branch.remote and " (remote)" or branch.name == item.wt.branch and " (current)" or "")
-			end,
-		}, function(branch)
-			if not branch then
-				return
-			end
-
-			git.switch_branch(path, branch, function(ok, switch_err)
-				if not ok then
-					return notify("branch switch failed: " .. switch_err, vim.log.levels.ERROR)
-				end
-
-				state.worktrees = {}
-				require("aero.submodules").invalidate(true)
-				load_worktrees()
-				M.render()
-				vim.cmd("checktime")
-				notify("switched " .. vim.fn.fnamemodify(path, ":~") .. " to " .. branch.name)
-			end)
-		end)
+	return require("aero.dashboard.repository_actions").switch_branch(current_item(), function()
+		state.worktrees = {}
+		load_worktrees()
+		M.render()
 	end)
 end
 
@@ -1854,153 +1243,14 @@ function actions.close()
 	M.close()
 end
 
-local descriptions = {
-	open = "open session or report / toggle node",
-	expand = "expand node / open session or report",
-	collapse = "collapse node / go to parent",
-	toggle = "toggle node",
-	open_vsplit = "open session or report in vsplit",
-	open_split = "open session or report in split",
-	open_tab = "open session or report in tab",
-	add = "add: worktree / agent session / report (on Reports)",
-	add_workspace = "add workspace",
-	delete = "delete selected item: session (confirm) / report (confirm) / worktree / workspace",
-	rename = "rename selected session, report, or board",
-	move = "move selected report to another worktree",
-	yank_name = "copy selected item name",
-	yank_path = "copy selected item absolute path",
-	stop = "stop session",
-	restart = "restart session (resume)",
-	refresh = "refresh git worktrees",
-	pull = "pull worktree upstream (fast-forward only)",
-	switch_branch = "switch worktree branch",
-	review = "review worktree changes",
-	cd = ":tcd to worktree",
-	edit = "browse worktree source (Oil or directory browser)",
-	open_board_markdown = "open selected board's raw Markdown file",
-	edit_enter = "open worktree / restore last code buffer",
-	edit_mouse = "open clicked worktree / restore last code buffer",
-	terminal = "open worktree terminal",
-	next_workspace = "next workspace",
-	prev_workspace = "previous workspace",
-	close = "close dashboard",
-	help = "show this help",
-}
-
 function actions.help()
-	local lines = {}
-	local keys = config.options.keymaps
-	local names = vim.tbl_keys(descriptions)
-	table.sort(names)
-
-	for _, name in ipairs(names) do
-		if keys[name] then
-			table.insert(lines, ("  %-8s %s"):format(keys[name], descriptions[name]))
-		end
-	end
-
-	if config.options.fullscreen_key then
-		table.insert(lines, ("  %-8s toggle fullscreen"):format(config.options.fullscreen_key))
-	end
-
-	if config.options.quote_key then
-		table.insert(
-			lines,
-			("  %-8s quote selection (Visual mode in code / agent logs)"):format(config.options.quote_key)
-		)
-	end
-
-	local agents = vim.tbl_keys(config.options.agents)
-	table.sort(agents)
-
-	for _, name in ipairs(agents) do
-		local key = config.options.agents[name].key
-
-		if key then
-			table.insert(lines, ("  %-8s open %s on worktree"):format(key, name))
-		end
-	end
-
-	local width = 0
-
-	for _, l in ipairs(lines) do
-		width = math.max(width, vim.fn.strdisplaywidth(l) + 2)
-	end
-
-	local buf = api.nvim_create_buf(false, true)
-	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.bo[buf].modifiable = false
-	local win = api.nvim_open_win(buf, true, {
-		relative = "editor",
-		width = width,
-		height = #lines,
-		row = math.floor((vim.o.lines - #lines) / 2),
-		col = math.floor((vim.o.columns - width) / 2),
-		style = "minimal",
-		border = "rounded",
-		title = " Aero ",
-	})
-
-	for _, key in ipairs({ "q", "<Esc>", "g?" }) do
-		vim.keymap.set("n", key, function()
-			api.nvim_win_close(win, true)
-		end, { buffer = buf, nowait = true })
-	end
+	require("aero.dashboard.keymaps").help()
 end
 
 function M.set_keymaps(buf)
-	buf = buf or state.buf
-
-	if not buf or not api.nvim_buf_is_valid(buf) then
-		return
-	end
-
-	for _, binding in ipairs(state.bindings) do
-		if binding.buf == buf then
-			api.nvim_buf_call(buf, function()
-				local current = vim.fn.maparg(binding.lhs, "n", false, true)
-
-				if current.callback == binding.callback then
-					vim.keymap.del("n", binding.lhs, { buffer = buf })
-				end
-			end)
-		end
-	end
-
-	state.bindings = {}
-	local keys = config.options.keymaps
-
-	local function map(lhs, fn, desc)
-		if lhs then
-			vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true, desc = "Aero: " .. desc })
-			table.insert(state.bindings, { buf = buf, lhs = lhs, callback = fn })
-		end
-	end
-
-	for name, fn in pairs(actions) do
-		if name ~= "open" then
-			map(keys[name], fn, descriptions[name] or name)
-		end
-	end
-
-	map(keys.open, function()
-		actions.open("default")
-	end, descriptions.open)
-	map(keys.open_vsplit, function()
-		actions.open("vsplit")
-	end, descriptions.open_vsplit)
-	map(keys.open_split, function()
-		actions.open("split")
-	end, descriptions.open_split)
-	map(keys.open_tab, function()
-		actions.open("tab")
-	end, descriptions.open_tab)
-
-	for name, agent in pairs(config.options.agents) do
-		map(agent.key, function()
-			start_agent(current_item(), name)
-		end, "open " .. name)
-	end
+	require("aero.dashboard.keymaps").apply(buf or state.buf, actions, function(name)
+		start_agent(current_item(), name)
+	end)
 end
 
 ---------------------------------------------------------------------------
@@ -2089,48 +1339,44 @@ function M.pick(scope)
 	end)
 end
 
-session.on_change(function()
-	if state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
-		M.render()
-	end
-end)
-require("aero.events").on("reports_changed", function()
-	M.render()
-end)
-require("aero.events").on("reading_changed", function()
-	M.render()
-end)
-require("aero.events").on("reference_changed", function()
-	M.render()
-end)
-require("aero.events").on("repositories_changed", remote_changed)
-require("aero.events").on("tasks_view_changed", function()
-	M.render()
-end)
-require("aero.events").on("workspace_added", function()
-	if state.buf and api.nvim_buf_is_valid(state.buf) then
-		load_worktrees()
-		M.render()
-	end
-end)
-api.nvim_create_autocmd("User", {
-	group = "Aero.dashboard",
-	pattern = "AeroTaskChanged",
-	callback = function()
-		M.render()
-	end,
-})
+local dispose_subscriptions
 
--- spin busy sessions' icons and keep their activity current
-spinner.on_frame(function()
-	local busy = vim.iter(session.all()):any(function(s)
-		return session.status(s) == "busy"
-	end)
+function M.teardown()
+	if dispose_subscriptions then
+		dispose_subscriptions()
+		dispose_subscriptions = nil
+	end
+end
 
-	if busy and state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
-		animate()
+function M.setup()
+	M.teardown()
+	M.setup_highlights()
+	M.set_keymaps()
+	local function visible()
+		return state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1
 	end
 
-	return busy
-end)
+	dispose_subscriptions, invalidate = require("aero.dashboard.subscriptions").attach({
+		visible = visible,
+		load = function()
+			if state.buf and api.nvim_buf_is_valid(state.buf) then
+				load_worktrees()
+			end
+		end,
+		render = function()
+			M.render()
+		end,
+		animate = function()
+			local busy = vim.iter(session.all()):any(function(s)
+				return session.status(s) == "busy"
+			end)
+
+			if busy and visible() then
+				animate()
+			end
+
+			return busy
+		end,
+	})
+end
 return M

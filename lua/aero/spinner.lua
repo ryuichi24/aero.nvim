@@ -4,9 +4,7 @@ local config = require("aero.config")
 local M = {}
 local frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local interval = 80
-
----@type (fun(): boolean)[] each redraws its part and returns whether it still wants frames
-local listeners = {}
+local frames_changed = require("aero.listeners").new("spinner frame")
 local timer
 local pending = false
 
@@ -21,7 +19,7 @@ end
 
 --- Register a redraw callback run on every frame; it returns true while it has something to animate.
 function M.on_frame(fn)
-	table.insert(listeners, fn)
+	return frames_changed.on(fn)
 end
 
 local function stop()
@@ -33,12 +31,7 @@ local function stop()
 end
 
 local function tick()
-	local any = false
-
-	for _, fn in ipairs(listeners) do
-		local ok, more = pcall(fn)
-		any = any or (ok and more)
-	end
+	local any = frames_changed.emit()
 
 	if not any then
 		stop()

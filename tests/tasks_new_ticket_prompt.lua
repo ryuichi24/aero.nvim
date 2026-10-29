@@ -32,7 +32,7 @@ vim.notify = notify
 assert(warning:find("tasks.agent.enabled", 1, true))
 assert(table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n") == request, "unbound draft was lost")
 
-s.task_binding = { board_id = "board", ticket_id = "assigned" }
+s.task_binding = { workspace = { root = root }, board_id = "board", ticket_id = "assigned" }
 s.mcp_servers = { { name = "aero-tasks" } }
 local sent = {}
 local original_request = chat.client.request

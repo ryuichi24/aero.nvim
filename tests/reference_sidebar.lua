@@ -57,7 +57,12 @@ assert(reference.transfer(main, {
 	{ path = dir .. "/source/note.txt", action = "copy" },
 	{ path = dir .. "/source/folder", action = "copy" },
 }))
-assert(row("note.txt") and row("folder/"), "transfers did not refresh sidebar")
+assert(
+	vim.wait(1000, function()
+		return row("note.txt") and row("folder/")
+	end),
+	"transfers did not refresh sidebar"
+)
 
 action("note.txt", "h")
 

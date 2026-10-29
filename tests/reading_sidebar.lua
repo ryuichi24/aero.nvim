@@ -51,11 +51,19 @@ local binding = { worktree = main, session_key = "session" }
 local args = { title = "Main tour", items = { { id = "entry", path = "source.lua", lnum = 1, label = "Entry" } } }
 local result = assert(reading.publish(binding, args))
 
-assert(row("Main tour"), "publication did not refresh sidebar")
+assert(
+	vim.wait(1000, function()
+		return row("Main tour") ~= nil
+	end),
+	"publication did not refresh sidebar"
+)
 assert(reading.publish({ worktree = other, session_key = "other" }, {
 	title = "Other tour",
 	items = { { id = "other", path = "source.lua", lnum = 1, label = "Other" } },
 }))
+assert(vim.wait(1000, function()
+	return row("Other tour") ~= nil
+end))
 assert(row("Main tour") < row("other (other)") and row("Other tour") > row("other (other)"))
 
 action("Main tour", "h")
@@ -130,33 +138,35 @@ assert(api.nvim_get_current_win() == reading_win, "cprevious opened outside Read
 assert(#api.nvim_tabpage_list_wins(0) == window_count, "cprevious created another window")
 
 reading.command("toggle")
-local progress = false
-
-for _, mark in
-	ipairs(
-		api.nvim_buf_get_extmarks(
-			buf,
-			api.nvim_create_namespace("Aero"),
-			{ row("Main tour") - 1, 0 },
-			{ row("Main tour") - 1, -1 },
-			{ details = true }
+local function has_progress()
+	for _, mark in
+		ipairs(
+			api.nvim_buf_get_extmarks(
+				buf,
+				api.nvim_create_namespace("Aero"),
+				{ row("Main tour") - 1, 0 },
+				{ row("Main tour") - 1, -1 },
+				{ details = true }
+			)
 		)
-	)
-do
-	for _, chunk in ipairs(mark[4].virt_text or {}) do
-		if chunk[1]:find("1/1 read", 1, true) then
-			progress = true
+	do
+		for _, chunk in ipairs(mark[4].virt_text or {}) do
+			if chunk[1]:find("1/1 read", 1, true) then
+				return true
+			end
 		end
 	end
 end
 
-assert(progress, "progress did not refresh sidebar")
+assert(vim.wait(1000, has_progress), "progress did not refresh sidebar")
 assert(api.nvim_get_current_win() ~= win, "refresh stole focus")
 
 args.id, args.title = result.id, "Renamed tour"
 
 assert(reading.publish(binding, args))
-assert(row("Renamed tour") and not row("Main tour"))
+assert(vim.wait(1000, function()
+	return row("Renamed tour") and not row("Main tour")
+end))
 
 api.nvim_set_current_win(win)
 vim.cmd("Aero collapse reading")
@@ -188,7 +198,9 @@ vim.cmd("normal \r")
 
 assert(vim.bo.filetype == "json")
 assert(#reading.list(main) == 2 and #reading.list(other) == 1)
-assert(row("Manual from sidebar"))
+assert(vim.wait(1000, function()
+	return row("Manual from sidebar") ~= nil
+end))
 
 vim.fn.delete(root, "rf")
 print("reading sidebar: ok")

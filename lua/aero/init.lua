@@ -7,8 +7,7 @@ function M.setup(opts)
 	require("aero.fullscreen").setup()
 	require("aero.store").load()
 	require("aero.buffers").setup()
-	require("aero.dashboard").setup_highlights()
-	require("aero.dashboard").set_keymaps()
+	require("aero.dashboard").setup()
 	require("aero.layout").setup()
 	require("aero.reader").setup()
 	require("aero.quote").setup()
@@ -43,96 +42,102 @@ function M.off(name, callback)
 	require("aero.events").off(name, callback)
 end
 
-local function ensure()
+local function ensure_setup()
 	if not did_setup then
 		M.setup()
 	end
-
-	return require("aero.dashboard")
 end
 
 function M.open()
-	ensure().open()
+	ensure_setup()
+	require("aero.dashboard").open()
 end
 
 function M.close()
-	ensure().close()
+	ensure_setup()
+	require("aero.dashboard").close()
 end
 
 function M.toggle()
-	ensure().toggle()
+	ensure_setup()
+	require("aero.dashboard").toggle()
 end
 
 function M.refresh()
-	ensure().refresh()
+	ensure_setup()
+	require("aero.dashboard").refresh()
 end
 
 --- Collapse sidebar nodes: all (default), workspaces, worktrees, reports, exports, boards, or reference.
 function M.collapse(kind)
-	ensure().collapse(kind)
+	ensure_setup()
+	require("aero.dashboard").collapse(kind)
 end
 
 --- Pull the selected worktree, current checkout, or an explicit path asynchronously.
 function M.pull(path)
-	return ensure().pull(path)
+	ensure_setup()
+	return require("aero.dashboard").pull(path)
 end
 
 --- Review on-disk worktree changes, or committed changes against an explicit base ref.
 function M.review(path, base)
-	ensure()
+	ensure_setup()
 	return require("aero.review").open(path, base)
 end
 
 --- Pick saved sessions; scope = "current" limits the list to the current worktree.
 function M.pick(scope)
-	ensure().pick(scope)
+	ensure_setup()
+	require("aero.dashboard").pick(scope)
 end
 
 --- Choose an agent and start a new session in the current worktree.
 function M.new()
-	ensure().new()
+	ensure_setup()
+	require("aero.dashboard").new()
 end
 
 --- Search active sessions across worktrees in a live popup.
 function M.sessions()
-	ensure()
+	ensure_setup()
 	require("aero.sessions").open()
 end
 
 --- Review ACP events needing attention across worktrees.
 function M.inbox()
-	ensure()
+	ensure_setup()
 	require("aero.inbox").open()
 end
 
 --- Search registered workspaces and focus the selected workspace's code window.
 function M.workspaces()
-	ensure()
+	ensure_setup()
 	require("aero.workspaces").open()
 end
 
 --- Search worktrees grouped by workspace and focus the selected code window.
 function M.worktrees()
-	ensure()
+	ensure_setup()
 	require("aero.workspaces").worktrees()
 end
 
 --- Reconnect the selected ACP session to an existing adapter conversation ID.
 function M.resume(session_id)
-	ensure()
+	ensure_setup()
 	return require("aero.commands").resume(session_id)
 end
 
 --- Toggle the agent panel.
 function M.panel()
-	ensure()
+	ensure_setup()
 	require("aero.panel").toggle()
 end
 
 --- Select a reader slot or display mode; nil toggles tabs/panes.
 ---@param action? "source"|"exports"|"references"|"reports"|"reading"|"tabs"|"panes"
 function M.reader(action)
-	ensure()
+	ensure_setup()
 	local reader = require("aero.reader")
 
 	if vim.tbl_contains({ "source", "exports", "references", "reports", "reading" }, action) then
@@ -143,24 +148,25 @@ function M.reader(action)
 end
 
 function M.reading(action)
-	ensure()
+	ensure_setup()
 	return require("aero.reading").command(action)
 end
 
 --- Toggle fullscreen for the focused pane, including the code window.
 function M.fullscreen()
-	ensure()
+	ensure_setup()
 	require("aero.fullscreen").toggle()
 end
 
 --- Toggle the current worktree's terminal below the code window.
 function M.terminal()
-	ensure().toggle_terminal()
+	ensure_setup()
+	require("aero.dashboard").toggle_terminal()
 end
 
 --- Jump to the panel session's prompt (or terminal), opening the panel if needed.
 function M.prompt(action)
-	ensure()
+	ensure_setup()
 
 	if action == "send" then
 		return require("aero.commands").send_prompt()
@@ -171,64 +177,67 @@ end
 
 --- Append an @ reference to the focused source file to the current agent's draft.
 function M.file()
-	ensure()
+	ensure_setup()
 	return require("aero.commands").file()
 end
 
 --- Review the viewed ACP session's prompts and jump to one in its transcript.
 function M.prompts()
-	ensure()
+	ensure_setup()
 	require("aero.prompts").open()
 end
 
 --- Show usage for the selected agent and return its latest reported metrics, if any.
 function M.usage()
-	ensure()
+	ensure_setup()
 	return require("aero.commands").usage()
 end
 
 --- Cancel the selected ACP agent's turn and discard queued prompts.
 function M.cancel()
-	ensure()
+	ensure_setup()
 	return require("aero.commands").cancel()
 end
 
 --- Pick a worktree report and append its path to an agent's draft.
 function M.report()
-	return ensure().report()
+	ensure_setup()
+	return require("aero.dashboard").report()
 end
 
 --- Pick a workspace board; action = "new" creates one, "markdown" opens its source.
 function M.board(action, workspace, board_id)
-	ensure()
+	ensure_setup()
 	return require("aero.tasks.ui").board(action, workspace, board_id)
 end
 
 --- Create or move a ticket on the current board.
 function M.ticket(action)
-	ensure()
+	ensure_setup()
 	return require("aero.tasks.ui").ticket(action)
 end
 
 function M.open_board(workspace, path)
-	ensure()
+	ensure_setup()
 	return require("aero.tasks.view").open(workspace, path)
 end
 
 --- Append the visual selection (or an explicit line range) to an agent's draft.
 function M.quote(range)
-	ensure()
+	ensure_setup()
 	return require("aero.quote").quote(range)
 end
 
 ---@param path? string any path inside a git repository; prompts when omitted
 function M.add_workspace(path)
-	ensure().add_workspace(path)
+	ensure_setup()
+	require("aero.dashboard").add_workspace(path)
 end
 
 --- Focus a worktree's code window; optionally use a custom directory opener.
 function M.open_worktree(path, opener)
-	return ensure().open_worktree(path, opener)
+	ensure_setup()
+	return require("aero.dashboard").open_worktree(path, opener)
 end
 
 --- Short summary for a statusline, e.g. "◐1 ●2"; empty when no session is running.

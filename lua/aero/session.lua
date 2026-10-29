@@ -21,7 +21,7 @@ local M = {}
 
 ---@type table<string, aero.Session>
 local runtime = {}
-local listeners = {}
+local changes = require("aero.listeners").new("session change")
 local timer
 
 local function key(worktree, name)
@@ -29,9 +29,7 @@ local function key(worktree, name)
 end
 
 local function emit()
-	for _, fn in ipairs(listeners) do
-		pcall(fn)
-	end
+	changes.emit()
 end
 
 M.emit = emit
@@ -50,7 +48,7 @@ local function running(s)
 end
 
 function M.on_change(fn)
-	table.insert(listeners, fn)
+	return changes.on(fn)
 end
 
 ---@return "busy"|"idle"|"waiting"|"exited"|"stopped"
@@ -227,28 +225,12 @@ local function save_terminal(s)
 	end)
 end
 
---- Start (or restart) the session's agent in a new buffer shown in `win`.
---- ACP sessions may use nil `win` to start without displaying the transcript.
---- An explicit ACP session ID is persisted only after the adapter accepts it.
---- Task assignment may supply staged tools (restore_tasks=false) and a one-shot
---- on_resume(chat, err) callback to commit or roll back after strict loading.
-function M.start(s, win, resume, session_id, opts)
-	opts = opts or {}
-	win = win == 0 and vim.api.nvim_get_current_win() or win
-	local agent = config.options.agents[s.agent]
-
-	if not agent then
-		vim.notify("aero: unknown agent " .. s.agent, vim.log.levels.ERROR)
-		return false
+local function prepare_integrations(s, agent, opts)
+	if agent.type ~= "acp" or opts.history_only then
+		return true
 	end
 
-	if not win and agent.type ~= "acp" then
-		return false
-	end
-
-	M.stop(s)
-
-	if agent.type == "acp" and not opts.history_only and opts.restore_tasks ~= false then
+	if opts.restore_tasks ~= false then
 		local restored, err = require("aero.tasks.agent").restore(s)
 
 		if not restored then
@@ -260,15 +242,19 @@ function M.start(s, win, resume, session_id, opts)
 		end
 	end
 
-	if agent.type == "acp" and not opts.history_only then
-		local attached, err = require("aero.reading_agent").attach(s)
+	local attached, err = require("aero.reading_agent").attach(s)
 
-		if not attached then
-			vim.notify("Aero: cannot attach reading tools: " .. tostring(err), vim.log.levels.ERROR)
-			return false
-		end
+	if not attached then
+		vim.notify("Aero: cannot attach reading tools: " .. tostring(err), vim.log.levels.ERROR)
+		return false
 	end
 
+	return true
+end
+
+-- Old buffers survive failed launches. Wipe handling is installed only after
+-- the backend has accepted the new buffer as its runtime owner.
+local function prepare_buffer(s, win, agent)
 	local old = s.buf
 	local buf = vim.api.nvim_create_buf(true, false)
 
@@ -310,29 +296,33 @@ function M.start(s, win, resume, session_id, opts)
 		})
 	end
 
-	if agent.type == "acp" then
-		s.buf, s.job, s.exit_code, s.fresh = buf, nil, nil, false
-		s.chat = require("aero.acp").start(s, buf, agent, resume, session_id, opts)
+	return buf, on_wipe, cleanup_old
+end
 
-		if not s.chat then
-			s.buf = nil
-			vim.api.nvim_buf_delete(buf, { force = true })
-			return false
-		end
+local function start_acp(s, win, resume, session_id, opts, agent, buf, on_wipe, cleanup_old)
+	s.buf, s.job, s.exit_code, s.fresh = buf, nil, nil, false
+	s.chat = require("aero.acp").start(s, buf, agent, resume, session_id, opts)
 
-		on_wipe()
-		cleanup_old()
-		ensure_timer()
-		s.stop_requested = false
-		emit()
-
-		if not opts.history_only then
-			events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "acp" }))
-		end
-
-		return true
+	if not s.chat then
+		s.buf = nil
+		vim.api.nvim_buf_delete(buf, { force = true })
+		return false
 	end
 
+	on_wipe()
+	cleanup_old()
+	ensure_timer()
+	s.stop_requested = false
+	emit()
+
+	if not opts.history_only then
+		events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "acp" }))
+	end
+
+	return true
+end
+
+local function start_terminal(s, win, resume, agent, buf, on_wipe, cleanup_old)
 	local cmd = resolve_cmd(resume and agent.resume or agent.cmd, s)
 	s.chat = nil
 	local saved = resume and history.load(s)
@@ -466,6 +456,40 @@ function M.start(s, win, resume, session_id, opts)
 	return true
 end
 
+--- Start (or restart) the session's agent in a new buffer shown in `win`.
+--- ACP sessions may use nil `win` to start without displaying the transcript.
+--- An explicit ACP session ID is persisted only after the adapter accepts it.
+--- Task assignment may supply staged tools (restore_tasks=false) and a one-shot
+--- on_resume(chat, err) callback to commit or roll back after strict loading.
+function M.start(s, win, resume, session_id, opts)
+	opts = opts or {}
+	win = win == 0 and vim.api.nvim_get_current_win() or win
+	local agent = config.options.agents[s.agent]
+
+	if not agent then
+		vim.notify("aero: unknown agent " .. s.agent, vim.log.levels.ERROR)
+		return false
+	end
+
+	if not win and agent.type ~= "acp" then
+		return false
+	end
+
+	M.stop(s)
+
+	if not prepare_integrations(s, agent, opts) then
+		return false
+	end
+
+	local buf, on_wipe, cleanup_old = prepare_buffer(s, win, agent)
+
+	if agent.type == "acp" then
+		return start_acp(s, win, resume, session_id, opts, agent, buf, on_wipe, cleanup_old)
+	end
+
+	return start_terminal(s, win, resume, agent, buf, on_wipe, cleanup_old)
+end
+
 local function tab_wins_with(buf)
 	local tab = vim.api.nvim_get_current_tabpage()
 	return vim.tbl_filter(function(w)
@@ -577,6 +601,12 @@ function M.is_running(s)
 end
 
 function M.delete(s)
+	local removed, err = store.remove_session(s.worktree, s.name)
+
+	if not removed then
+		return nil, err
+	end
+
 	if s.task_transport then
 		require("aero.tasks.bridge").unbind(s.task_transport.credential)
 	end
@@ -596,10 +626,10 @@ function M.delete(s)
 	end
 
 	runtime[s.key] = nil
-	store.remove_session(s.worktree, s.name)
 	history.remove(s)
 	emit()
 	events.emit("session_deleted", data)
+	return true
 end
 
 function M.delete_worktree(worktree)
