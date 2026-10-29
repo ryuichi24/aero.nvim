@@ -4,6 +4,8 @@ local M = {}
 
 function M.describe(session, boards, identity, identities, permissions, conversation_ids)
 	local chat = session.chat
+	local general = session.worktree == require("aero.general").directory()
+	local definition = require("aero.store").find_session(session.worktree, session.name) or {}
 	local result = {
 		id = session.key,
 		name = session.name,
@@ -12,7 +14,19 @@ function M.describe(session, boards, identity, identities, permissions, conversa
 		status = chat and chat.state == "starting" and "starting" or require("aero.session").status(session),
 		target = identity(session, identities),
 		assignment = require("aero.tasks.status").describe(session, boards),
+		scope = general and "general" or "workspace",
+		pinned = general and definition.pinned == true or false,
+		archived = general and definition.archived == true or false,
 	}
+
+	if not chat and general then
+		local saved = require("aero.history").load(session)
+
+		if saved and saved.type == "acp" then
+			result.blocks = require("aero.acp.projection").blocks(saved.blocks or {}, false)
+			result.usage, result.acp_session_id = saved.usage, saved.session_id
+		end
+	end
 
 	if chat then
 		local conversation = chat.session_id or chat.saved_session_id or false
@@ -54,6 +68,7 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 			},
 		},
 		agents = {},
+		default_agent = config.default_agent,
 		workspaces = {},
 		worktrees = worktrees,
 		submodules = require("aero.submodules").relationships(),

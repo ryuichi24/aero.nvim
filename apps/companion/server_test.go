@@ -60,7 +60,7 @@ func TestPromptSnippetRoute(t *testing.T) {
 }
 
 func TestLifecycleRoutes(t *testing.T) {
-	for _, method := range []string{"session_create", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
+	for _, method := range []string{"session_create", "session_update", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		t.Run(method, func(t *testing.T) {
 			calls := 0
 			c := newClient(t, hostFunc(func(_ context.Context, got string, params any) (hostResponse, error) {

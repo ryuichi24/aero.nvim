@@ -15,6 +15,7 @@ local epoch = (assert(uv.random(24)):gsub(".", function(c)
 end))
 local lifecycle = {
 	session_create = true,
+	session_update = true,
 	session_resume = true,
 	session_rename = true,
 	session_delete = true,
@@ -50,7 +51,9 @@ local function worktrees()
 	end
 
 	for path in pairs(require("aero.store").data.sessions) do
-		list[path] = list[path] or { path = path }
+		if path ~= require("aero.general").directory() then
+			list[path] = list[path] or { path = path }
+		end
 	end
 
 	local result = vim.tbl_values(list)

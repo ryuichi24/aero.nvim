@@ -26,7 +26,19 @@ function M.run(method, p, sessions, finish)
 			return finish(nil, "session unavailable")
 		end
 
-		if method == "session_rename" then
+		if method == "session_update" then
+			if selected.worktree ~= require("aero.general").directory() then
+				return finish(nil, "general session required")
+			end
+
+			if (p.field ~= "pinned" and p.field ~= "archived") or type(p.value) ~= "boolean" then
+				return finish(nil, "invalid general session update")
+			end
+
+			local ok, err = require("aero.store").set_session_field(selected.worktree, selected.name, p.field, p.value)
+			session.emit()
+			return finish(ok and { status = "accepted" } or nil, err)
+		elseif method == "session_rename" then
 			if not name(p.name) then
 				return finish(nil, "invalid session name")
 			end
@@ -51,26 +63,33 @@ function M.run(method, p, sessions, finish)
 		end
 	end
 
-	local ws = require("aero.repositories").find(p.workspace)
+	local general = method == "session_create" and p.scope == "general"
+	local ws = not general and require("aero.repositories").find(p.workspace)
 
-	if not ws then
+	if not general and not ws then
 		return finish(nil, "workspace unavailable")
 	end
 
 	local wt
 
-	for _, item in ipairs(git.list(ws.root) or {}) do
+	for _, item in ipairs(ws and git.list(ws.root) or {}) do
 		if item.path == p.worktree then
 			wt = item
 		end
 	end
 
 	if method == "session_create" then
+		if general then
+			wt = { path = require("aero.general").directory() }
+			vim.fn.mkdir(wt.path, "p")
+		end
+
 		if not wt then
 			return finish(nil, "worktree unavailable")
 		end
 
-		local agent = config.agents[p.agent]
+		local agent_id = p.agent == "default" and config.default_agent or p.agent
+		local agent = config.agents[agent_id]
 
 		if not agent or agent.type ~= "acp" then
 			return finish(nil, "ACP agent required")
@@ -80,7 +99,7 @@ function M.run(method, p, sessions, finish)
 			return finish(nil, "invalid session name")
 		end
 
-		local s, err = session.create(wt.path, p.agent, p.name and vim.trim(p.name))
+		local s, err = session.create(wt.path, agent_id, p.name and vim.trim(p.name))
 
 		if not s then
 			return finish(nil, err)

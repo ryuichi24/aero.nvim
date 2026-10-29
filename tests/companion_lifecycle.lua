@@ -148,6 +148,67 @@ result, err = action("worktree_create", { epoch = "old-host", branch = "stale" }
 
 assert(not result and err == "stale host epoch")
 
+require("aero.config").options.default_agent = "fixture"
+result, err = action("session_create", { scope = "general", agent = "default", name = "General chat" })
+
+assert(result and result.status == "accepted", err)
+
+local general = sessions.list(require("aero.general").directory())[1]
+
+assert(general and general.agent == "fixture")
+assert(vim.wait(5000, function()
+	return general.chat.state == "ready"
+end, 10))
+
+sessions.stop(general)
+local description
+
+for _, item in ipairs(bridge.dispatch("snapshot").sessions) do
+	if item.id == general.key then
+		description = item
+	end
+end
+
+assert(description.scope == "general")
+
+for _, wt in ipairs(bridge.dispatch("snapshot").worktrees) do
+	assert(wt.path ~= general.worktree, "general directory must not appear as a Git worktree")
+end
+
+result, err =
+	action("session_update", { session = general.key, target = description.target, field = "pinned", value = true })
+
+assert(result and store.find_session(general.worktree, general.name).pinned, err)
+
+result, err =
+	action("session_update", { session = general.key, target = description.target, field = "archived", value = true })
+
+assert(result and store.find_session(general.worktree, general.name).archived, err)
+
+result, err = action("session_update", { session = general.key, target = "stale", field = "pinned", value = false })
+
+assert(not result and err == "stale session")
+
+-- Snapshot saved messages even if the transcript has never been opened locally.
+local saved = sessions.create(general.worktree, "fixture", "Saved general")
+require("aero.history").save(saved, function()
+	return { type = "acp", blocks = { { kind = "message", text = "Searchable saved answer" } } }
+end)
+require("aero.history").flush(saved)
+local found
+
+for _, item in ipairs(bridge.dispatch("snapshot").sessions) do
+	if item.id == saved.key then
+		found = item
+	end
+end
+
+assert(found and found.blocks[1].text == "Searchable saved answer")
+assert(not saved.chat, "viewing remote history must not start or restore an agent")
+
+sessions.delete(general)
+sessions.delete(saved)
+
 vim.fn.delete(dir, "rf")
 print("companion lifecycle: ok")
 vim.cmd("qa!")
