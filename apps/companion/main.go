@@ -61,6 +61,8 @@ func runBridge(c config) error {
 	defer stop()
 
 	server := httpServer(c, b, ctx)
+	connections := &shutdownConnections{}
+	server.ConnState = connections.track
 
 	listener, err := net.Listen("tcp", server.Addr)
 	if err != nil {
@@ -105,6 +107,8 @@ func runBridge(c config) error {
 
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
+		connections.drain()
 
 		if err := server.Shutdown(shutdown); err != nil {
 			_ = server.Close()

@@ -65,6 +65,7 @@ type companionProcess struct {
 	origin  string
 	code    string
 	cookie  *http.Cookie
+	stderr  *bytes.Buffer
 }
 
 func startCompanionProcess(t *testing.T) *companionProcess {
@@ -102,7 +103,9 @@ func startCompanionProcess(t *testing.T) *companionProcess {
 		t.Fatal(err)
 	}
 
-	command.Stderr = io.Discard
+	stderr := &bytes.Buffer{}
+
+	command.Stderr = stderr
 	if err := command.Start(); err != nil {
 		cancel()
 		t.Fatal(err)
@@ -116,7 +119,7 @@ func startCompanionProcess(t *testing.T) *companionProcess {
 
 	process := &companionProcess{
 		command: command, stdin: stdin, stdout: bufio.NewScanner(stdout),
-		done: done, origin: "http://127.0.0.1:" + strconv.Itoa(port),
+		done: done, origin: "http://127.0.0.1:" + strconv.Itoa(port), stderr: stderr,
 	}
 
 	for range 3 {
@@ -270,7 +273,9 @@ func TestCLIStopsWithActiveStream(t *testing.T) {
 					t.Fatalf("CLI shutdown failed: %v", err)
 				}
 			case <-time.After(3 * time.Second):
-				t.Fatal("CLI failed to stop with an active event stream")
+				_ = p.command.Process.Signal(syscall.SIGQUIT)
+				<-p.done
+				t.Fatalf("CLI failed to stop with an active event stream:\n%s", p.stderr.String())
 			}
 
 			if time.Since(started) >= 3*time.Second {
