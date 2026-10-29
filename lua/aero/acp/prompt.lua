@@ -145,6 +145,11 @@ function M.send(chat, submitting)
 	end
 
 	if chat.state == "exited" and text ~= "/export" then
+		if chat.resume_error then
+			vim.notify("Aero: resume failed; draft kept. Use /resume to retry the session", vim.log.levels.WARN)
+			return
+		end
+
 		local win = vim.fn.win_findbuf(chat.buf)[1]
 
 		if require("aero.session").start(chat.s, win, true) then
