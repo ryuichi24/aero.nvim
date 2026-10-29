@@ -18,7 +18,13 @@ local dashboard = require("aero.dashboard")
 dashboard.open()
 
 local function press(key)
-	api.nvim_win_set_cursor(0, { 4, 0 })
+	for row, line in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
+		if line:find("(main)", 1, true) then
+			api.nvim_win_set_cursor(0, { row, 0 })
+			break
+		end
+	end
+
 	vim.fn.maparg(key, "n", false, true).callback()
 end
 

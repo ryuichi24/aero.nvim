@@ -24,7 +24,7 @@ local function session_name(name)
 	return name
 end
 
-function M.start(item, agent, on_created)
+function M.start(item, agent, on_created, open_session)
 	if not (item and item.wt) then
 		notify("move the cursor to a worktree first")
 		return
@@ -39,7 +39,8 @@ function M.start(item, agent, on_created)
 		end
 
 		on_created(selected)
-		navigation.open_session(selected, "default")
+		local open = open_session or navigation.open_session
+		open(selected, "default")
 	end
 
 	if not config.options.prompt_session_name then
@@ -55,7 +56,7 @@ function M.start(item, agent, on_created)
 	end)
 end
 
-function M.choose(item, label, on_created)
+function M.choose(item, label, on_created, open_session)
 	local names = vim.tbl_keys(config.options.agents)
 	table.sort(names)
 	table.insert(names, 1, "default")
@@ -72,7 +73,7 @@ function M.choose(item, label, on_created)
 				choice = config.options.default_agent
 			end
 
-			M.start(item, choice, on_created)
+			M.start(item, choice, on_created, open_session)
 		end
 	end)
 end

@@ -190,11 +190,39 @@ function M.prepare(workspaces, state, on_repository_changed)
 		table.insert(snapshot.workspaces, prepare(ws, { [ws.root] = true }))
 	end
 
+	snapshot.workspace_open = state.workspace_open ~= false
+	snapshot.general_open = state.general_open ~= false
+	snapshot.general_sessions = {}
+	local store = require("aero.store")
+	local directory = require("aero.general").directory()
+
+	for _, s in ipairs(session.list(directory)) do
+		local def = store.find_session(directory, s.name) or {}
+
+		if not def.archived then
+			table.insert(snapshot.general_sessions, { session = s, pinned = def.pinned == true })
+		end
+	end
+
+	table.sort(snapshot.general_sessions, function(a, b)
+		if a.pinned ~= b.pinned then
+			return a.pinned
+		end
+
+		return a.session.name < b.session.name
+	end)
+	M.refresh_sessions(snapshot)
 	return snapshot
 end
 
 --- Refresh live session fields without rescanning files or task metadata.
 function M.refresh_sessions(snapshot)
+	for _, item in ipairs(snapshot.general_sessions or {}) do
+		item.status = session.status(item.session)
+		item.icon = session.icon(item.session)
+		item.activity = session.activity(item.session)
+	end
+
 	local function update(workspace)
 		for _, tree in ipairs(workspace.worktrees) do
 			tree.summary = summary(session.list(tree.wt.path))

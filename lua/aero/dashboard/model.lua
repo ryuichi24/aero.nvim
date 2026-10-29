@@ -80,6 +80,67 @@ function M.build(snapshot)
 	add({ { " Aero", "AeroTitle" }, { "  g? for help", "AeroDim" } })
 	add({})
 
+	if not snapshot.nested and not snapshot.grouped then
+		local workspace_open = snapshot.workspace_open ~= false
+		add(
+			{ { " " .. (workspace_open and icons.expanded or icons.collapsed) .. " " }, { "Workspace", "AeroTitle" } },
+			{ kind = "workspace_group", id = "workspace-group" }
+		)
+
+		if workspace_open then
+			local child = vim.tbl_extend("force", snapshot, { grouped = true })
+			local child_lines, child_items, child_marks = M.build(child)
+
+			for index = 3, #child_lines do
+				local item, mark = child_items[index], child_marks[index]
+				table.insert(lines, "  " .. child_lines[index])
+
+				if item and item.kind == "workspace" and item.id == "ws:" .. item.ws.root then
+					item.parent = "workspace-group"
+				end
+
+				items[#lines], marks[#lines] = item, mark
+
+				for _, highlight in ipairs(mark.hls) do
+					highlight[1], highlight[2] = highlight[1] + 2, highlight[2] + 2
+				end
+			end
+		end
+
+		add({})
+		local general_open = snapshot.general_open ~= false
+		add(
+			{ { " " .. (general_open and icons.expanded or icons.collapsed) .. " " }, { "General", "AeroTitle" } },
+			{ kind = "general_group", id = "general-group" }
+		)
+
+		if general_open then
+			for _, entry in ipairs(snapshot.general_sessions or {}) do
+				local s, highlight = entry.session, status_hl[entry.status]
+				add(
+					{
+						{ "   " },
+						{ entry.icon or "", highlight },
+						{ " " .. (entry.pinned and "★ " or "") .. s.name, "AeroSession" },
+					},
+					{ kind = "session", id = "s:" .. s.key, parent = "general-group", general = true, session = s },
+					{ { " " .. (entry.activity or entry.status or "stopped"), highlight } }
+				)
+			end
+
+			add(
+				{ { "   New conversation +", "AeroDim" } },
+				{ kind = "general_new", id = "general-new", parent = "general-group", general = true }
+			)
+			add(
+				{ { "   Search history", "AeroSession" } },
+				{ kind = "general_history", id = "general-history", parent = "general-group", general = true }
+			)
+		end
+
+		return lines, items, marks
+	end
+
 	if #snapshot.workspaces == 0 then
 		add({ { "  No workspaces yet. Press ", "AeroDim" }, { snapshot.add_key or "A" }, { " to add one.", "AeroDim" } })
 	end

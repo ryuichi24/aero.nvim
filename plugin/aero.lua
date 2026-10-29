@@ -67,6 +67,9 @@ local subcommands = {
 	new = function()
 		require("aero").new()
 	end,
+	general = function(args)
+		require("aero").general(args[1])
+	end,
 	sessions = function()
 		require("aero").sessions()
 	end,
@@ -187,6 +190,12 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+
+		if words[2] == "general" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(s)
+				return vim.startswith(s, arglead)
+			end, { "new", "history", "archived" })
+		end
 
 		if words[2] == "reading" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)

@@ -98,6 +98,12 @@ function M.new()
 	require("aero.dashboard").new()
 end
 
+--- Browse or create workspace-independent ACP conversations.
+function M.general(action)
+	ensure_setup()
+	return require("aero.general").command(action)
+end
+
 --- Search active sessions across worktrees in a live popup.
 function M.sessions()
 	ensure_setup()

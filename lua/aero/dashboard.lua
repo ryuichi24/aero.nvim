@@ -288,6 +288,8 @@ local function is_open()
 		and api.nvim_win_get_buf(state.win) == state.buf
 end
 
+M.is_open = is_open
+
 -- the dashboard buffer can be shown in every tab: track this tab's window and code window
 api.nvim_create_autocmd("TabEnter", {
 	group = api.nvim_create_augroup("Aero.dashboard", { clear = true }),
@@ -391,6 +393,7 @@ function M.open(focus_worktree)
 	local selected_path
 
 	if focus_worktree then
+		state.workspace_open = true
 		local path = vim.fs.normalize(vim.fn.resolve(vim.t.aero_worktree or vim.fn.getcwd()))
 
 		for _, repository in
@@ -629,6 +632,10 @@ end
 
 --- Start a fresh session of `agent` on the worktree under the cursor.
 local function start_agent(item, agent)
+	if item and (item.general or item.kind == "general_group") then
+		return require("aero.general").new(agent)
+	end
+
 	return require("aero.dashboard.session_actions").start(item, agent, function(s)
 		state.expanded[s.worktree] = true
 	end)
@@ -698,7 +705,13 @@ function actions.open(how)
 		return
 	end
 
-	if item.kind == "board" then
+	if item.kind == "general_new" then
+		require("aero.general").new()
+	elseif item.kind == "general_history" then
+		require("aero.general").history()
+	elseif item.kind == "session" and item.general then
+		require("aero.general").show(item.session)
+	elseif item.kind == "board" then
 		require("aero.tasks.view").open(item.ws, item.board.path)
 	elseif item.kind == "board_new" then
 		require("aero.tasks.ui").new_board(item.ws)
@@ -732,7 +745,11 @@ function actions.toggle()
 		return
 	end
 
-	if item.kind == "submodules" then
+	if item.kind == "workspace_group" then
+		state.workspace_open = state.workspace_open == false
+	elseif item.kind == "general_group" then
+		state.general_open = state.general_open == false
+	elseif item.kind == "submodules" then
 		state.submodules_expanded[item.wt.path] = not state.submodules_expanded[item.wt.path]
 	elseif item.kind == "submodule" then
 		if not item.submodule.initialized then
@@ -771,7 +788,9 @@ function actions.expand()
 	end
 
 	if
-		item.kind == "session"
+		item.kind == "general_new"
+		or item.kind == "general_history"
+		or item.kind == "session"
 		or item.kind == "export"
 		or item.kind == "report"
 		or item.kind == "report_new"
@@ -788,7 +807,11 @@ function actions.expand()
 
 	local expanded
 
-	if item.kind == "submodules" then
+	if item.kind == "workspace_group" then
+		expanded = state.workspace_open ~= false
+	elseif item.kind == "general_group" then
+		expanded = state.general_open ~= false
+	elseif item.kind == "submodules" then
 		expanded = state.submodules_expanded[item.wt.path] == true
 	elseif item.kind == "submodule" then
 		expanded = state.repositories_expanded[item.submodule.path] == true
@@ -830,6 +853,18 @@ function actions.collapse()
 	end
 
 	local lnum = api.nvim_win_get_cursor(0)[1]
+
+	if item.kind == "workspace_group" or item.kind == "general_group" then
+		local open = item.kind == "workspace_group" and state.workspace_open ~= false
+			or item.kind == "general_group" and state.general_open ~= false
+
+		if open then
+			actions.toggle()
+		end
+
+		return
+	end
+
 	local is_header = item.id:match("^ws:")
 		or item.kind == "worktree"
 		or item.kind == "submodules"
@@ -889,7 +924,16 @@ function actions.add()
 		return M.add_workspace()
 	end
 
-	if item.kind == "boards" or item.kind == "board" or item.kind == "board_new" or item.kind == "tickets_removed" then
+	if item.general or item.kind == "general_group" then
+		require("aero.general").new()
+	elseif item.kind == "workspace_group" then
+		M.add_workspace()
+	elseif
+		item.kind == "boards"
+		or item.kind == "board"
+		or item.kind == "board_new"
+		or item.kind == "tickets_removed"
+	then
 		require("aero.tasks.ui").new_board(item.ws)
 	elseif item.kind == "workspace" or item.kind == "submodule" then
 		add_worktree(item.ws)
@@ -987,6 +1031,16 @@ function actions.restart()
 	local item = current_item()
 
 	if item and item.kind == "session" then
+		if item.general then
+			local win = require("aero.general").show(item.session)
+
+			if win then
+				session.start(item.session, win, true)
+			end
+
+			return
+		end
+
 		local win, use_panel = require("aero.dashboard.session_actions").restart(item.session, target_win)
 
 		if win and not use_panel then

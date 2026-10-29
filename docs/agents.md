@@ -146,7 +146,8 @@ With `persist_sessions = true` (the default), unfinished prompts are automatical
 saved per session and restored when you reopen the session after restarting Neovim.
 Submit with `:Aero prompt send` or Ctrl-Enter; `:w` keeps the draft and Ctrl-s has no submit binding.
 You can also type `/send` on its own line and press Enter. Aero removes that line
-and submits the remaining draft; an empty draft sends nothing.
+and submits the remaining draft, automatically resuming a stopped session first;
+an empty draft sends nothing and leaves a stopped session inactive.
 Your terminal must send Ctrl-Enter as a distinct key (for example, using Kitty's keyboard protocol).
 
 | Prompt key | Action |
@@ -223,6 +224,38 @@ Type `/prompt` in the ACP composer to choose a custom prompt from a searchable
 popup with a full-text preview. Snippets are loaded from user-owned global and
 workspace JSON files and inserted into the draft for editing before sending.
 See [Prompt snippets](prompt-snippets.md) for file locations and the JSON format.
+
+## General conversations
+
+The sidebar has two collapsible top-level sections: **Workspace**, containing
+registered repositories and their worktrees, and **General**, containing unarchived
+workspace-independent conversations (pinned first). Use the normal expand/collapse
+keys on either heading. Under General, Enter on a session opens its transcript,
+**New conversation +** starts a chat, and **Search history** opens the library.
+Press `a` on General or one of its sessions to create a conversation. Session
+rename, stop, restart, and delete actions also work on general sessions.
+
+Use `:Aero general new` to choose an agent and start a workspace-independent
+conversation. It uses a dedicated tab and a neutral directory beside Aero's state
+file, with the same composer and `/send` behavior as project conversations.
+The agent picker and session-name prompt match workspace sessions, including the
+`default` choice from `default_agent`. ACP agents use the composer; terminal agents
+use their usual CLI interface.
+
+`:Aero general` (or `:Aero general history`) searches saved general conversations
+by name and message text, with a transcript preview. Enter opens the transcript;
+stopped sessions remain inactive until you submit a draft or use `/resume` in the composer.
+An already-running conversation remains active when viewed.
+
+In the history picker's normal mode, `p` toggles pinning, `a` archives the selected
+conversation, and `r` renames it. Pinned conversations appear first.
+`:Aero general archived` searches archived conversations; `a` restores them.
+Archiving only changes library visibility; it does not stop an active agent.
+History and drafts use the existing `persist_sessions` setting.
+
+```lua
+vim.keymap.set("n", "<leader>ag", "<cmd>Aero general<CR>", { desc = "General conversations" })
+```
 
 ## Prompt history
 
