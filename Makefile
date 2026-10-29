@@ -8,7 +8,7 @@ GO_MODULES := apps/mcp apps/companion
 LUA_PATHS := lua plugin tests apps/scripts
 VERSION ?= $(shell python3 -c 'import json; print(json.load(open("release.json"))["version"])')
 
-.PHONY: build build-mcp build-all build-companion build-companion-ui test test-lua test-companion vet check check-all release clean
+.PHONY: build build-mcp build-all build-companion build-companion-ui test test-lua test-lua-unit test-companion vet check check-all release clean
 .PHONY: format format-lua format-go format-web lint lint-lua lint-go lint-web hooks
 
 format: format-lua format-go format-web
@@ -60,6 +60,9 @@ test:
 
 test-lua: build-all
 	python3 tests/run.py
+
+test-lua-unit:
+	python3 tests/run.py --unit
 
 build-companion-ui:
 	$(PNPM) --dir apps/companion/web install --frozen-lockfile
