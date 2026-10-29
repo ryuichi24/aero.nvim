@@ -253,6 +253,13 @@ conversation, and `r` renames it. Pinned conversations appear first.
 Archiving only changes library visibility; it does not stop an active agent.
 History and drafts use the existing `persist_sessions` setting.
 
+In the companion web app, open **Sessions → General** to create ACP chats,
+search names and saved message text, preview or read history without resuming,
+and pin, archive, or restore conversations. The new-chat form offers the configured
+default when it is an ACP agent. General chats remain available regardless of the
+selected workspace scope. Use **Resume session** to continue a stopped chat;
+rename and delete remain available under the conversation's **Details** view.
+
 ```lua
 vim.keymap.set("n", "<leader>ag", "<cmd>Aero general<CR>", { desc = "General conversations" })
 ```
