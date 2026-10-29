@@ -10,6 +10,15 @@ State lives at `stdpath("data")/Aero/state.json`, configurable through `state_fi
 Changes merge into the latest state and replace it atomically so multiple Neovim
 instances can share it. Logs live separately in `<state_file>.history/`.
 
+Each state mutation holds `<state_file>.lock/` across reload, mutation and atomic
+replacement. Failed writes return `nil, error`, report the failure, retain the
+last loaded in-memory state, and do not publish successful workspace changes.
+Corrupt or unreadable state is not overwritten by a mutation. Lock acquisition
+waits up to one second without running editor callbacks. If an instance crashes
+while holding the lock, inspect its `owner.json` (host and PID), verify that owner
+is gone, and remove the lock directory before retrying. Locks are never stolen
+automatically.
+
 | Data | Restored behavior |
 | --- | --- |
 | Workspaces | Registered repos and expanded/collapsed state |

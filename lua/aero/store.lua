@@ -1,26 +1,24 @@
 -- Persistent state: workspaces, sessions and the last code buffer per worktree.
 --
--- Several nvim instances may share the state file, so every change re-reads the file, applies
--- just that change and writes the result (see `update`); a stale in-memory copy never overwrites
--- another instance's changes. Writes go to a temp file that is renamed over the state file, so
--- a crash mid-write can't leave it truncated.
+-- Each change locks the file, reloads, mutates and atomically replaces it. Failed
+-- transactions retain the last loaded in-memory state and return nil, error.
 local config = require("aero.config")
 local events = require("aero.events")
 local M = {}
 M.data = { workspaces = {}, sessions = {}, worktree_buffers = {} }
 
 local function read()
-	local f = io.open(config.options.state_file, "r")
+	local f, err, code = io.open(config.options.state_file, "r")
 
 	if not f then
-		return nil
+		return nil, code ~= 2 and err or nil
 	end
 
 	local ok, data = pcall(vim.json.decode, f:read("*a"))
 	f:close()
 
 	if not (ok and type(data) == "table") then
-		return nil
+		return nil, "invalid state JSON: " .. config.options.state_file
 	end
 
 	local workspaces = {}
@@ -71,26 +69,33 @@ local function write(data)
 	local f, err = io.open(tmp, "w")
 
 	if not f then
-		vim.notify("aero: can't save state: " .. tostring(err), vim.log.levels.ERROR)
-		return
+		return nil, tostring(err)
 	end
 
-	f:write(vim.json.encode(out))
-	f:close()
+	local written, write_err = f:write(vim.json.encode(out))
+	local closed, close_err = f:close()
+
+	if not written or not closed then
+		os.remove(tmp)
+		return nil, tostring(write_err or close_err)
+	end
+
 	local ok, rerr = vim.uv.fs_rename(tmp, path)
 
 	if not ok then
 		os.remove(tmp)
-		vim.notify("aero: can't save state: " .. tostring(rerr), vim.log.levels.ERROR)
+		return nil, tostring(rerr)
 	end
+
+	return true
 end
 
 --- Pick up changes other instances saved. With persist_sessions off, sessions only live here.
 function M.load()
-	local data = read()
+	local data, err = read()
 
 	if not data then
-		return
+		return not err, err
 	end
 
 	M.data.workspaces = data.workspaces
@@ -102,19 +107,61 @@ function M.load()
 	if config.options.persist_sessions then
 		M.data.sessions = data.sessions
 	end
+
+	return true
 end
 
 --- Apply `fn` to the latest saved state and save it. The result becomes the in-memory state.
 local function update(fn)
-	M.load()
-	local result = { fn(M.data) }
-	write(M.data)
-	return unpack(result)
+	local previous
+	local rejected = false
+	local function pack(...)
+		return { n = select("#", ...), ... }
+	end
+
+	local result = pack(require("aero.state_lock").with_lock(config.options.state_file, function()
+		local loaded, load_err = M.load()
+
+		if not loaded then
+			return nil, load_err
+		end
+
+		previous = M.data
+		M.data = vim.deepcopy(previous)
+		local values = pack(fn(M.data))
+
+		if values.n > 1 and values[1] == nil and values[2] then
+			rejected = true
+			return unpack(values, 1, values.n)
+		end
+
+		local saved, save_err = write(M.data)
+
+		if not saved then
+			return nil, save_err
+		end
+
+		if values.n == 0 then
+			return true
+		end
+
+		return unpack(values, 1, values.n)
+	end))
+
+	if result[1] == nil and result[2] then
+		M.data = previous or M.data
+
+		if not rejected then
+			vim.notify("aero: can't save state: " .. tostring(result[2]), vim.log.levels.ERROR)
+		end
+	end
+
+	return unpack(result, 1, result.n)
 end
 
 --- Merge only these worktrees' buffer snapshots into the latest shared state.
 function M.set_worktree_buffers(buffers)
-	update(function(data)
+	return update(function(data)
 		for wt, buffer in pairs(buffers) do
 			data.worktree_buffers[wt] = buffer
 		end
@@ -122,7 +169,7 @@ function M.set_worktree_buffers(buffers)
 end
 
 function M.remove_worktree_buffer(worktree)
-	update(function(data)
+	return update(function(data)
 		data.worktree_buffers[worktree] = nil
 	end)
 end
@@ -148,6 +195,10 @@ function M.add_workspace(root)
 		return ws, true
 	end)
 
+	if not ws then
+		return nil, added
+	end
+
 	if added then
 		events.emit("workspace_added", { root = ws.root, name = ws.name })
 	end
@@ -156,22 +207,30 @@ function M.add_workspace(root)
 end
 
 function M.remove_workspace(root)
-	local removed = update(function()
+	local removed, err = update(function()
 		local ws, i = M.find_workspace(root)
 
 		if i then
 			table.remove(M.data.workspaces, i)
 			return ws
 		end
+
+		return false
 	end)
+
+	if err then
+		return nil, err
+	end
 
 	if removed then
 		events.emit("workspace_removed", { root = removed.root, name = removed.name })
 	end
+
+	return true
 end
 
 function M.set_expanded(root, expanded)
-	update(function()
+	return update(function()
 		local ws = M.find_workspace(root)
 
 		if ws then
@@ -215,7 +274,7 @@ end
 
 --- Set an extra persisted field (e.g. the ACP session id) on a session definition.
 function M.set_session_field(worktree, name, field, value)
-	update(function()
+	return update(function()
 		local def = M.find_session(worktree, name)
 
 		if def then
@@ -242,7 +301,7 @@ function M.rename_session(worktree, name, new_name, session_key)
 end
 
 function M.remove_session(worktree, name)
-	update(function(data)
+	return update(function(data)
 		local list = data.sessions[worktree] or {}
 
 		for i, def in ipairs(list) do
