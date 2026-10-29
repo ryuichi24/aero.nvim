@@ -145,7 +145,13 @@ function M.send(chat, submitting)
 	end
 
 	if chat.state == "exited" and text ~= "/export" then
-		return chat:prompt(text)
+		local win = vim.fn.win_findbuf(chat.buf)[1]
+
+		if require("aero.session").start(chat.s, win, true) then
+			return M.send(chat.s.chat, true)
+		end
+
+		return
 	end
 
 	if not chat.s.task_binding and (text:match("^/new%-ticket%s") or text == "/new-ticket") then
