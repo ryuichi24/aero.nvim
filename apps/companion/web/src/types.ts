@@ -35,6 +35,9 @@ export interface TranscriptBlock {
 }
 
 export interface Session {
+  scope?: 'general' | 'workspace';
+  pinned?: boolean;
+  archived?: boolean;
   usage?: {
     tokens?: {
       responses?: number;
@@ -115,6 +118,7 @@ export interface Snapshot {
   }[];
   epoch?: string;
   agents?: string[];
+  default_agent?: string;
   submodules?: { worktree: string; path: string; name: string; workspace: string }[];
 }
 
@@ -130,6 +134,7 @@ export type ActionPath =
   | 'cancel'
   | 'permission'
   | 'session_create'
+  | 'session_update'
   | 'session_resume'
   | 'session_rename'
   | 'session_delete'
@@ -137,6 +142,9 @@ export type ActionPath =
   | 'worktree_rename'
   | 'worktree_delete';
 export interface ActionData {
+  scope?: 'general';
+  field?: 'pinned' | 'archived';
+  value?: boolean;
   reference_action?: 'transfer' | 'rename' | 'delete';
   path?: string;
   items?: { path: string; action: 'copy' | 'cut' }[];

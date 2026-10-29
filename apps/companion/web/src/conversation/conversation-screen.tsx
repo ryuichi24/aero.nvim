@@ -78,6 +78,13 @@ export function ConversationScreen({
           {session ? `${session.name} · ${session.status}` : 'Session or conversation unavailable'}
         </h2>
       </div>
+      {session?.scope === 'general' && (
+        <nav className="session-breadcrumb" aria-label="Current session location">
+          <span>General</span>
+          <span aria-hidden="true">/</span>
+          <strong>{session.name}</strong>
+        </nav>
+      )}
       {location && (
         <nav className="session-breadcrumb" aria-label="Current session location">
           <span>{location.workspace.name}</span>
@@ -103,7 +110,7 @@ export function ConversationScreen({
             </button>
           ))}
         </nav>
-        {session && (
+        {session && session.scope !== 'general' && (
           <details ref={reviewMenu} className="session-review-links">
             <summary aria-label="Review this worktree">Review</summary>
             <div className="session-review-menu">
@@ -130,7 +137,7 @@ export function ConversationScreen({
             <AgentTodos todos={latestTodos(session.blocks || [])} />
             <div aria-label="Session actions">
               <AssignmentStatus session={session} />
-              {snapshot && (
+              {snapshot && session.scope !== 'general' && (
                 <BoardAssignment
                   key={session.id}
                   session={session}

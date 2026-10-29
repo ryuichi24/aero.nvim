@@ -23,7 +23,9 @@ export function scopeSnapshot(snapshot: Snapshot | null, workspace: string): Sna
     (tree) => roots.has(tree.workspace || '') || roots.has(tree.path),
   );
   const paths = new Set(worktrees.map((tree) => tree.path));
-  const sessions = snapshot.sessions.filter((session) => paths.has(session.worktree));
+  const sessions = snapshot.sessions.filter(
+    (session) => session.scope === 'general' || paths.has(session.worktree),
+  );
   const sessionIDs = new Set(sessions.map((session) => session.id));
   return {
     ...snapshot,

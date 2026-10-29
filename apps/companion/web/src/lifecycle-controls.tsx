@@ -12,6 +12,7 @@ export function LifecycleForm({
   field,
   initial = '',
   agents,
+  defaultAgent,
   destructive = false,
   force = false,
   initiallyOpen = false,
@@ -24,12 +25,15 @@ export function LifecycleForm({
   field?: 'name' | 'branch';
   initial?: string;
   agents?: string[];
+  defaultAgent?: string;
   destructive?: boolean;
   force?: boolean;
   initiallyOpen?: boolean;
 }) {
   const [value, setValue] = useState(initial);
-  const [agent, setAgent] = useState(agents?.[0] || '');
+  const initialAgent =
+    defaultAgent && agents?.includes(defaultAgent) ? 'default' : agents?.[0] || '';
+  const [agent, setAgent] = useState(initialAgent);
   const [forceRemoval, setForceRemoval] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   return (
@@ -50,7 +54,7 @@ export function LifecycleForm({
           });
           if (accepted) {
             setValue(initial);
-            setAgent(agents?.[0] || '');
+            setAgent(initialAgent);
             setForceRemoval(false);
             if (detailsRef.current) detailsRef.current.open = false;
           }
@@ -67,6 +71,9 @@ export function LifecycleForm({
           <label>
             Agent
             <select value={agent} onChange={(event) => setAgent(event.target.value)} required>
+              {defaultAgent && agents.includes(defaultAgent) && (
+                <option value="default">default ({defaultAgent})</option>
+              )}
               {agents.map((id) => (
                 <option key={id} value={id}>
                   {id}

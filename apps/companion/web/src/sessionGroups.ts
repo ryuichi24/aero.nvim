@@ -75,6 +75,7 @@ export function groupSessions(snapshot: Snapshot): WorkspaceGroup[] {
     workspace.worktrees.push(group);
   }
   for (const session of snapshot.sessions) {
+    if (session.scope === 'general') continue;
     const path = normalize(session.worktree);
     if (!worktrees.has(path)) {
       const workspace = owner(path);
