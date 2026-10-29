@@ -6,9 +6,11 @@ local buf = api.nvim_get_current_buf()
 api.nvim_buf_set_lines(buf, 0, -1, false, { "turn", "tool", "output", "output", "end", "tail" })
 local chat = {
 	buf = buf,
-	sections = {
-		{ kind = "turn", key = {}, first = 1, last = 5, closed = false },
-		{ kind = "tool", key = {}, first = 2, last = 4, closed = true },
+	editor = {
+		sections = {
+			{ kind = "turn", key = {}, first = 1, last = 5, closed = false },
+			{ kind = "tool", key = {}, first = 2, last = 4, closed = true },
+		},
 	},
 }
 local active = vim.treesitter.highlighter.active
@@ -55,7 +57,7 @@ folds.apply(chat)
 
 assert(stops == 1 and starts == 1, "ordinary renders must not restart highlighting")
 
-chat.fold_views = nil
+chat.editor.fold_views = nil
 fail = true
 local ok, err = pcall(folds.apply, chat)
 
@@ -64,7 +66,7 @@ assert(stops == 2 and starts == 2 and active[buf] == highlighter, "highlighting 
 
 fail = false
 active[buf] = nil
-chat.fold_views = nil
+chat.editor.fold_views = nil
 folds.apply(chat)
 
 assert(starts == 2 and stops == 2, "disabled highlighting must stay disabled")

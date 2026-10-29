@@ -219,7 +219,7 @@ chat:on_request("session/request_permission", {
 	outcome = response.outcome
 end)
 wait(function()
-	return text():find("### Permission requested", 1, true) and not chat.pending_focus
+	return text():find("### Permission requested", 1, true) and not chat.editor.pending_focus
 end)
 local first, last = chat:option_range()
 

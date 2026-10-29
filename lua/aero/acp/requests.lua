@@ -126,7 +126,7 @@ function M.handle(chat, method, params, respond)
 		require("aero.inbox").add(chat, "permission", block)
 		chat:set_option_keys(true)
 		chat:advance(true)
-		chat.pending_focus = true
+		require("aero.acp.editor_state").get(chat).pending_focus = true
 		chat:changed()
 
 		if api.nvim_get_current_buf() ~= chat.buf then

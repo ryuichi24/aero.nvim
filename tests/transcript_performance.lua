@@ -42,7 +42,7 @@ local function render()
 
 	assert(
 		vim.wait(10000, function()
-			return not chat.render_pending
+			return not chat.editor.render_pending
 		end, 1),
 		"render timed out"
 	)
@@ -105,7 +105,7 @@ assert(moves == 0, "streaming text walked or rebuilt historical folds")
 assert(decodes == 0, "streaming text reparsed historical tool output for todos")
 
 local function section(kind, block)
-	for _, value in ipairs(chat.sections) do
+	for _, value in ipairs(chat.editor.sections) do
 		if value.kind == kind and value.key == block then
 			return value
 		end

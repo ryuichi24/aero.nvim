@@ -5,9 +5,12 @@ local spinner = require("aero.spinner")
 local usage = require("aero.acp.usage")
 local todos = require("aero.acp.todos")
 local images = require("aero.acp.images")
+local reveal = require("aero.acp.reveal")
 local M = {}
 local ns = api.nvim_create_namespace("Aero.acp.render")
 local tool_cache = setmetatable({}, { __mode = "k" })
+local text_cache = setmetatable({}, { __mode = "k" })
+local diff_cache = setmetatable({}, { __mode = "k" })
 local tool_cache_fields = {
 	"title",
 	"status",
@@ -37,14 +40,16 @@ local function split(text)
 	return vim.split(text:gsub("\r\n", "\n"), "\n", { plain = true })
 end
 
-local function text_lines(block)
-	local text = block.shown and block.text:sub(1, block.shown) or block.text
+local function text_lines(block, export)
+	local text = export and block.text or reveal.text(block)
+	local cached = text_cache[block]
 
-	if block.cache_src ~= text then
-		block.cache_src, block.cache = text, split(text)
+	if not cached or cached.source ~= text then
+		cached = { source = text, lines = split(text) }
+		text_cache[block] = cached
 	end
 
-	return block.cache
+	return cached.lines
 end
 
 local function content_text(content)
@@ -274,14 +279,14 @@ function M.build(chat, opts)
 		for index, item in ipairs(block.content or {}) do
 			if item.type == "diff" then
 				push("Diff", "AeroChatMeta", "body")
-				block.cache = block.cache or {}
-				local cached = block.cache[index]
+				diff_cache[block] = diff_cache[block] or {}
+				local cached = diff_cache[block][index]
 				local old, new = item.oldText or "", item.newText or ""
 
 				if not cached or cached.old ~= old or cached.new ~= new then
 					local diff = (vim.text and vim.text.diff or vim.diff)(old, new, { ctxlen = 2 })
 					cached = { old = old, new = new, lines = split(vim.trim(diff or "")) }
-					block.cache[index] = cached
+					diff_cache[block][index] = cached
 				end
 
 				local diff = { "--- " .. one_line(item.path), "+++ " .. one_line(item.path) }
@@ -510,7 +515,7 @@ function M.build(chat, opts)
 				header("You", "AeroChatUser")
 				push("")
 				body(
-					block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
+					block.image and { images.markdown(block.image, opts.export) } or text_lines(block, opts.export),
 					nil,
 					"AeroChatUser"
 				)
@@ -520,7 +525,7 @@ function M.build(chat, opts)
 					header("Message · " .. chat:agent_title(), "AeroChatAgent")
 					push("")
 					body(
-						block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
+						block.image and { images.markdown(block.image, opts.export) } or text_lines(block, opts.export),
 						nil,
 						"AeroChatAgent"
 					)
@@ -535,7 +540,7 @@ function M.build(chat, opts)
 					table.insert(sections, section)
 					header("Thinking", "AeroChatThinking")
 					body(
-						block.image and { images.markdown(block.image, opts.export) } or text_lines(block),
+						block.image and { images.markdown(block.image, opts.export) } or text_lines(block, opts.export),
 						"AeroChatThinking"
 					)
 					finish("AeroChatThinking")

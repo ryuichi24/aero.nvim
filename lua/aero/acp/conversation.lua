@@ -10,13 +10,15 @@ local models = require("aero.acp.models")
 local modes = require("aero.acp.modes")
 local transcript = require("aero.acp.transcript")
 local usage = require("aero.acp.usage")
+local editor = require("aero.acp.editor_state").get
 require("aero.acp.types")
 local M = {}
 local api = vim.api
 
----@class Aero.acp.Chat
----@field s Aero.Session
----@field client? Aero.acp.Client
+---@class aero.acp.Chat
+---@field s aero.Session
+---@field client? aero.acp.Client
+---@field editor? aero.acp.EditorState
 ---@field buf integer transcript buffer
 ---@field prompt_buf? integer
 ---@field session_id? string
@@ -30,7 +32,7 @@ local api = vim.api
 local Chat = {}
 Chat.__index = Chat
 
----@type table<string, Aero.acp.Chat> session key -> chat
+---@type table<string, aero.acp.Chat> session key -> chat
 local chats_by_key = {}
 
 local function error_text(err)
@@ -210,9 +212,8 @@ function Chat:append(kind, text)
 	end
 
 	-- live agent output is revealed gradually; replayed history appears at once
-	if (kind == "agent" or kind == "thought") and not self.replaying and not b.shown then
-		b.shown = #b.text - #text
-		table.insert(self.revealing, b)
+	if (kind == "agent" or kind == "thought") and not self.replaying then
+		transcript.reveal(self, b, #b.text - #text)
 	end
 end
 
@@ -290,7 +291,7 @@ function Chat:choose(index, block)
 
 	self.permission = self.permissions and self.permissions[1]
 	self:set_option_keys(self.permission ~= nil)
-	self.pending_focus = self.permission ~= nil
+	editor(self).pending_focus = self.permission ~= nil
 	p.block.answer = choice.name or choice.optionId
 
 	if choice.auto_yes then
@@ -337,7 +338,7 @@ end
 
 --- <CR> in the transcript: choose the option under the cursor, otherwise write a prompt.
 function Chat:enter_key()
-	local o = self.permission and (self.option_lines or {})[api.nvim_win_get_cursor(0)[1]]
+	local o = self.permission and (editor(self).option_lines or {})[api.nvim_win_get_cursor(0)[1]]
 
 	if o then
 		return self:choose(o.index, o.block)
@@ -360,7 +361,7 @@ function Chat:set_option_keys(on)
 
 		if on and available then
 			vim.keymap.set("n", lhs, function()
-				local o = (self.option_lines or {})[api.nvim_win_get_cursor(0)[1]]
+				local o = (editor(self).option_lines or {})[api.nvim_win_get_cursor(0)[1]]
 				self:choose(i, o and o.block)
 			end, { buffer = buf, nowait = true, desc = "Aero: choose permission option " .. i })
 		else
@@ -530,40 +531,19 @@ function Chat:new_session(params)
 	end)
 end
 
+local function turn_ready(chat)
+	return chat.state == "ready"
+		and not chat.busy
+		and not chat.model_pending
+		and not chat.mode_pending
+		and not chat.task_pending
+end
+
 function Chat:prompt(text)
-	if vim.trim(text) == "/resume" then
-		if self.state ~= "exited" then
-			return vim.notify("Aero: session is already running", vim.log.levels.INFO)
-		end
+	local handled, result = require("aero.acp.local_commands").handle(self, text)
 
-		local win = vim.fn.win_findbuf(self.buf)[1]
-		return require("aero.session").start(self.s, win, true)
-	end
-
-	if vim.trim(text) == "/prompt" then
-		return require("aero.prompt_snippets").open(self)
-	end
-
-	if vim.trim(text) == "/export" then
-		return require("aero.exports").export(self)
-	end
-
-	if self.state == "exited" then
-		local message = "Aero: session is stopped; send /resume in the composer to resume it"
-		vim.notify(message, vim.log.levels.WARN)
-		return
-	end
-
-	if vim.trim(text) == "/report" then
-		return require("aero.reports").pick(self.s)
-	end
-
-	if vim.trim(text) == "/reference" or vim.trim(text) == "/context" then -- legacy prompt alias
-		return require("aero.reference").pick(self.s)
-	end
-
-	if vim.trim(text) == "/cancel" then
-		return self:cancel()
+	if handled then
+		return result
 	end
 
 	if self.task_pending then
@@ -573,7 +553,7 @@ function Chat:prompt(text)
 
 	if vim.trim(text):match("^/new%-ticket%s") or vim.trim(text) == "/new-ticket" then
 		if not self.s.task_binding then
-			if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
+			if not turn_ready(self) then
 				table.insert(self.queue, text)
 				return self:changed()
 			end
@@ -595,7 +575,7 @@ function Chat:prompt(text)
 
 	-- queued prompts are shown at the end of the transcript and only become blocks once sent,
 	-- so a resumed session's replayed history (or a failed resume) can't bury or drop them
-	if self.state ~= "ready" or self.busy or self.model_pending or self.mode_pending then
+	if not turn_ready(self) then
 		table.insert(self.queue, text)
 		return self:changed()
 	end
@@ -643,7 +623,7 @@ end
 
 function Chat:cancel()
 	self.queue = {}
-	self.pending_focus = false
+	editor(self).pending_focus = false
 
 	if self.permission then
 		local pending = self.permissions or { self.permission }
@@ -705,12 +685,12 @@ local function setup_transcript(chat)
 	return require("aero.acp.transcript").setup(chat)
 end
 
----@param s Aero.Session
+---@param s aero.Session
 ---@param buf integer transcript buffer (already shown in a window)
----@param agent Aero.Agent
+---@param agent aero.Agent
 ---@param resume boolean
 ---@param session_id? string explicit conversation ID for recovery
----@return Aero.acp.Chat|nil
+---@return aero.acp.Chat|nil
 function M.start(s, buf, agent, resume, session_id, opts)
 	opts = opts or {}
 	local chat = setmetatable({
@@ -722,7 +702,6 @@ function M.start(s, buf, agent, resume, session_id, opts)
 		blocks = {},
 		tools = {},
 		queue = {},
-		revealing = {},
 		requested_session_id = session_id,
 		on_resume = opts.on_resume,
 		task_pending = opts.on_resume ~= nil,

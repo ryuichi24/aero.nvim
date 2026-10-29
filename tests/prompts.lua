@@ -77,7 +77,7 @@ key("<CR>")
 assert(
 	vim.wait(2000, function()
 		return api.nvim_get_current_buf() == chat.buf
-			and api.nvim_win_get_cursor(0)[1] == chat.block_lines[chat.blocks[3]]
+			and api.nvim_win_get_cursor(0)[1] == chat.editor.block_lines[chat.blocks[3]]
 	end, 10),
 	"selection did not jump to prompt"
 )

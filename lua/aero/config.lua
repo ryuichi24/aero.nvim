@@ -1,6 +1,6 @@
 local M = {}
 
----@class Aero.Agent
+---@class aero.Agent
 ---@field type? "terminal"|"acp"  terminal: run the CLI in a :terminal; acp: speak Agent Client Protocol over stdio
 ---@field cmd string[]|fun(session: table): string[]  command for a fresh session
 ---@field resume? string[]|fun(session: table): string[]  (terminal) command used to resume a previous session
@@ -11,7 +11,7 @@ M.defaults = {
 	default_agent = "opencode-acp", -- agent used by the first (default) choice in the agent picker
 	-- lifecycle event name -> function or list of functions
 	events = {},
-	---@type table<string, Aero.Agent>
+	---@type table<string, aero.Agent>
 	agents = {
 		claude = { cmd = { "claude" }, resume = { "claude", "--continue" }, key = "c" },
 		codex = { cmd = { "codex" }, resume = { "codex", "resume", "--last" }, key = "x" },

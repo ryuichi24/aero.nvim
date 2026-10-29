@@ -1,4 +1,16 @@
 -- Conversation records shared by protocol, history and editor collaborators.
+---@class aero.acp.EditorState
+---@field lines? string[] last rendered buffer text
+---@field render_marks? table[] decoration layout
+---@field option_lines? table<integer, table>
+---@field block_lines? table<table, integer>
+---@field sections? table[] fold layout
+---@field fold_views? table<integer, table> window-local fold choices
+---@field render_pending? boolean
+---@field pending_focus? boolean
+---@field decorations_enabled? boolean
+---@field spinner_marks? table[]
+
 ---@class aero.acp.Block
 ---@field kind "user"|"agent"|"thought"|"tool"|"plan"|"permission"|"info"
 ---@field text? string
@@ -11,9 +23,6 @@
 ---@field entries? table[] plan entries
 ---@field options? table[] permission choices
 ---@field answer? string
----@field shown? integer editor-only revealed byte count
----@field cache? table editor-only formatting cache
----@field cache_src? string editor-only cache source
 
 ---@class aero.acp.PermissionRequest
 ---@field params table incoming protocol request

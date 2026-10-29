@@ -3,6 +3,8 @@ local api = vim.api
 local renderer = require("aero.acp.render")
 local options = require("aero.acp.editor_options")
 local folds = require("aero.acp.folds")
+local reveal = require("aero.acp.reveal")
+local editor = require("aero.acp.editor_state").get
 local M = {}
 local option_ns = api.nvim_create_namespace("Aero.acp.options")
 local select_ns = api.nvim_create_namespace("Aero.acp.option_select")
@@ -16,46 +18,30 @@ local option_hl = {
 
 function M.build_lines(chat)
 	local lines, marks, options, blocks, sections = renderer.build(chat)
-	chat.render_marks, chat.option_lines, chat.block_lines = marks, options, blocks
-	chat.sections = sections
+	local state = editor(chat)
+	state.render_marks, state.option_lines, state.block_lines = marks, options, blocks
+	state.sections = sections
 	return lines
 end
 
+function M.reveal(chat, block, initial_bytes)
+	reveal.track(chat, block, initial_bytes)
+end
+
 function M.advance(chat, instant)
-	local left = {}
-
-	for _, block in ipairs(chat.revealing) do
-		local text = block.text
-		local revealed = instant and #text
-			or math.min(#text, block.shown + math.max(3, math.ceil((#text - block.shown) / 8)))
-
-		-- Reveal whole UTF-8 characters while catching up proportionally to backlog.
-		while revealed < #text and text:byte(revealed + 1) >= 0x80 and text:byte(revealed + 1) < 0xC0 do
-			revealed = revealed + 1
-		end
-
-		if revealed >= #text then
-			block.shown = nil
-		else
-			block.shown = revealed
-			table.insert(left, block)
-		end
-	end
-
-	chat.revealing = left
-	return #left > 0
+	return reveal.advance(chat, instant)
 end
 
 function M.decorate_options(chat)
 	api.nvim_buf_clear_namespace(chat.buf, option_ns, 0, -1)
 
-	for line, option in pairs(chat.option_lines or {}) do
+	for line, option in pairs(editor(chat).option_lines or {}) do
 		api.nvim_buf_set_extmark(
 			chat.buf,
 			option_ns,
 			line - 1,
 			2,
-			{ end_col = #chat.lines[line], hl_group = option_hl[option.kind] or "Normal" }
+			{ end_col = #editor(chat).lines[line], hl_group = option_hl[option.kind] or "Normal" }
 		)
 	end
 
@@ -77,7 +63,7 @@ function M.mark_selected(chat)
 
 	local line = api.nvim_win_get_cursor(win)[1]
 
-	if (chat.option_lines or {})[line] then
+	if (editor(chat).option_lines or {})[line] then
 		api.nvim_buf_set_extmark(
 			buf,
 			select_ns,
@@ -91,7 +77,7 @@ end
 function M.option_range(chat, block)
 	local first, last
 
-	for line, option in pairs(chat.option_lines or {}) do
+	for line, option in pairs(editor(chat).option_lines or {}) do
 		if option.block == (block or chat.permission and chat.permission.block) then
 			first = (not first or line < first) and line or first
 			last = (not last or line > last) and line or last
@@ -145,7 +131,7 @@ function M.goto_block(chat, block, permission)
 			return
 		end
 
-		local row = chat.block_lines and chat.block_lines[block]
+		local row = editor(chat).block_lines and editor(chat).block_lines[block]
 
 		for _, win in ipairs(vim.fn.win_findbuf(chat.buf)) do
 			if api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage() then
@@ -162,26 +148,26 @@ end
 local function decorate(chat, first)
 	local enabled = require("aero.config").options.acp.decorations ~= false
 
-	if chat.decorations_enabled ~= enabled then
+	if editor(chat).decorations_enabled ~= enabled then
 		first = 1
 	elseif not first then
 		return
 	end
 
-	chat.decorations_enabled = enabled
-	renderer.decorate(chat.buf, chat.lines, chat.render_marks, first)
+	editor(chat).decorations_enabled = enabled
+	renderer.decorate(chat.buf, editor(chat).lines, editor(chat).render_marks, first)
 end
 
 -- Spinner frames are display-only. Editing transcript text at animation speed
 -- makes every buffer listener reprocess an increasingly large conversation.
 function M.spin(chat)
-	if chat.render_pending or not api.nvim_buf_is_valid(chat.buf) then
+	if editor(chat).render_pending or not api.nvim_buf_is_valid(chat.buf) then
 		return
 	end
 
 	local frame = require("aero.spinner").frame()
 
-	for _, mark in ipairs(chat.spinner_marks or {}) do
+	for _, mark in ipairs(editor(chat).spinner_marks or {}) do
 		local text = frame
 
 		if mark.activity then
@@ -201,11 +187,11 @@ end
 
 local function spinners(chat)
 	api.nvim_buf_clear_namespace(chat.buf, spinner_ns, 0, -1)
-	chat.spinner_marks = {}
+	editor(chat).spinner_marks = {}
 
-	for _, mark in ipairs(chat.render_marks or {}) do
+	for _, mark in ipairs(editor(chat).render_marks or {}) do
 		if mark.spinner_col ~= nil then
-			table.insert(chat.spinner_marks, {
+			table.insert(editor(chat).spinner_marks, {
 				line = mark.line,
 				spinner_col = mark.spinner_col,
 				group = mark.group,
@@ -218,13 +204,13 @@ local function spinners(chat)
 end
 
 function M.render(chat)
-	if chat.render_pending then
+	if editor(chat).render_pending then
 		return
 	end
 
-	chat.render_pending = true
+	editor(chat).render_pending = true
 	vim.defer_fn(function()
-		chat.render_pending = false
+		editor(chat).render_pending = false
 		local buf = chat.buf
 
 		if not api.nvim_buf_is_valid(buf) then
@@ -243,7 +229,7 @@ function M.render(chat)
 			end
 		end
 
-		local old, new = chat.lines, chat:build_lines()
+		local old, new = editor(chat).lines, chat:build_lines()
 		require("aero.acp.todos").update(chat)
 
 		if not old or #old ~= api.nvim_buf_line_count(buf) then
@@ -256,7 +242,7 @@ function M.render(chat)
 		end
 
 		if first > #old and first > #new then
-			chat.lines = new
+			editor(chat).lines = new
 			decorate(chat)
 			spinners(chat)
 			chat:decorate_options()
@@ -278,12 +264,12 @@ function M.render(chat)
 
 		if not ok then
 			folds.apply(chat, true)
-			chat.lines = nil
+			editor(chat).lines = nil
 			vim.notify("Aero: failed to render transcript: " .. tostring(err), vim.log.levels.ERROR)
 			return
 		end
 
-		chat.lines = new
+		editor(chat).lines = new
 		decorate(chat, first)
 		spinners(chat)
 		folds.apply(chat)
@@ -302,8 +288,8 @@ function M.render(chat)
 
 		chat:decorate_options()
 
-		if chat.pending_focus then
-			chat.pending_focus = false
+		if editor(chat).pending_focus then
+			editor(chat).pending_focus = false
 			chat:goto_permission(false)
 		end
 	end, 16)

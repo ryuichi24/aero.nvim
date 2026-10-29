@@ -41,14 +41,14 @@ local function render()
 
 	assert(
 		vim.wait(2000, function()
-			return not chat.render_pending
+			return not chat.editor.render_pending
 		end, 10),
 		"render timed out"
 	)
 end
 
 local function section(kind, block)
-	for _, value in ipairs(chat.sections) do
+	for _, value in ipairs(chat.editor.sections) do
 		if value.kind == kind and value.key == block then
 			return value
 		end
@@ -66,7 +66,7 @@ local function normal(keys)
 end
 
 render()
-local lines = table.concat(chat.lines, "\n")
+local lines = table.concat(chat.editor.lines, "\n")
 
 assert(lines:find("## Session setup", 1, true))
 assert(lines:find("## Turn 1 — Inspect the source ⏎ and explain the result", 1, true))
@@ -77,7 +77,7 @@ assert(lines:find("### Tools · 2 calls · 1 Read, 1 Command", 1, true))
 local turn1, turn2 = section("turn", first), section("turn", second)
 local group = section("tools", read)
 
-assert(turn1.last < turn2.first and section("tools", edit).first > chat.block_lines[decision])
+assert(turn1.last < turn2.first and section("tools", edit).first > chat.editor.block_lines[decision])
 assert(vim.fn.foldclosed(turn1.first) == -1, "prompt turn is collapsed by default")
 assert(vim.fn.foldclosed(group.first) == group.first, "tool group is not collapsed by default")
 assert(vim.fn.foldclosed(section("thought", thought).first) == section("thought", thought).first)
@@ -161,9 +161,9 @@ assert(api.nvim_win_get_cursor(0)[1] == section("turn", first).first)
 chat:goto_block(decision)
 
 assert(vim.wait(2000, function()
-	return api.nvim_win_get_cursor(0)[1] == chat.block_lines[decision]
+	return api.nvim_win_get_cursor(0)[1] == chat.editor.block_lines[decision]
 end, 10))
-assert(vim.fn.foldclosed(chat.block_lines[decision]) == -1)
+assert(vim.fn.foldclosed(chat.editor.block_lines[decision]) == -1)
 
 -- A failed call exposes its group and turn, even after the user closed them.
 cursor(section("tools", read).first)

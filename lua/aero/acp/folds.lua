@@ -108,11 +108,13 @@ end
 -- Called before changing buffer text. Inspect only folds being replaced and the
 -- closed ancestors hiding them, never walk/open all the historical folds.
 function M.prepare(chat, edit)
-	for win, view in pairs(chat.fold_views or {}) do
+	local editor = require("aero.acp.editor_state").get(chat)
+
+	for win, view in pairs(editor.fold_views or {}) do
 		if not api.nvim_win_is_valid(win) or api.nvim_win_get_buf(win) ~= chat.buf then
-			chat.fold_views[win] = nil
+			editor.fold_views[win] = nil
 		else
-			local pending = plan(view, chat.sections or {}, edit)
+			local pending = plan(view, editor.sections or {}, edit)
 			view.pending = pending
 
 			if #pending.remove > 0 then
@@ -155,18 +157,19 @@ function M.prepare(chat, edit)
 end
 
 function M.apply(chat, abort)
-	chat.fold_views = chat.fold_views or {}
+	local editor = require("aero.acp.editor_state").get(chat)
+	editor.fold_views = editor.fold_views or {}
 
 	for _, win in ipairs(vim.fn.win_findbuf(chat.buf)) do
-		local view = chat.fold_views[win]
+		local view = editor.fold_views[win]
 		local fresh = not view
 
 		if fresh then
 			view = { sections = {} }
-			chat.fold_views[win] = view
+			editor.fold_views[win] = view
 		end
 
-		local sections = abort and view.sections or chat.sections or {}
+		local sections = abort and view.sections or editor.sections or {}
 		local pending = view.pending or plan(view, sections)
 
 		if abort then
@@ -246,7 +249,7 @@ function M.jump(chat, direction)
 	local row = api.nvim_win_get_cursor(0)[1]
 	local turns = {}
 
-	for _, section in ipairs(chat.sections or {}) do
+	for _, section in ipairs(require("aero.acp.editor_state").get(chat).sections or {}) do
 		if section.kind == "turn" then
 			table.insert(turns, section)
 		end

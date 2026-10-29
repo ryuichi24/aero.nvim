@@ -23,6 +23,8 @@ local chat = {
 		},
 	},
 }
+local reveal = require("aero.acp.reveal")
+reveal.track(chat, chat.blocks[2], 2)
 vim.ui.select = function(_, _, callback)
 	callback("Keep original only")
 end
@@ -37,6 +39,7 @@ assert(text:find("first\nsecond\nthird", 1, true))
 assert(not text:find("more lines", 1, true))
 assert(text:find("secret_detail", 1, true) and text:find("raw detail", 1, true))
 assert(chat.blocks[2].shown == 2, "export mutated live reveal state")
+assert(reveal.text(chat.blocks[2]) == "Co", "export changed editor-owned reveal progress")
 assert(#exports.list(dir) == 1)
 
 local second = exports.export(chat)
