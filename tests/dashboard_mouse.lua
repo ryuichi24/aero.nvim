@@ -37,15 +37,25 @@ for _, position in ipairs({ { winid = 0, line = 5 }, { winid = dashboard_win, li
 	assert(api.nvim_get_current_buf() == dashboard, "click outside a tree row opened a worktree")
 end
 
-local function click(line, key)
+local function row(text)
+	for line, value in ipairs(api.nvim_buf_get_lines(dashboard, 0, -1, false)) do
+		if value:find(text, 1, true) then
+			return line
+		end
+	end
+
+	error("missing dashboard row: " .. text)
+end
+
+local function click(text, key)
 	api.nvim_set_current_win(dashboard_win)
-	api.nvim_win_set_cursor(dashboard_win, { 3, 0 })
-	mouse = { winid = dashboard_win, line = line }
+	api.nvim_win_set_cursor(dashboard_win, { row("▾ main"), 0 })
+	mouse = { winid = dashboard_win, line = row(text) }
 	mapping(key).callback()
 end
 
 -- The cursor is on the workspace: the action must use the mouse's worktree row.
-click(5, "<C-LeftMouse>")
+click("feature (feature)", "<C-LeftMouse>")
 
 assert(
 	vim.wait(1000, function()
@@ -62,7 +72,7 @@ local code_buf = api.nvim_get_current_buf()
 aero.open_worktree(main)
 aero.open()
 dashboard_win = api.nvim_get_current_win()
-click(5, "<C-LeftMouse>")
+click("feature (feature)", "<C-LeftMouse>")
 
 assert(
 	vim.wait(1000, function()
@@ -74,7 +84,7 @@ assert(
 -- Ctrl-Enter uses the selected row, independently of the last mouse position.
 aero.open()
 dashboard_win = api.nvim_get_current_win()
-api.nvim_win_set_cursor(dashboard_win, { 4, 0 })
+api.nvim_win_set_cursor(dashboard_win, { row("main (main)"), 0 })
 
 assert(type(mapping("<C-CR>").callback) == "function")
 
@@ -100,7 +110,7 @@ assert(type(mapping("<S-LeftMouse>").callback) == "function")
 assert(mapping("<C-CR>").buffer ~= 1, "default Enter chord survived customization")
 assert(type(mapping("g<CR>").callback) == "function")
 
-api.nvim_win_set_cursor(dashboard_win, { 5, 0 })
+api.nvim_win_set_cursor(dashboard_win, { row("feature (feature)"), 0 })
 mapping("g<CR>").callback()
 
 assert(
@@ -110,7 +120,7 @@ assert(
 
 aero.open()
 dashboard_win = api.nvim_get_current_win()
-click(4, "<S-LeftMouse>")
+click("main (main)", "<S-LeftMouse>")
 
 assert(
 	vim.wait(1000, function()
@@ -121,7 +131,7 @@ assert(
 
 -- Plain e explicitly browses source, unlike the resume shortcuts above.
 aero.open()
-api.nvim_win_set_cursor(0, { 5, 0 })
+api.nvim_win_set_cursor(0, { row("feature (feature)"), 0 })
 mapping("e").callback()
 
 assert(vim.t.aero_worktree == feature)

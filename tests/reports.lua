@@ -216,7 +216,9 @@ local dashboard, dw = api.nvim_get_current_buf(), api.nvim_get_current_win()
 
 local function row(text)
 	for i, line in ipairs(api.nvim_buf_get_lines(dashboard, 0, -1, false)) do
-		if line == text or vim.startswith(line, text .. " [") then
+		local label, expected = vim.trim(line), vim.trim(text)
+
+		if label == expected or vim.startswith(label, expected .. " [") then
 			return i
 		end
 	end
