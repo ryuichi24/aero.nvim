@@ -254,37 +254,51 @@ function M.build(snapshot)
 						end
 					end
 
-					if #tree.sessions == 0 then
-						add(
-							{ { "       no agents — press a to start one", "AeroDim" } },
-							vim.tbl_extend("force", item, { id = "wt-empty:" .. wt.path })
-						)
-					end
+					local sessions_id = "sessions:" .. wt.path
+					add({
+						{ "     " .. (tree.sessions_open ~= false and icons.expanded or icons.collapsed) .. " " },
+						{ "Sessions", "AeroWorkspace" },
+					}, { kind = "sessions", id = sessions_id, parent = item.id, ws = ws, wt = wt }, {
+						{ " " .. #tree.sessions, "AeroDim" },
+					})
 
-					for _, entry in ipairs(tree.sessions) do
-						local selected, highlight = entry.session, status_hl[entry.status]
-						local details = { { " " .. (entry.activity or entry.status), highlight } }
-
-						if entry.usage then
-							table.insert(details, { " · " .. entry.usage, "AeroDim" })
+					if tree.sessions_open ~= false then
+						if #tree.sessions == 0 then
+							add(
+								{ { "       no agents — press a to start one", "AeroDim" } },
+								vim.tbl_extend("force", item, { id = "wt-empty:" .. wt.path, parent = sessions_id })
+							)
 						end
 
-						if selected.name ~= selected.agent then
-							table.insert(details, { " " .. selected.agent, "AeroDim" })
-						end
+						for _, entry in ipairs(tree.sessions) do
+							local selected, highlight = entry.session, status_hl[entry.status]
+							local details = { { " " .. (entry.activity or entry.status), highlight } }
 
-						add(
-							{ { "     " }, { entry.icon, highlight }, { " " .. selected.name, "AeroSession" } },
-							{ kind = "session", id = "s:" .. selected.key, ws = ws, wt = wt, session = selected },
-							details
-						)
-						add({ { "       " .. entry.assignment, "AeroDim" } }, {
-							kind = "session",
-							id = "assignment:" .. selected.key,
-							ws = ws,
-							wt = wt,
-							session = selected,
-						})
+							if entry.usage then
+								table.insert(details, { " · " .. entry.usage, "AeroDim" })
+							end
+
+							if selected.name ~= selected.agent then
+								table.insert(details, { " " .. selected.agent, "AeroDim" })
+							end
+
+							add({ { "       " }, { entry.icon, highlight }, { " " .. selected.name, "AeroSession" } }, {
+								kind = "session",
+								id = "s:" .. selected.key,
+								parent = sessions_id,
+								ws = ws,
+								wt = wt,
+								session = selected,
+							}, details)
+							add({ { "         " .. entry.assignment, "AeroDim" } }, {
+								kind = "session",
+								id = "assignment:" .. selected.key,
+								parent = sessions_id,
+								ws = ws,
+								wt = wt,
+								session = selected,
+							})
+						end
 					end
 
 					add(

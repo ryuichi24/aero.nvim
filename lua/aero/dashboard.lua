@@ -22,6 +22,7 @@ local state = {
 	reference_expanded = {}, -- worktree path -> reference section expanded
 	reference_folders_expanded = {}, -- reference directory path -> expanded
 	exports_expanded = {}, -- worktree path -> exported logs section expanded
+	sessions_expanded = {}, -- worktree path -> agent sessions section expanded
 	boards_expanded = {}, -- workspace root -> board section expanded
 	submodules_expanded = {}, -- checkout path -> submodule section expanded
 	repositories_expanded = {}, -- submodule checkout path -> repository expanded
@@ -168,6 +169,7 @@ function M.collapse(kind)
 		reports = state.reports_expanded,
 		reading = state.reading_expanded,
 		exports = state.exports_expanded,
+		sessions = state.sessions_expanded,
 		reference = state.reference_expanded,
 	}
 
@@ -206,6 +208,10 @@ function M.collapse(kind)
 			local list = cache and cache.list or git.list(ws.root)
 
 			for _, wt in ipairs(list or {}) do
+				if kind == "all" then
+					state.sessions_expanded[wt.path] = false
+				end
+
 				if kind == "all" or kind == "reading" then
 					state.reading_expanded[wt.path] = false
 				end
@@ -762,6 +768,8 @@ function actions.toggle()
 		load_worktrees()
 	elseif item.kind == "worktree" then
 		state.expanded[item.wt.path] = not wt_expanded(item.wt, session.list(item.wt.path))
+	elseif item.kind == "sessions" then
+		state.sessions_expanded[item.wt.path] = state.sessions_expanded[item.wt.path] == false
 	elseif item.kind == "exports" then
 		state.exports_expanded[item.wt.path] = state.exports_expanded[item.wt.path] == false
 	elseif item.kind == "reports" then
@@ -817,6 +825,8 @@ function actions.expand()
 		expanded = state.repositories_expanded[item.submodule.path] == true
 	elseif item.kind == "workspace" then
 		expanded = item.ws.expanded ~= false
+	elseif item.kind == "sessions" then
+		expanded = state.sessions_expanded[item.wt.path] ~= false
 	elseif item.kind == "exports" then
 		expanded = state.exports_expanded[item.wt.path] ~= false
 	elseif item.kind == "reports" then
@@ -876,6 +886,7 @@ function actions.collapse()
 		or item.kind == "reference_item" and item.reference.kind == "directory"
 		or item.kind == "boards"
 		or item.kind == "exports"
+		or item.kind == "sessions"
 	local open = item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "submodules" and state.submodules_expanded[item.wt.path] == true
 		or item.kind == "submodule" and state.repositories_expanded[item.submodule.path] == true
@@ -885,6 +896,7 @@ function actions.collapse()
 		or item.kind == "reference" and state.reference_expanded[item.wt.path] ~= false
 		or item.kind == "reference_item" and state.reference_folders_expanded[item.reference.path] == true
 		or item.kind == "exports" and state.exports_expanded[item.wt.path] ~= false
+		or item.kind == "sessions" and state.sessions_expanded[item.wt.path] ~= false
 		or item.kind == "boards" and state.boards_expanded[item.ws.root] ~= false
 
 	if is_header and open then

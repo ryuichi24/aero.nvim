@@ -107,6 +107,7 @@ function M.prepare(workspaces, state, on_repository_changed)
 				table.insert(workspace.worktrees, tree)
 
 				if tree.expanded then
+					tree.sessions_open = (state.sessions_expanded or {})[wt.path] ~= false
 					tree.submodules_open = state.submodules_expanded[wt.path] == true
 					tree.submodules = {}
 
