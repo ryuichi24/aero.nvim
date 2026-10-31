@@ -3,7 +3,7 @@ local M = {}
 local session = require("aero.session")
 local store = require("aero.store")
 local config = require("aero.config")
-local tab
+local view = require("aero.conversation_view").new()
 
 function M.directory()
 	return vim.fs.dirname(config.options.state_file) .. "/general"
@@ -14,28 +14,7 @@ local function notify(err)
 end
 
 function M.show(s)
-	local dashboard = require("aero.dashboard")
-	local had_dashboard = dashboard.is_open()
-
-	if not tab or not vim.api.nvim_tabpage_is_valid(tab) then
-		vim.cmd.tabnew()
-		tab = vim.api.nvim_get_current_tabpage()
-	end
-
-	vim.api.nvim_set_current_tabpage(tab)
-	vim.cmd("tcd " .. vim.fn.fnameescape(M.directory()))
-
-	if had_dashboard and config.options.dashboard.position ~= "current" and not dashboard.is_open() then
-		dashboard.open()
-	end
-
-	local win = session.show(s, require("aero.navigation").code_window())
-
-	if win then
-		vim.api.nvim_set_current_win(win)
-	end
-
-	return win
+	return view.show(s, { directory = M.directory() })
 end
 
 function M.new(requested_agent)
