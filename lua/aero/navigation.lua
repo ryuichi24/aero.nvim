@@ -115,34 +115,26 @@ function M.enter_worktree(path, opts)
 end
 
 function M.open_session(selected, how)
-	local session = require("aero.session")
+	local presentation = require("aero.conversation_presentation")
+	local use_panel = how == "default" and panel.enabled() and config.options.dashboard.position ~= "current"
 
-	if how == "default" and panel.enabled() and config.options.dashboard.position ~= "current" then
+	if use_panel then
 		if not M.enter_worktree(selected.worktree) then
 			return
 		end
-
-		return panel.focus(selected)
 	end
 
-	local win = M.code_window()
+	local win = presentation.show(selected, {
+		panel = use_panel,
+		split = how ~= "default" and how or nil,
+		reuse = how == "default",
+	})
 
-	if how ~= "default" then
-		api.nvim_set_current_win(win)
-		vim.cmd(({ vsplit = "vsplit", split = "split", tab = "tab split" })[how])
-		win = api.nvim_get_current_win()
-	end
-
-	win = session.show(selected, win, how == "default")
-
-	if win then
+	if win and not use_panel then
 		dashboard.state.target = win
-		api.nvim_set_current_win(win)
-
-		if config.options.start_insert then
-			session.enter(selected)
-		end
 	end
+
+	return presentation.focus(selected, win, config.options.start_insert)
 end
 
 function M.open_worktree(path, opener, opts)
