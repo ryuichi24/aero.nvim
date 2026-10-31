@@ -22,7 +22,7 @@ local function highlights()
 	end
 end
 
-local function decorate(buf, lines, session)
+local function decorate(buf, lines, session, row_groups)
 	api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 	local sources = false
 	local function mark(row, first, last, group)
@@ -38,6 +38,8 @@ local function decorate(buf, lines, session)
 		if heading then
 			sources = heading == "Active sources"
 			mark(row, 0, #line, "AeroInfoSection")
+		elseif row_groups[row] then
+			mark(row, 0, #line, row_groups[row])
 		elseif line ~= "" then
 			local label = line:match("^%s*[^:]+: ")
 			local group = sources and not label and "AeroInfoSource" or "AeroInfoValue"
@@ -72,6 +74,7 @@ end
 
 function M.lines(session)
 	local chat = session.chat or require("aero.history").load(session)
+	local row_groups = {}
 	local lines = {
 		"Session",
 		"Name: " .. session.name,
@@ -98,6 +101,7 @@ function M.lines(session)
 	if todos then
 		for _, row in ipairs(todo_view.rows(todos)) do
 			table.insert(lines, row.text)
+			row_groups[#lines] = row.group
 		end
 	end
 
@@ -131,7 +135,7 @@ function M.lines(session)
 		end
 	end
 
-	return lines
+	return lines, row_groups
 end
 
 function M.update()
@@ -141,18 +145,25 @@ function M.update()
 		else
 			local panel = require("aero.panel").win(tab)
 			local session = panel and require("aero.session").from_buf(api.nvim_win_get_buf(panel))
-			local lines = session and M.lines(session) or { "No session selected" }
+			local lines, row_groups
 
-			if not vim.deep_equal(lines, state.lines) then
+			if session then
+				lines, row_groups = M.lines(session)
+			else
+				lines, row_groups = { "No session selected" }, {}
+			end
+
+			if not vim.deep_equal(lines, state.lines) or not vim.deep_equal(row_groups, state.row_groups) then
 				local view = api.nvim_win_call(state.win, vim.fn.winsaveview)
 				vim.bo[state.buf].modifiable = true
 				api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
-				decorate(state.buf, lines, session)
+				decorate(state.buf, lines, session, row_groups)
 				vim.bo[state.buf].modifiable = false
 				api.nvim_win_call(state.win, function()
 					vim.fn.winrestview(view)
 				end)
 				state.lines = lines
+				state.row_groups = row_groups
 			end
 		end
 	end

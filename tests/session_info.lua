@@ -41,6 +41,33 @@ assert(not vim.wo[transcript].winbar:find("Board:", 1, true))
 assert(panel.owns(win))
 assert(#api.nvim_buf_get_extmarks(buf, api.nvim_create_namespace("AeroSessionInfo"), 0, -1, {}) > 0)
 
+local entries = {
+	{ content = "Pending item", status = "pending" },
+	{ content = "Working: item with a colon", status = "in_progress" },
+	{ content = "Completed item", status = "completed" },
+	{ content = "Cancelled item", status = "cancelled" },
+}
+table.insert(session.chat.blocks, { kind = "plan", entries = entries })
+info.update()
+local expected_rows = require("aero.acp.todos").rows(entries)
+local rendered = api.nvim_buf_get_lines(buf, 0, -1, false)
+local marks = api.nvim_buf_get_extmarks(buf, api.nvim_create_namespace("AeroSessionInfo"), 0, -1, { details = true })
+
+for _, expected in ipairs(expected_rows) do
+	local found = false
+
+	for _, mark in ipairs(marks) do
+		if rendered[mark[2] + 1] == "  " .. expected.text and mark[4].hl_group == expected.group then
+			found = true
+		end
+	end
+
+	assert(found, "info todo must use popup highlight " .. expected.group)
+end
+
+table.remove(session.chat.blocks)
+info.update()
+
 api.nvim_win_set_cursor(win, { 8, 0 })
 session.chat.usage = { context = { used = 100, size = 1000 } }
 info.update()
