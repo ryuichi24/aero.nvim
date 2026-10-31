@@ -40,6 +40,37 @@ require("aero").setup({
 
 ## Transcript and prompt
 
+Run `:Aero info` to toggle a separate **Session info** window for the session
+shown in the agent panel. It follows session changes and shows agent/model/mode,
+activity, location, reported usage, linked task, and todo progress. Knowledge
+sessions also show scope, tags, and the active source list. Long values wrap and
+the window scrolls independently; updates preserve focus and scroll position.
+It sits above narrow transcripts or beside them when the combined transcript/info
+width reaches 100 columns, and automatically moves as you resize the panel.
+Focus the window using normal window navigation and press `q` to close it, or run
+`:Aero info` again. While it is open, the transcript header shows only session name
+and activity. Closing the agent panel also closes its info window.
+
+To open Session info by default whenever the agent panel opens:
+
+```lua
+require("aero").setup({
+  panel = {
+    info = true, -- default: false
+    info_auto_position = true, -- default: true; reposition as the panel resizes
+    info_position_threshold_columns = 100, -- combined transcript/info width for side-by-side placement
+  },
+})
+```
+
+You can still close it with `q` or `:Aero info`; switching sessions keeps that
+choice until the agent panel is closed and reopened.
+Set `panel.info_auto_position = false` to keep the info window in its initial
+position while resizing. Its initial position still depends on the available
+width when it opens.
+Use `panel.info_position_threshold_columns` to change the width threshold (default: 100
+columns) for both initial placement and automatic repositioning.
+
 Transcripts are read-only Markdown with native highlighting and virtual borders:
 
 - Numbered prompt turns with a preview of your prompt, labeled agent Messages, and muted Thinking sections.
