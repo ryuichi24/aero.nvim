@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 
-UNIT_TESTS = {"atomic_file", "mcp_attachment", "local_commands", "reveal", "listeners", "dashboard_subscriptions", "state_transactions"}
+UNIT_TESTS = {"atomic_file", "conversation_view", "mcp_attachment", "local_commands", "reveal", "listeners", "dashboard_subscriptions", "state_transactions"}
 
 
 def main():
