@@ -11,7 +11,9 @@ require("aero").setup({ state_file = dir .. "/state.json", animation = false, st
 require("aero.store").add_workspace(dir)
 local sessions = require("aero.session")
 local shown
-require("aero.panel").focus = function(s)
+require("aero.navigation").open_session = function(s, how)
+	assert(how == "default", "session creation did not use default navigation")
+
 	shown = s
 end
 local dashboard = require("aero.dashboard")
