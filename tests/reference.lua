@@ -107,6 +107,31 @@ assert(not ok and err:match("already exists"))
 assert(vim.fn.isdirectory(dir .. "/source/folder") == 1, "collision removed source")
 
 local config = require("aero.config")
+-- A partially completed cut must be retryable even though its original is gone.
+local retry_items = {
+	{ path = dir .. "/source/retry-cut.txt", action = "cut" },
+	{ path = dir .. "/source/retry-copy.txt", action = "copy" },
+}
+vim.fn.writefile({ "cut" }, retry_items[1].path)
+vim.fn.writefile({ "copy" }, retry_items[2].path)
+local original_copy = vim.uv.fs_copyfile
+vim.uv.fs_copyfile = function(source, destination, flags)
+	if source == retry_items[2].path then
+		return nil, "injected copy failure"
+	end
+
+	return original_copy(source, destination, flags)
+end
+ok, err = reference.transfer(dir .. "/retry-worktree", retry_items)
+vim.uv.fs_copyfile = original_copy
+
+assert(not ok and err:match("injected copy failure"))
+assert(retry_items[1].done and not retry_items[2].done)
+assert(vim.fn.filereadable(retry_items[1].path) == 0)
+assert(reference.transfer(dir .. "/retry-worktree", retry_items))
+assert(retry_items[2].done)
+assert(vim.fn.readfile(reference.directory(dir .. "/retry-worktree") .. "/retry-copy.txt")[1] == "copy")
+
 config.options.reference_finder.directory = ".aero/references"
 ok, err = reference.transfer(dir .. "/source/folder", { { path = dir .. "/source/folder", action = "copy" } })
 

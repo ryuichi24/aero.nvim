@@ -2,6 +2,7 @@
 local M = {}
 local uv = vim.uv
 local storage = require("aero.storage")
+local transfers = require("aero.file_transfer")
 
 function M.directory(worktree, ws)
 	worktree = storage.canonical(worktree)
@@ -112,31 +113,25 @@ end
 -- Preflight the whole batch before touching sources; never overwrite existing material.
 function M.transfer(worktree, items)
 	local directory = M.directory(worktree)
-	local names = {}
+	local prepared, prepare_err = transfers.prepare(items)
 
-	for _, item in ipairs(items) do
-		local name = vim.fs.basename(item.path)
+	if not prepared then
+		return nil, prepare_err
+	end
 
-		if names[name] or uv.fs_lstat(vim.fs.joinpath(directory, name)) then
+	for _, source in ipairs(prepared) do
+		local item, name = source.item, source.name
+
+		if uv.fs_lstat(vim.fs.joinpath(directory, name)) then
 			return nil, "reference item already exists: " .. name
 		end
-
-		names[name] = true
 
 		if not uv.fs_lstat(item.path) then
 			return nil, "source no longer exists: " .. item.path
 		end
 
-		local source = storage.canonical(item.path)
-
-		if source == "/" or directory == source or storage.inside(directory, source) then
+		if transfers.destination_inside_source(source.root, directory) then
 			return nil, "reference destination is inside source: " .. item.path
-		end
-
-		for _, other in ipairs(items) do
-			if other ~= item and storage.inside(storage.canonical(other.path), source) then
-				return nil, "select a folder or its contents, rather than both: " .. item.path
-			end
 		end
 	end
 
