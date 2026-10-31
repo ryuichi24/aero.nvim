@@ -48,7 +48,6 @@ end
 
 local function write(data)
 	local path = config.options.state_file
-	vim.fn.mkdir(vim.fs.dirname(path), "p")
 	local out = { workspaces = data.workspaces, sessions = vim.empty_dict(), worktree_buffers = vim.empty_dict() }
 
 	if config.options.persist_buffers then
@@ -65,29 +64,7 @@ local function write(data)
 		end
 	end
 
-	local tmp = ("%s.%d.tmp"):format(path, vim.fn.getpid())
-	local f, err = io.open(tmp, "w")
-
-	if not f then
-		return nil, tostring(err)
-	end
-
-	local written, write_err = f:write(vim.json.encode(out))
-	local closed, close_err = f:close()
-
-	if not written or not closed then
-		os.remove(tmp)
-		return nil, tostring(write_err or close_err)
-	end
-
-	local ok, rerr = vim.uv.fs_rename(tmp, path)
-
-	if not ok then
-		os.remove(tmp)
-		return nil, tostring(rerr)
-	end
-
-	return true
+	return require("aero.atomic_file").write(path, vim.json.encode(out))
 end
 
 --- Pick up changes other instances saved. With persist_sessions off, sessions only live here.

@@ -47,16 +47,9 @@ function M.list(worktree)
 end
 
 local function write(path, text)
-	local tmp = path .. "." .. vim.fn.getpid() .. ".tmp"
-	local ok, err = pcall(function()
-		vim.fn.mkdir(vim.fs.dirname(path), "p")
-		vim.fn.writefile(vim.split(text, "\n", { plain = true }), tmp)
-		local renamed, reason = vim.uv.fs_rename(tmp, path)
-		assert(renamed, reason)
-	end)
+	local ok, err = require("aero.atomic_file").write(path, text .. "\n")
 
 	if not ok then
-		os.remove(tmp)
 		vim.notify("Aero: could not export log: " .. tostring(err), vim.log.levels.ERROR)
 		return false
 	end

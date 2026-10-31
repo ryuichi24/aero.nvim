@@ -34,28 +34,11 @@ local function write(s, snapshot)
 		return
 	end
 
-	local file = path(s)
-	vim.fn.mkdir(vim.fs.dirname(file), "p")
-	local tmp = file .. "." .. vim.fn.getpid() .. ".tmp"
-	local f, err = io.open(tmp, "w")
+	local ok, err = require("aero.atomic_file").write(path(s), vim.json.encode(data))
 
-	if f then
-		local ok, result = f:write(vim.json.encode(data))
-		f:close()
-
-		if ok then
-			ok, result = vim.uv.fs_rename(tmp, file)
-		end
-
-		if ok then
-			return
-		end
-
-		err = result
-		os.remove(tmp)
+	if not ok then
+		vim.notify("aero: can't save history: " .. tostring(err), vim.log.levels.ERROR)
 	end
-
-	vim.notify("aero: can't save history: " .. tostring(err), vim.log.levels.ERROR)
 end
 
 function M.flush(s)

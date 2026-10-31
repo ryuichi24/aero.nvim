@@ -23,11 +23,8 @@ function M.load(worktree, id)
 end
 
 local function save(worktree, list)
-	vim.fn.mkdir(directory(worktree), "p")
 	local target = path(worktree, list.id)
-	local tmp = target .. "." .. vim.fn.getpid() .. ".tmp"
-	vim.fn.writefile({ vim.json.encode(list) }, tmp)
-	assert(vim.uv.fs_rename(tmp, target))
+	assert(require("aero.atomic_file").write(target, vim.json.encode(list) .. "\n"))
 	require("aero.events").emit("reading_changed", { worktree = worktree, id = list.id })
 end
 
