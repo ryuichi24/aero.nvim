@@ -83,11 +83,36 @@ assert(vim.fn.foldclosed(group.first) == group.first, "tool group is not collaps
 assert(vim.fn.foldclosed(section("thought", thought).first) == section("thought", thought).first)
 assert(vim.fn.foldtextresult(group.first):find("Tools · 2 calls", 1, true), "fold summary is not readable")
 
+-- Closed summaries have their own background, independent of expanded headers.
+api.nvim_set_hl(0, "AeroChatFolded", { bg = "#354A57" })
+api.nvim_set_hl(0, "AeroChatHeader", { bg = "#112233" })
+
+local function background()
+	vim.cmd("redraw!")
+	local position = vim.fn.screenpos(0, group.first, 1)
+	return vim.fn.screenattr(position.row, vim.o.columns - 2)
+end
+
+cursor(group.first)
+local closed_background = background()
+api.nvim_set_hl(0, "AeroChatHeader", { bg = "#445566" })
+
+assert(background() == closed_background, "expanded header color overrides the collapsed summary")
+
+api.nvim_set_hl(0, "AeroChatFolded", { bg = "#778899" })
+
+assert(background() ~= closed_background, "collapsed summary ignores AeroChatFolded")
+
 cursor(group.first)
 normal("zo")
 
 assert(vim.fn.foldclosed(group.first) == -1)
 assert(vim.fn.foldclosed(section("tool", read).first) == section("tool", read).first)
+
+local expanded_background = background()
+api.nvim_set_hl(0, "AeroChatFolded", { bg = "#AABBCC" })
+
+assert(background() == expanded_background, "collapsed summary color affects expanded headers")
 
 cursor(section("tool", read).first)
 normal("zo")

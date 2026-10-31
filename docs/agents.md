@@ -65,6 +65,13 @@ Existing saved histories receive the same grouping; events before the first prom
 appear under **Session setup**. Agent Messages show the explanations and decisions
 the agent sends; Thinking sections appear only when reported by the agent.
 
+Collapsed summaries use `AeroChatFolded` (linked to `Folded` by default), independently
+of expanded card headers (`AeroChatHeader`). Set it after loading your colorscheme:
+
+```lua
+vim.api.nvim_set_hl(0, "AeroChatFolded", { bg = "#354A57" })
+```
+
 Choose which sections start collapsed with `acp.collapsed` (`true` collapses,
 `false` expands). Omitted fields keep these defaults:
 

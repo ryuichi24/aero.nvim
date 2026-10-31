@@ -42,8 +42,11 @@ local function lookup(indexed, section)
 end
 
 function M.text()
-	return vim.fn.getline(vim.v.foldstart):gsub("^#+%s*", "")
+	local text = vim.fn.getline(vim.v.foldstart):gsub("^#+%s*", "")
 		.. ("  · %d lines"):format(vim.v.foldend - vim.v.foldstart)
+
+	-- Cover the header's line highlight across the closed summary, not just its text.
+	return { { text .. string.rep(" ", api.nvim_win_get_width(0)), "AeroChatFolded" } }
 end
 
 -- Fold boundaries strictly outside a replacement move automatically, including
@@ -184,6 +187,17 @@ function M.apply(chat, abort)
 					local position = vim.fn.winsaveview()
 
 					if fresh then
+						api.nvim_set_hl(0, "AeroChatFolded", { link = "Folded", default = true })
+						local highlights = vim.split(vim.wo.winhighlight, ",", { trimempty = true })
+
+						for i = #highlights, 1, -1 do
+							if highlights[i]:match("^Folded:") then
+								table.remove(highlights, i)
+							end
+						end
+
+						table.insert(highlights, "Folded:AeroChatFolded")
+						vim.wo.winhighlight = table.concat(highlights, ",")
 						vim.wo.foldmethod, vim.wo.foldenable, vim.wo.foldlevel = "manual", true, 99
 						vim.wo.foldtext = "v:lua.require'aero.acp.folds'.text()"
 						vim.cmd("silent! normal! zE")
