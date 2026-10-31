@@ -4,6 +4,9 @@ end
 
 vim.g.loaded_Aero = true
 local subcommands = {
+	info = function()
+		require("aero.session_info").toggle()
+	end,
 	reading = function(args)
 		require("aero").reading(args[1])
 	end,

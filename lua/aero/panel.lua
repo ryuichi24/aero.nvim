@@ -38,6 +38,12 @@ function M.owns(win)
 		return true
 	end
 
+	local info = package.loaded["aero.session_info"]
+
+	if info and win == info.win(api.nvim_win_get_tabpage(win)) then
+		return true
+	end
+
 	return vim.b[api.nvim_win_get_buf(win)].aero_chat_key ~= nil
 end
 
@@ -52,6 +58,18 @@ local function winbar(win)
 	local st = session.status(s)
 	local hl = ({ busy = "AeroBusy", idle = "AeroIdle", waiting = "AeroWaiting", exited = "AeroExited" })[st]
 		or "AeroStopped"
+	local info = package.loaded["aero.session_info"]
+
+	if info and info.win(api.nvim_win_get_tabpage(win)) then
+		vim.wo[win].winbar = (" %%#AeroSession#%s%%* · %%#%s#%s %s%%*"):format(
+			s.name:gsub("%%", "%%%%"),
+			hl,
+			session.icon(s) or "",
+			(session.activity(s) or st):gsub("%%", "%%%%")
+		)
+		return
+	end
+
 	local where = vim.fn.fnamemodify(s.worktree, ":t")
 	local model = s.chat and s.chat:model_title()
 
@@ -109,6 +127,7 @@ function M.open()
 	})
 	vim.wo[win].winfixwidth = true
 	tab_state().win = win
+	tab_state().info_default_applied = false
 	layout.track(win, "panel", nil, width)
 	layout.rebalance()
 	events.emit("panel_opened", { win = win, tab = api.nvim_get_current_tabpage() })
@@ -121,7 +140,20 @@ function M.shown(s)
 
 	if win and api.nvim_win_get_buf(win) == s.buf then
 		tab_state().last = s.key
+
+		if not tab_state().info_default_applied then
+			tab_state().info_default_applied = true
+
+			if config.options.panel and config.options.panel.info then
+				require("aero.session_info").toggle()
+			end
+		end
+
 		winbar(win)
+
+		if package.loaded["aero.session_info"] then
+			require("aero.session_info").update()
+		end
 	end
 end
 
@@ -140,6 +172,10 @@ function M.close()
 
 	if not win then
 		return
+	end
+
+	if package.loaded["aero.session_info"] then
+		require("aero.session_info").close()
 	end
 
 	layout.remember(win)
@@ -279,9 +315,14 @@ local function update_winbars()
 		end
 	end
 
+	if package.loaded["aero.session_info"] then
+		require("aero.session_info").update()
+	end
+
 	return busy
 end
 
+M.refresh = update_winbars
 session.on_change(update_winbars)
 require("aero.spinner").on_frame(update_winbars)
 return M
