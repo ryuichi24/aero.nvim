@@ -188,18 +188,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method = "submodule_browse"
 		}
 
-		response, err := b.state.host.Call(r.Context(), method, input)
-		if err != nil {
-			reject(w, http.StatusServiceUnavailable, "Neovim unavailable")
-			return
-		}
-
-		if response.Error != "" {
-			reject(w, http.StatusBadRequest, response.Error)
-			return
-		}
-
-		reply(w, http.StatusOK, response.Result)
+		b.forwardHostRead(w, r, method, input)
 
 		return
 	}
