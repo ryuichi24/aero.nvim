@@ -25,19 +25,8 @@ function M.new()
 				dashboard.open()
 			end
 
-			local win
-
-			if options.panel and require("aero.panel").enabled() then
-				win = require("aero.panel").show(session)
-			else
-				win = require("aero.session").show(session, require("aero.navigation").code_window())
-			end
-
-			if win then
-				vim.api.nvim_set_current_win(win)
-			end
-
-			return win
+			local presentation = require("aero.conversation_presentation")
+			return presentation.focus(session, presentation.show(session, { panel = options.panel }))
 		end,
 	}
 end
