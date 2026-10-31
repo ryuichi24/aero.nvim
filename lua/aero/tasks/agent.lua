@@ -128,14 +128,16 @@ local function attach(session, binding, executable)
 	end
 
 	binding.worktree, binding.session_key = session.worktree, session.key
-	local transport, err = require("aero.tasks.bridge").bind(binding)
+	local attached, err = require("aero.mcp_attachment").attach(session, {
+		name = "aero-tasks",
+		transport_field = "task_transport",
+		executable = executable,
+		tools = "tasks,reports,reading",
+		binding = binding,
+	})
 
-	if not transport then
+	if not attached then
 		return nil, err
-	end
-
-	if session.task_transport then
-		require("aero.tasks.bridge").unbind(session.task_transport.credential)
 	end
 
 	session.task_binding = vim.deepcopy(binding)
@@ -145,17 +147,8 @@ local function attach(session, binding, executable)
 		table.insert(session.task_documents, ticket.path)
 	end
 
-	session.task_transport = transport
+	local transport = session.task_transport
 	session.runtime_env = { AERO_MCP_SOCKET = transport.socket, AERO_MCP_CREDENTIAL = transport.credential }
-	session.mcp_servers = vim.tbl_filter(function(server)
-		return server.name ~= "aero-tasks"
-	end, session.mcp_servers or {})
-	table.insert(session.mcp_servers, {
-		name = "aero-tasks",
-		command = executable,
-		args = { "serve", "--socket", transport.socket, "--tools", "tasks,reports,reading" },
-		env = { { name = "AERO_MCP_CREDENTIAL", value = transport.credential } },
-	})
 	return true
 end
 
