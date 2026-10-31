@@ -163,7 +163,7 @@ M.defaults = {
 	panel = {
 		position = "right", -- "left" | "right"
 		width = 80,
-		info = false, -- open Session info by default when the agent panel opens
+		info_open_by_default = false, -- open Session info by default when the agent panel opens
 		info_auto_position = true, -- move Session info above/beside the transcript as the panel resizes
 		info_position_threshold_columns = 100, -- combined transcript/info width required for side-by-side placement
 	},

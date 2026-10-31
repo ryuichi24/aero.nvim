@@ -56,7 +56,7 @@ To open Session info by default whenever the agent panel opens:
 ```lua
 require("aero").setup({
   panel = {
-    info = true, -- default: false
+    info_open_by_default = true, -- default: false
     info_auto_position = true, -- default: true; reposition as the panel resizes
     info_position_threshold_columns = 100, -- combined transcript/info width for side-by-side placement
   },

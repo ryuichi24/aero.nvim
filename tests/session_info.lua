@@ -87,7 +87,7 @@ info.close()
 assert(not info.win())
 assert(vim.wo[transcript].winbar:find("Board:", 1, true))
 
-options.info = true
+options.info_open_by_default = true
 panel.close()
 
 assert(panel.show(session))

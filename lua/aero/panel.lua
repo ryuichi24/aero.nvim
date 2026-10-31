@@ -144,7 +144,7 @@ function M.shown(s)
 		if not tab_state().info_default_applied then
 			tab_state().info_default_applied = true
 
-			if config.options.panel and config.options.panel.info then
+			if config.options.panel and config.options.panel.info_open_by_default then
 				require("aero.session_info").toggle()
 			end
 		end
