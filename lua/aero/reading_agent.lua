@@ -32,8 +32,8 @@ function M.attach(session)
 	table.insert(session.mcp_servers, {
 		name = "aero-reading",
 		command = executable,
-		args = { "serve", "--socket", transport.socket, "--reading-only" },
-		env = { { name = "AERO_TASK_CREDENTIAL", value = transport.credential } },
+		args = { "serve", "--socket", transport.socket, "--tools", "reading" },
+		env = { { name = "AERO_MCP_CREDENTIAL", value = transport.credential } },
 	})
 	return true
 end

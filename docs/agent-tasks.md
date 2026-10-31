@@ -221,7 +221,7 @@ queue, and serialized main-loop dispatch. Client deadlines are 30 seconds.
 The same executable offers debugging calls:
 
 ```sh
-AERO_TASK_CREDENTIAL=<runtime-credential> aero-mcp call --socket <socket> get_ticket
+AERO_MCP_CREDENTIAL=<runtime-credential> aero-mcp call --socket <socket> get_ticket
 ```
 
 ACP descriptors are supplied for both new and loaded sessions that retain a runtime

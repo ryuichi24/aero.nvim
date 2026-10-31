@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -104,6 +105,32 @@ type readingArgs struct {
 	Title string        `json:"title"`
 	Items []readingItem `json:"items" jsonschema:"Curated stops in execution or data-flow order from entry point to outcome; not raw search matches"`
 }
+
+type knowledgeCitation struct {
+	SpaceID  string `json:"space_id"`
+	SourceID string `json:"source_id"`
+	Version  string `json:"version"`
+	Chunk    int    `json:"chunk"`
+}
+
+type knowledgeArgs struct {
+	Action    string              `json:"action" jsonschema:"list, search, read, read_note, table, aggregate, save_note, pin_note, jobs, cancel_job, or retry_job; scope is enforced by the host"`
+	Revision  int                 `json:"revision,omitempty" jsonschema:"Expected current note revision when editing"`
+	Pinned    bool                `json:"pinned,omitempty"`
+	Version   string              `json:"version,omitempty" jsonschema:"Optional retained source version for historical evidence inspection"`
+	Query     string              `json:"query,omitempty"`
+	SourceID  string              `json:"source_id,omitempty"`
+	SourceIDs []string            `json:"source_ids,omitempty" jsonschema:"Optional narrowing to selected sources"`
+	First     int                 `json:"first,omitempty" jsonschema:"First one-based chunk or table row"`
+	Last      int                 `json:"last,omitempty" jsonschema:"Last one-based chunk or table row"`
+	Limit     int                 `json:"limit,omitempty"`
+	TableName string              `json:"table_name,omitempty"`
+	Column    int                 `json:"column,omitempty" jsonschema:"One-based numeric column for aggregate"`
+	ID        string              `json:"id,omitempty" jsonschema:"Existing note or job ID"`
+	Title     string              `json:"title,omitempty"`
+	Body      string              `json:"body,omitempty" jsonschema:"Markdown note content"`
+	Citations []knowledgeCitation `json:"citations,omitempty"`
+}
 type reportArgs struct {
 	OperationID string `json:"operation_id" jsonschema:"Unique retry identifier; reuse only for identical arguments"`
 	Name        string `json:"name" jsonschema:"Report filename without directory separators; .md is appended if omitted"`
@@ -149,7 +176,7 @@ func addTool[T any](server *mcp.Server, c client, method, description string) {
 
 func run() error {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"version": version, "bridge_protocol": protocol})
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"version": version, "bridge_protocol": protocol, "knowledge_protocol": 1})
 	}
 
 	if len(os.Args) < 2 {
@@ -157,16 +184,24 @@ func run() error {
 	}
 
 	flags := flag.NewFlagSet(os.Args[1], flag.ContinueOnError)
-	socket := flags.String("socket", os.Getenv("AERO_TASK_SOCKET"), "Aero instance socket")
+	socket := flags.String("socket", connectionEnv("SOCKET"), "Aero instance socket")
+	toolsets := flags.String("tools", "", "Comma-separated tool sets: tasks, reports, reading, knowledge")
 
 	readingOnly := flags.Bool("reading-only", false, "Expose only reading-list tools")
+
+	knowledgeOnly := flags.Bool("knowledge-only", false, "Expose only scoped knowledge tools")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
 
-	c := client{socket: *socket, credential: os.Getenv("AERO_TASK_CREDENTIAL")}
+	selected, err := selectToolsets(*toolsets, *readingOnly, *knowledgeOnly)
+	if err != nil {
+		return err
+	}
+
+	c := client{socket: *socket, credential: connectionEnv("CREDENTIAL")}
 	if c.socket == "" || c.credential == "" {
-		return fmt.Errorf("socket and AERO_TASK_CREDENTIAL are required")
+		return fmt.Errorf("socket and AERO_MCP_CREDENTIAL are required")
 	}
 
 	switch os.Args[1] {
@@ -195,25 +230,59 @@ func run() error {
 		return err
 	case "serve":
 		server := mcp.NewServer(&mcp.Implementation{Name: "aero-mcp", Version: version}, nil)
-		addTool[readingArgs](server, c, "reading_list_publish", "Publish an ordered source-code walkthrough or findings checklist for the user to navigate in Neovim quickfix. Verify files and line numbers first. Include meaningful labels and explanations. Publishing never marks items read.")
 
-		if *readingOnly {
-			return server.Run(context.Background(), &mcp.StdioTransport{})
+		for _, name := range selected {
+			toolsetsByName[name](server, c)
 		}
-
-		addTool[readArgs](server, c, "list_boards", "List committed board summaries in the assigned workspace")
-		addTool[readArgs](server, c, "get_board", "Read assigned board states, placements, revision and draft indicators")
-		addTool[readArgs](server, c, "get_ticket", "Read assigned committed ticket and revisions before making changes")
-		addTool[reportArgs](server, c, "create_report", "Create a new Markdown findings report in the assigned execution worktree's configured report directory; never overwrites existing reports")
-		addTool[createArgs](server, c, "create_ticket", "Create a ticket with initial Markdown content on the assigned board; read the board revision first")
-		addTool[moveArgs](server, c, "move_ticket", "Conditionally move assigned ticket; never changes progress automatically")
-		addTool[bodyArgs](server, c, "update_ticket_body", "Replace ticket Markdown body while preserving frontmatter and drafts")
-		addTool[metadataArgs](server, c, "update_ticket_metadata", "Conditionally update non-title ticket metadata")
 
 		return server.Run(context.Background(), &mcp.StdioTransport{})
 	default:
 		return fmt.Errorf("unknown command %q", os.Args[1])
 	}
+}
+
+func connectionEnv(name string) string {
+	if value := os.Getenv("AERO_MCP_" + name); value != "" {
+		return value
+	}
+
+	return os.Getenv("AERO_TASK_" + name)
+}
+
+func selectToolsets(value string, readingOnly, knowledgeOnly bool) ([]string, error) {
+	if (readingOnly && knowledgeOnly) || (value != "" && (readingOnly || knowledgeOnly)) {
+		return nil, fmt.Errorf("--tools, --reading-only and --knowledge-only cannot be combined")
+	}
+
+	if readingOnly {
+		value = "reading"
+	}
+
+	if knowledgeOnly {
+		value = "knowledge"
+	}
+
+	if value == "" {
+		value = "tasks,reports,reading"
+	}
+
+	var selected []string
+
+	seen := map[string]bool{}
+
+	for _, name := range strings.Split(value, ",") {
+		name = strings.TrimSpace(name)
+		if _, ok := toolsetsByName[name]; !ok {
+			return nil, fmt.Errorf("unknown tool set %q", name)
+		}
+
+		if !seen[name] {
+			selected = append(selected, name)
+			seen[name] = true
+		}
+	}
+
+	return selected, nil
 }
 
 func main() {
