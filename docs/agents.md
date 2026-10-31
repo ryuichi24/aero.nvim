@@ -42,7 +42,13 @@ require("aero").setup({
 
 Run `:Aero info` to toggle a separate **Session info** window for the session
 shown in the agent panel. It follows session changes and shows agent/model/mode,
-activity, location, reported usage, linked task, and todo progress. Knowledge
+activity, location, reported usage, configured MCP servers and their selected Aero
+tool sets, linked task, and todo progress. MCP entries show server names and commands.
+Aero servers also show configured tool names/counts, their scope, and the executable
+version and bridge protocol captured during attachment checks. Attachment failures
+are retained until a successful retry; unavailable version metadata is shown as
+not reported. These are configuration details, not agent discovery or connection
+health. Knowledge
 sessions also show scope, tags, and the active source list. Long values wrap and
 the window scrolls independently; updates preserve focus and scroll position.
 It sits above narrow transcripts or beside them when the combined transcript/info
@@ -57,6 +63,7 @@ To open Session info by default whenever the agent panel opens:
 require("aero").setup({
   panel = {
     info_open_by_default = true, -- default: false
+    info_height_rows = 12, -- preferred height when placed above the transcript
     info_auto_position = true, -- default: true; reposition as the panel resizes
     info_position_threshold_columns = 100, -- combined transcript/info width for side-by-side placement
   },
@@ -70,6 +77,10 @@ position while resizing. Its initial position still depends on the available
 width when it opens.
 Use `panel.info_position_threshold_columns` to change the width threshold (default: 100
 columns) for both initial placement and automatic repositioning.
+Use `panel.info_height_rows` to set the default height when info is above the
+transcript (default: 12 rows). It applies on opening and when moving from beside
+the transcript to above it, and is limited to the available height to leave room
+for the transcript. You can still resize the window manually afterward.
 
 Transcripts are read-only Markdown with native highlighting and virtual borders:
 

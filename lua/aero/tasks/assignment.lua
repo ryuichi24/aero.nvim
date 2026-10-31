@@ -127,6 +127,7 @@ local function stage(session, binding, executable)
 	-- Stage with no old transport so attach cannot revoke the rollback credential.
 	local staged = { key = session.key, worktree = session.worktree }
 	local ok, err = require("aero.tasks.agent").attach(staged, vim.deepcopy(binding), executable)
+	require("aero.mcp_info").result(session, "aero-tasks", ok, err)
 
 	if not ok then
 		return nil, nil, err

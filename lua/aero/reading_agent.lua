@@ -1,6 +1,6 @@
 local M = {}
 
-function M.attach(session)
+local function attach(session)
 	M.detach(session)
 	local options = require("aero.config").options.reading.agent
 
@@ -36,6 +36,10 @@ function M.attach(session)
 		env = { { name = "AERO_MCP_CREDENTIAL", value = transport.credential } },
 	})
 	return true
+end
+
+function M.attach(session)
+	return require("aero.mcp_info").result(session, "aero-reading", attach(session))
 end
 
 function M.detach(session)

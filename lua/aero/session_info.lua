@@ -3,7 +3,7 @@ local api = vim.api
 local M = {}
 local tabs = {}
 local namespace = api.nvim_create_namespace("AeroSessionInfo")
-local sections = { Session = true, Usage = true, Task = true, Knowledge = true, ["Active sources"] = true }
+local sections = { Session = true, Usage = true, MCP = true, Task = true, Knowledge = true, ["Active sources"] = true }
 
 local function highlights()
 	for group, link in pairs({
@@ -89,6 +89,8 @@ function M.lines(session)
 		table.insert(lines, "Context: not reported")
 	end
 
+	vim.list_extend(lines, { "", "MCP" })
+	vim.list_extend(lines, require("aero.mcp_info").lines(session))
 	vim.list_extend(lines, { "", "Task", require("aero.tasks.status").label(session) })
 	local todo_view = require("aero.acp.todos")
 	local todos = chat and todo_view.latest(chat)
@@ -167,6 +169,11 @@ function M.close()
 	require("aero.panel").refresh()
 end
 
+local function info_height(panel)
+	local rows = require("aero.config").options.panel.info_height_rows
+	return math.max(1, math.min(rows, api.nvim_win_get_height(panel) - 3))
+end
+
 function M.reflow()
 	local options = require("aero.config").options.panel
 
@@ -195,13 +202,13 @@ function M.reflow()
 	end
 
 	local view = api.nvim_win_call(state.win, vim.fn.winsaveview)
-	local height = api.nvim_win_get_height(panel)
+	local height = info_height(panel)
 	state.wide = wide
 	api.nvim_win_set_config(state.win, {
 		win = panel,
 		split = wide and "right" or "above",
 		width = wide and 36 or nil,
-		height = not wide and math.max(3, math.min(12, math.floor(height / 3))) or nil,
+		height = not wide and height or nil,
 	})
 	api.nvim_win_call(state.win, function()
 		vim.fn.winrestview(view)
@@ -228,7 +235,7 @@ function M.toggle()
 		split = wide and "right" or "above",
 		win = panel,
 		width = wide and 36 or nil,
-		height = not wide and math.max(3, math.min(12, math.floor(api.nvim_win_get_height(panel) / 3))) or nil,
+		height = not wide and info_height(panel) or nil,
 	})
 	vim.wo[win].wrap = true
 	vim.wo[win].linebreak = true

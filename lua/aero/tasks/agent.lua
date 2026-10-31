@@ -47,7 +47,7 @@ local function saved_assignment(session)
 end
 
 -- Rebuild transport state before session/new or session/load, including after restart.
-function M.restore(session)
+local function restore(session)
 	local assignment = saved_assignment(session)
 
 	if assignment == nil then
@@ -105,7 +105,11 @@ function M.restore(session)
 	return true
 end
 
-function M.attach(session, binding, executable)
+function M.restore(session)
+	return require("aero.mcp_info").result(session, "aero-tasks", restore(session))
+end
+
+local function attach(session, binding, executable)
 	local board, board_err = require("aero.tasks").resolve_board(binding.workspace, binding.board_id)
 
 	if not board then
@@ -153,6 +157,10 @@ function M.attach(session, binding, executable)
 		env = { { name = "AERO_MCP_CREDENTIAL", value = transport.credential } },
 	})
 	return true
+end
+
+function M.attach(session, binding, executable)
+	return require("aero.mcp_info").result(session, "aero-tasks", attach(session, binding, executable))
 end
 
 -- ACP servers are supplied on session/new or session/load, not session/prompt.

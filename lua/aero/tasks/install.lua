@@ -1,4 +1,5 @@
 local M = {}
+local versions = {}
 local installer = require("aero.install_progress")
 local plugin_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(debug.getinfo(1, "S").source:sub(2)))))
 
@@ -44,6 +45,7 @@ end
 local function version_matches(path, release, configured)
 	local result = installer.wait({ path, "--version" }, 5000)
 	local ok, version = pcall(vim.json.decode, result.stdout or "")
+	versions[path] = ok and type(version) == "table" and version or nil
 
 	if
 		result.code ~= 0
@@ -74,6 +76,10 @@ local function version_matches(path, release, configured)
 	end
 
 	return true
+end
+
+function M.version(path)
+	return versions[path]
 end
 
 function M.resolve(executable)
