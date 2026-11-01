@@ -276,10 +276,11 @@ See [Prompt snippets](prompt-snippets.md) for file locations and the JSON format
 
 ## General conversations
 
-The sidebar has two collapsible top-level sections: **Workspace**, containing
+The sidebar has three collapsible top-level sections: **Workspace**, containing
 registered repositories and their worktrees, and **General**, containing unarchived
-workspace-independent conversations (pinned first). Use the normal expand/collapse
-keys on either heading. Under General, Enter on a session opens its transcript,
+workspace-independent conversations (pinned first), plus **Knowledge base** for
+[collections, spaces, and scoped research sessions](knowledge.md). Use the normal
+expand/collapse keys on their headings. Under General, Enter on a session opens its transcript,
 **New conversation +** starts a chat, and **Search history** opens the library.
 Press `a` on General or one of its sessions to create a conversation. Session
 rename, stop, restart, and delete actions also work on general sessions.

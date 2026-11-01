@@ -9,3 +9,4 @@ __pycache__/
 /apps/companion/web/.vite/
 /apps/companion/dist/
 /apps/dist/
+/apps/scripts/knowledge-video/node_modules/

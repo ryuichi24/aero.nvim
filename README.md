@@ -142,6 +142,15 @@ token usage and fees without leaving Neovim.
 
 [Agent setup and ACP controls](docs/agents.md) · [Mermaid previews](docs/markdown.md)
 
+### Knowledge base
+
+Open `:Aero knowledge` or the sidebar's **Knowledge base** section to organize
+collections and spaces, import research files, and start scoped ACP conversations.
+Preserve cited notes and generate versioned reports, presentations, spreadsheets,
+or recap videos.
+
+[Knowledge workflows, setup, and coverage](docs/knowledge.md)
+
 ### Quote code and agent logs
 
 Visually select code or agent output and press `<leader>aq`. Aero adds the text,

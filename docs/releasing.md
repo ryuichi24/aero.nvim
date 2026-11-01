@@ -18,8 +18,8 @@ The MCP module can be built without Node.js or pnpm.
 From the repository root:
 
 ```sh
-make build-mcp       # Go + Python; same as make build
-make build-companion # Go + Python + Node.js + pnpm; embeds the frontend
+make build-mcp       # Go; same as make build
+make build-companion # Go + Node.js + pnpm; embeds the frontend
 make build-all       # both native executables
 make check-all       # both modules, Neovim integration, and frontend tests
 go -C apps test ./mcp/... ./companion/... # build frontend first for Go embed
