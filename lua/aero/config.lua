@@ -11,6 +11,15 @@ M.defaults = {
 	default_agent = "opencode-acp", -- agent used by the first (default) choice in the agent picker
 	-- lifecycle event name -> function or list of functions
 	events = {},
+	knowledge = {
+		executable = false, -- updated aero-mcp; prefers a local checkout build when no executable is configured
+		ingest_concurrency = 2,
+		sync_interval = 60000, -- milliseconds; 0 disables recurring connected-folder scans
+		-- Optional embedding adapter: JSON {texts:[...]} on stdin, {model:string,vectors:number[][]} on stdout.
+		embedding_command = {},
+		-- Custom extraction adapters: { extensions = { ".ext" }, command = { "executable", "arg" } }.
+		extractors = {},
+	},
 	---@type table<string, aero.Agent>
 	agents = {
 		claude = { cmd = { "claude" }, resume = { "claude", "--continue" }, key = "c" },

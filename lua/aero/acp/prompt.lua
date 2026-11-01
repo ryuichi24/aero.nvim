@@ -27,6 +27,12 @@ function M.command(chat)
 	local row = api.nvim_win_get_cursor(0)[1]
 	local text = vim.trim(api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
 
+	if (text == "/source" or text == "/tag") and require("aero.knowledge.agent").scope(chat.s) then
+		api.nvim_buf_set_lines(buf, row - 1, row, false, {})
+		require("aero.knowledge").pick_sources(chat.s, text:sub(2))
+		return true
+	end
+
 	if text == "/reading-update" then
 		require("aero.reading").update_prompt(chat.s, function(request)
 			if not api.nvim_buf_is_valid(buf) then

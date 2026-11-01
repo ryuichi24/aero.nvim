@@ -110,20 +110,24 @@ function M.lines(session)
 
 	if label then
 		vim.list_extend(lines, { "", "Knowledge" })
-		vim.list_extend(lines, vim.split(label, " · ", { plain = true }))
-		vim.list_extend(lines, { "", "Active sources" })
+		local details = vim.split(label, " · ", { plain = true })
+		vim.list_extend(lines, { details[1], details[2] })
 		local ok, sources =
 			pcall(knowledge.sources, knowledge.scope(session), require("aero.knowledge.store").catalog())
 
 		if ok then
 			for _, item in ipairs(sources) do
 				local source = item.source
-				table.insert(lines, item.space .. " / " .. (source.relative_path or source.name))
+				table.insert(lines, "  • " .. item.space .. " / " .. (source.relative_path or source.name))
 				table.insert(
 					lines,
-					"  Tags: " .. (#(source.tags or {}) > 0 and table.concat(source.tags, ", ") or "none")
+					"    Tags: " .. (#(source.tags or {}) > 0 and table.concat(source.tags, ", ") or "none")
 				)
 			end
+		end
+
+		if details[3] then
+			table.insert(lines, details[3])
 		end
 	end
 

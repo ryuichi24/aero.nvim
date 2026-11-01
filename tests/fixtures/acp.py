@@ -28,6 +28,9 @@ for line in sys.stdin:
             assert isinstance(info.get("version"), str), "clientInfo.version is required"
         result = {"agentCapabilities": {"loadSession": mode != "unsupported"}}
     elif method == "session/new":
+        if mode == "knowledge":
+            servers = request["params"]["mcpServers"]
+            assert any(server["name"] == "aero-knowledge" and server["args"][-2:] == ["--tools", "knowledge"] for server in servers)
         assert mode not in {"replay", "recover-id", "fail", "recover", "recover-fail", "missing-rollout", "replay-recovered"}, "expected session/load, got session/new"
         result = {"sessionId": "fixture-session"}
     elif method == "session/load":
@@ -47,6 +50,9 @@ for line in sys.stdin:
             continue
     elif method == "session/prompt":
         prompt = request["params"]["prompt"][0]["text"]
+        if mode == "knowledge":
+            assert "Knowledge scope: Research (this space)." in prompt
+            assert "aero_knowledge" in prompt and "Find evidence" in prompt
         if mode == "export":
             assert prompt.startswith("EXPORT_CUSTOM_PROMPT: Organize the transcript by topic.\n\n# Test chat"), "custom export prompt or appended transcript missing"
         assert mode != "fail", "prompt was sent after a failed session/load"

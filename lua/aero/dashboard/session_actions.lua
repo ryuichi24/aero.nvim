@@ -56,8 +56,15 @@ function M.start(item, agent, on_created, open_session)
 	end)
 end
 
-function M.choose(item, label, on_created, open_session)
+function M.choose(item, label, on_created, open_session, agent_filter)
 	local names = vim.tbl_keys(config.options.agents)
+
+	if agent_filter then
+		names = vim.tbl_filter(function(name)
+			return agent_filter(name, config.options.agents[name])
+		end, names)
+	end
+
 	table.sort(names)
 	table.insert(names, 1, "default")
 	local worktree = item.wt
@@ -71,6 +78,11 @@ function M.choose(item, label, on_created, open_session)
 		if choice then
 			if index == 1 or (index == nil and choice == "default") then
 				choice = config.options.default_agent
+			end
+
+			if agent_filter and not agent_filter(choice, config.options.agents[choice]) then
+				notify("selected agent is unavailable for this session")
+				return
 			end
 
 			M.start(item, choice, on_created, open_session)

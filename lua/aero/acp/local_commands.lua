@@ -53,6 +53,10 @@ function M.handle(chat, text)
 
 	local command = commands[name]
 
+	if (name == "/source" or name == "/tag") and require("aero.knowledge.agent").scope(chat.s) then
+		return true, require("aero.knowledge").pick_sources(chat.s, name:sub(2))
+	end
+
 	if chat.state == "exited" and not (command and command.while_stopped) then
 		vim.notify("Aero: session is stopped; send /resume in the composer to resume it", vim.log.levels.WARN)
 		return true

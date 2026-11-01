@@ -193,6 +193,15 @@ function M.prepare(workspaces, state, on_repository_changed)
 
 	snapshot.workspace_open = state.workspace_open ~= false
 	snapshot.general_open = state.general_open ~= false
+	snapshot.knowledge_open = state.knowledge_open ~= false
+	snapshot.knowledge_expanded = state.knowledge_expanded
+	snapshot.knowledge, snapshot.knowledge_error = require("aero.knowledge").catalog()
+	snapshot.knowledge_sessions = {}
+
+	for _, space in ipairs(snapshot.knowledge and snapshot.knowledge.spaces or {}) do
+		snapshot.knowledge_sessions[space.id] = require("aero.knowledge.agent").sessions({ space_id = space.id })
+	end
+
 	snapshot.general_sessions = {}
 	local store = require("aero.store")
 	local directory = require("aero.general").directory()

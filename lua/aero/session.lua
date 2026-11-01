@@ -249,6 +249,13 @@ local function prepare_integrations(s, agent, opts)
 		return false
 	end
 
+	local knowledge_ok, knowledge_err = require("aero.knowledge.agent").attach(s)
+
+	if not knowledge_ok then
+		vim.notify("Aero: cannot attach knowledge tools: " .. tostring(knowledge_err), vim.log.levels.ERROR)
+		return false
+	end
+
 	return true
 end
 
@@ -612,6 +619,7 @@ function M.delete(s)
 	end
 
 	require("aero.reading_agent").detach(s)
+	require("aero.knowledge.agent").detach(s)
 	local data = events.session(s)
 	M.stop(s)
 

@@ -344,6 +344,10 @@ function Chat:enter_key()
 		return self:choose(o.index, o.block)
 	end
 
+	if require("aero.knowledge.research").follow_cursor() then
+		return
+	end
+
 	self:compose()
 end
 
@@ -584,6 +588,13 @@ function Chat:prompt(text)
 		return
 	end
 
+	local context_ok, wire_text = pcall(require("aero.knowledge.agent").context, self.s, text)
+
+	if not context_ok then
+		vim.notify("Aero: cannot prepare knowledge context: " .. tostring(wire_text), vim.log.levels.ERROR)
+		return
+	end
+
 	local prompt_block = { kind = "user", text = text, timestamp = os.time() }
 	table.insert(self.blocks, prompt_block)
 	self.turn = (self.turn or 0) + 1
@@ -594,7 +605,7 @@ function Chat:prompt(text)
 	spinner.ensure()
 	self.client:request("session/prompt", {
 		sessionId = self.session_id,
-		prompt = { { type = "text", text = text } },
+		prompt = { { type = "text", text = wire_text } },
 	}, function(err, res)
 		self.busy = false
 		usage.response(self, res, turn)
@@ -925,6 +936,19 @@ function M.omnifunc(findstart, base)
 		table.insert(out, { word = "/new-ticket", menu = "Create an Aero ticket with initial content through MCP" })
 	end
 
+	local knowledge = chat and require("aero.knowledge.agent").scope(chat.s)
+
+	if knowledge then
+		for name, description in pairs({
+			["/source"] = "Choose a knowledge source for this session",
+			["/tag"] = "Choose session sources by tag",
+		}) do
+			if name:sub(1, #base) == base then
+				table.insert(out, { word = name, menu = description })
+			end
+		end
+	end
+
 	for _, c in ipairs(chat and chat.commands or {}) do
 		local word = "/" .. c.name
 
@@ -942,6 +966,7 @@ function M.omnifunc(findstart, base)
 			and word ~= "/cancel"
 			and word ~= "/resume"
 			and word ~= "/new-ticket"
+			and not (knowledge and (word == "/source" or word == "/tag"))
 			and word:find(base, 1, true) == 1
 		then
 			table.insert(out, { word = word, menu = c.description })

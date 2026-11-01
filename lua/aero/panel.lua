@@ -71,6 +71,7 @@ local function winbar(win)
 	end
 
 	local where = vim.fn.fnamemodify(s.worktree, ":t")
+	where = require("aero.knowledge.agent").label(s) or where
 	local model = s.chat and s.chat:model_title()
 
 	if model then

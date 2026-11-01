@@ -12,6 +12,7 @@ function M.setup(opts)
 	require("aero.reader").setup()
 	require("aero.quote").setup()
 	require("aero.mermaid").setup()
+	require("aero.knowledge.sync").setup()
 
 	if package.loaded["aero.tasks.view"] then
 		package.loaded["aero.tasks.view"].setup()
@@ -51,6 +52,11 @@ end
 function M.open()
 	ensure_setup()
 	require("aero.dashboard").open()
+end
+
+function M.knowledge(args, opts)
+	ensure_setup()
+	return require("aero.knowledge").command(args or {}, opts or { range = 0 })
 end
 
 function M.close()
@@ -146,7 +152,7 @@ function M.reader(action)
 	ensure_setup()
 	local reader = require("aero.reader")
 
-	if vim.tbl_contains({ "source", "exports", "references", "reports", "reading" }, action) then
+	if vim.tbl_contains({ "source", "exports", "references", "reports", "reading", "content", "metadata" }, action) then
 		return reader.select(action)
 	end
 

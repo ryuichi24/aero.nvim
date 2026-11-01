@@ -7,6 +7,9 @@ local subcommands = {
 	info = function()
 		require("aero.session_info").toggle()
 	end,
+	knowledge = function(args, opts)
+		require("aero").knowledge(args, opts)
+	end,
 	reading = function(args)
 		require("aero").reading(args[1])
 	end,
@@ -194,6 +197,12 @@ end, {
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
 
+		if words[2] == "knowledge" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(value)
+				return vim.startswith(value, arglead)
+			end, { "scope", "status", "set", "selection", "note" })
+		end
+
 		if words[2] == "general" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
@@ -235,7 +244,7 @@ end, {
 		if words[2] == "reader" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "tabs", "panes", "source", "exports", "references", "reports", "reading" })
+			end, { "tabs", "panes", "source", "exports", "references", "reports", "reading", "content", "metadata" })
 		end
 
 		if words[2] == "prompt" and (#words > 2 or cmdline:match("%s$")) then

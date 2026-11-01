@@ -26,6 +26,7 @@ local state = {
 	boards_expanded = {}, -- workspace root -> board section expanded
 	submodules_expanded = {}, -- checkout path -> submodule section expanded
 	repositories_expanded = {}, -- submodule checkout path -> repository expanded
+	knowledge_expanded = {}, -- knowledge node ID -> expanded
 }
 
 local function notify(msg, level)
@@ -46,6 +47,7 @@ function M.setup_highlights()
 		AeroExited = "DiagnosticError",
 		AeroStopped = "Comment",
 		AeroDim = "Comment",
+		AeroTag = "Type",
 	}
 
 	for group, link in pairs(links) do
@@ -638,6 +640,18 @@ end
 
 --- Start a fresh session of `agent` on the worktree under the cursor.
 local function start_agent(item, agent)
+	if item and (item.space or item.collection or item.knowledge) then
+		local scope = item.space and { space_id = item.space.id }
+			or item.collection and { collection_id = item.collection.id }
+			or require("aero.knowledge.agent").scope(item.session)
+
+		if config.options.agents[agent].type ~= "acp" then
+			return vim.notify("Aero: knowledge sessions require an ACP agent", vim.log.levels.WARN)
+		end
+
+		return require("aero.knowledge.agent").new(scope, agent)
+	end
+
 	if item and (item.general or item.kind == "general_group") then
 		return require("aero.general").new(agent)
 	end
@@ -711,7 +725,28 @@ function actions.open(how)
 		return
 	end
 
-	if item.kind == "general_new" then
+	if item.kind == "session" and item.knowledge then
+		require("aero.knowledge.agent").show(item.session)
+	elseif item.kind == "knowledge_manage" then
+		require("aero.knowledge").open()
+	elseif item.expanded ~= nil and item.kind:match("^knowledge_") then
+		actions.toggle()
+	elseif item.kind == "knowledge_note" then
+		vim.ui.select({ "Open", "Edit tag" }, { prompt = item.note.name }, function(choice)
+			if choice == "Open" then
+				require("aero.knowledge.notes").edit(item.space.id, item.note.id)
+			elseif choice == "Edit tag" then
+				require("aero.knowledge.metadata").edit_tags(item.space.id, item.note.id, "notes")
+			end
+		end)
+	elseif item.kind == "knowledge_source" then
+		require("aero.knowledge").browse_space(item.space, "Browse sources", item.source and item.source.id)
+	elseif item.kind == "knowledge_section" then
+		require("aero.knowledge").browse_space(
+			item.space,
+			item.section == "Sources" and "Browse sources" or item.section
+		)
+	elseif item.kind == "general_new" then
 		require("aero.general").new()
 	elseif item.kind == "general_history" then
 		require("aero.general").history()
@@ -751,10 +786,14 @@ function actions.toggle()
 		return
 	end
 
-	if item.kind == "workspace_group" then
+	if item.expanded ~= nil and item.kind:match("^knowledge_") then
+		state.knowledge_expanded[item.id] = not item.expanded
+	elseif item.kind == "workspace_group" then
 		state.workspace_open = state.workspace_open == false
 	elseif item.kind == "general_group" then
 		state.general_open = state.general_open == false
+	elseif item.kind == "knowledge_group" then
+		state.knowledge_open = state.knowledge_open == false
 	elseif item.kind == "submodules" then
 		state.submodules_expanded[item.wt.path] = not state.submodules_expanded[item.wt.path]
 	elseif item.kind == "submodule" then
@@ -797,6 +836,9 @@ function actions.expand()
 
 	if
 		item.kind == "general_new"
+		or item.kind == "knowledge_manage"
+		or item.kind == "knowledge_note"
+		or item.kind == "knowledge_source"
 		or item.kind == "general_history"
 		or item.kind == "session"
 		or item.kind == "export"
@@ -815,10 +857,14 @@ function actions.expand()
 
 	local expanded
 
-	if item.kind == "workspace_group" then
+	if item.expanded ~= nil and item.kind:match("^knowledge_") then
+		expanded = item.expanded
+	elseif item.kind == "workspace_group" then
 		expanded = state.workspace_open ~= false
 	elseif item.kind == "general_group" then
 		expanded = state.general_open ~= false
+	elseif item.kind == "knowledge_group" then
+		expanded = state.knowledge_open ~= false
 	elseif item.kind == "submodules" then
 		expanded = state.submodules_expanded[item.wt.path] == true
 	elseif item.kind == "submodule" then
@@ -847,7 +893,7 @@ function actions.expand()
 		-- already open: step into the first child
 		local lnum = api.nvim_win_get_cursor(0)[1]
 
-		if state.items[lnum + 1] then
+		if state.items[lnum + 1] and (item.expanded == nil or state.items[lnum + 1].parent == item.id) then
 			api.nvim_win_set_cursor(0, { lnum + 1, 0 })
 		end
 	else
@@ -864,9 +910,10 @@ function actions.collapse()
 
 	local lnum = api.nvim_win_get_cursor(0)[1]
 
-	if item.kind == "workspace_group" or item.kind == "general_group" then
+	if item.kind == "workspace_group" or item.kind == "general_group" or item.kind == "knowledge_group" then
 		local open = item.kind == "workspace_group" and state.workspace_open ~= false
 			or item.kind == "general_group" and state.general_open ~= false
+			or item.kind == "knowledge_group" and state.knowledge_open ~= false
 
 		if open then
 			actions.toggle()
@@ -875,7 +922,8 @@ function actions.collapse()
 		return
 	end
 
-	local is_header = item.id:match("^ws:")
+	local is_header = item.expanded ~= nil and item.kind:match("^knowledge_")
+		or item.id:match("^ws:")
 		or item.kind == "worktree"
 		or item.kind == "submodules"
 		or item.kind == "submodule"
@@ -887,7 +935,8 @@ function actions.collapse()
 		or item.kind == "boards"
 		or item.kind == "exports"
 		or item.kind == "sessions"
-	local open = item.kind == "workspace" and item.ws.expanded ~= false
+	local open = item.expanded == true and item.kind:match("^knowledge_")
+		or item.kind == "workspace" and item.ws.expanded ~= false
 		or item.kind == "submodules" and state.submodules_expanded[item.wt.path] == true
 		or item.kind == "submodule" and state.repositories_expanded[item.submodule.path] == true
 		or item.kind == "worktree" and wt_expanded(item.wt, session.list(item.wt.path))
@@ -938,6 +987,28 @@ function actions.add()
 
 	if item.general or item.kind == "general_group" then
 		require("aero.general").new()
+	elseif item.kind == "knowledge_group" or item.kind == "knowledge_manage" then
+		require("aero.knowledge").open()
+	elseif item.kind == "knowledge_source" or item.kind == "knowledge_folder" then
+		local directory = item.directory
+		local folder_id = item.folder and item.folder.id or item.source and item.source.folder_id
+
+		if item.source then
+			local relative = item.source.relative_path or item.source.name
+			directory = relative:match("^(.*)/[^/]+$")
+		end
+
+		require("aero.knowledge").add_files(item.space.id, { directory = directory, folder_id = folder_id })
+	elseif item.kind == "knowledge_note" then
+		require("aero.knowledge").browse_space(item.space, "New note")
+	elseif item.kind == "knowledge_section" and item.section ~= "Sessions" then
+		local action = ({ Sources = "Add file", Notes = "New note" })[item.section]
+		require("aero.knowledge").browse_space(item.space, action)
+	elseif item.space or item.collection or item.knowledge then
+		local scope = item.space and { space_id = item.space.id }
+			or item.collection and { collection_id = item.collection.id }
+			or require("aero.knowledge.agent").scope(item.session)
+		require("aero.knowledge.agent").new(scope)
 	elseif item.kind == "workspace_group" then
 		M.add_workspace()
 	elseif
@@ -1012,6 +1083,26 @@ function actions.delete()
 	local item = current_item()
 
 	if not item then
+		return
+	end
+
+	if item.kind == "knowledge_note" or item.kind == "knowledge_source" or item.kind == "knowledge_folder" then
+		local selected = item.note or item.source or item.folder
+		local label = selected and selected.name or item.directory
+
+		if vim.fn.confirm("Delete " .. label .. "?", "&Yes\n&No", 2) ~= 1 then
+			return
+		end
+
+		local kind = item.note and "notes" or item.source and "sources" or item.folder and "folders" or "directory"
+		local ok, err =
+			require("aero.knowledge").delete_item(item.space.id, kind, selected and selected.id or item.directory)
+
+		if not ok then
+			vim.notify("Aero knowledge: " .. tostring(err), vim.log.levels.ERROR)
+		end
+
+		M.render()
 		return
 	end
 

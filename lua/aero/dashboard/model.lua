@@ -15,6 +15,13 @@ local section_parent = {
 	reading_new = "reading:",
 	reference_new = "reference:",
 }
+local knowledge_nodes = {
+	knowledge_collection = true,
+	knowledge_space = true,
+	knowledge_section = true,
+	knowledge_folder = true,
+	knowledge_tag = true,
+}
 
 function M.worktree_label(worktree)
 	return worktree.branch or "(detached " .. (worktree.head or ""):sub(1, 7) .. ")"
@@ -61,8 +68,34 @@ end
 function M.build(snapshot)
 	local lines, items, marks = {}, {}, {}
 	local icons = snapshot.icons
+	local knowledge_hidden = {}
 
 	local function add(segments, item, virt)
+		if
+			item
+			and (
+				knowledge_nodes[item.kind]
+				or item.kind == "knowledge_source"
+				or item.kind == "knowledge_note"
+				or item.knowledge
+			)
+		then
+			local hidden = knowledge_hidden[item.parent] == true
+
+			if knowledge_nodes[item.kind] then
+				item.expanded = (snapshot.knowledge_expanded or {})[item.id] ~= false
+				knowledge_hidden[item.id] = hidden or not item.expanded
+				segments = vim.deepcopy(segments)
+				segments[1][1] = segments[1][1]:gsub("^(%s*)", function(indent)
+					return indent .. (item.expanded and icons.expanded or icons.collapsed) .. " "
+				end, 1)
+			end
+
+			if hidden then
+				return
+			end
+		end
+
 		local text, column, highlights = "", 0, {}
 
 		for _, segment in ipairs(segments) do
@@ -136,6 +169,232 @@ function M.build(snapshot)
 				{ { "   Search history", "AeroSession" } },
 				{ kind = "general_history", id = "general-history", parent = "general-group", general = true }
 			)
+		end
+
+		add({})
+		local knowledge_open = snapshot.knowledge_open ~= false
+		add({
+			{ " " .. (knowledge_open and icons.expanded or icons.collapsed) .. " " },
+			{ "Knowledge base", "AeroTitle" },
+		}, { kind = "knowledge_group", id = "knowledge-group" })
+
+		if knowledge_open then
+			local catalog = snapshot.knowledge or { collections = {}, spaces = {} }
+
+			if snapshot.knowledge_error then
+				add({ { "   Catalog unavailable — use :Aero knowledge for details", "AeroDim" } })
+			end
+
+			for _, collection in ipairs(catalog.collections) do
+				local parent = "knowledge-collection:" .. collection.id
+				add({ { "   " .. collection.name:gsub("[%c]", " "), "AeroWorkspace" } }, {
+					kind = "knowledge_collection",
+					id = parent,
+					parent = "knowledge-group",
+					collection = collection,
+				})
+
+				for _, space in ipairs(catalog.spaces) do
+					if space.collection_id == collection.id then
+						add({ { "     " .. space.name:gsub("[%c]", " "), "AeroSession" } }, {
+							kind = "knowledge_space",
+							id = "knowledge-space:" .. space.id,
+							parent = parent,
+							space = space,
+						})
+
+						for _, section in ipairs({ "Sources", "Tags", "Sessions", "Notes" }) do
+							local section_id = "knowledge-" .. section:lower() .. ":" .. space.id
+							add({ { "       " .. section, "AeroWorkspace" } }, {
+								kind = "knowledge_section",
+								id = section_id,
+								parent = "knowledge-space:" .. space.id,
+								space = space,
+								section = section,
+							})
+
+							if section == "Sources" then
+								local function add_source(source, parent_id, indent)
+									add({
+										{
+											indent
+												.. (
+													source.folder_id and (source.relative_path or source.name)
+													or vim.fs.basename(source.relative_path or source.name)
+												):gsub("[%c]", " "),
+											"AeroSession",
+										},
+										{
+											#(source.tags or {}) > 0 and ("  #" .. table
+												.concat(source.tags, " #")
+												:gsub("[%c]", " ")) or "",
+											"AeroTag",
+										},
+									}, {
+										kind = "knowledge_source",
+										id = "knowledge-source:" .. source.id,
+										parent = parent_id,
+										space = space,
+										source = source,
+									}, { { " " .. source.status, "AeroDim" } })
+								end
+
+								local folders = {}
+
+								for _, folder in ipairs(space.folders or {}) do
+									folders[folder.id] = true
+									local folder_id = "knowledge-folder:" .. folder.id
+									add({ { "         " .. folder.name:gsub("[%c]", " ") .. "/", "AeroSession" } }, {
+										kind = "knowledge_folder",
+										id = folder_id,
+										folder = folder,
+										parent = section_id,
+										space = space,
+									})
+
+									for _, source in ipairs(space.sources or {}) do
+										if source.folder_id == folder.id then
+											add_source(source, folder_id, "           ")
+										end
+									end
+								end
+
+								local directories = {}
+								local sources = vim.list_extend({}, space.sources or {})
+								table.sort(sources, function(left, right)
+									return (left.relative_path or left.name) < (right.relative_path or right.name)
+								end)
+
+								for _, source in ipairs(sources) do
+									if not folders[source.folder_id] then
+										local parent_id, indent, path = section_id, "         ", ""
+										local parts =
+											vim.split(source.relative_path or source.name, "/", { plain = true })
+
+										for index = 1, #parts - 1 do
+											path = path .. "/" .. parts[index]
+											local directory_id = "knowledge-directory:" .. space.id .. ":" .. path
+
+											if not directories[path] then
+												add({
+													{
+														indent .. parts[index]:gsub("[%c]", " ") .. "/",
+														"AeroSession",
+													},
+												}, {
+													kind = "knowledge_folder",
+													id = directory_id,
+													directory = path:sub(2),
+													parent = parent_id,
+													space = space,
+												})
+												directories[path] = true
+											end
+
+											parent_id, indent = directory_id, indent .. "  "
+										end
+
+										add_source(source, parent_id, indent)
+									end
+								end
+							elseif section == "Tags" then
+								local groups = {}
+
+								for _, source in ipairs(space.sources or {}) do
+									for _, tag in ipairs(source.tags or {}) do
+										groups[tag] = groups[tag] or {}
+										table.insert(groups[tag], source)
+									end
+								end
+
+								for _, note in ipairs(space.notes or {}) do
+									for _, tag in ipairs(note.tags or {}) do
+										groups[tag] = groups[tag] or {}
+										table.insert(groups[tag], { id = note.id, name = note.name, note = note })
+									end
+								end
+
+								local tags = vim.tbl_keys(groups)
+								table.sort(tags)
+
+								for _, tag in ipairs(tags) do
+									local tag_id = "knowledge-tag:" .. space.id .. ":" .. tag
+									add({
+										{ "         #" .. tag:gsub("[%c]", " "), "AeroTag" },
+										{ " (" .. #groups[tag] .. ")", "AeroDim" },
+									}, {
+										kind = "knowledge_tag",
+										id = tag_id,
+										parent = section_id,
+										space = space,
+										tag = tag,
+									})
+
+									for _, source in ipairs(groups[tag]) do
+										add({
+											{
+												"           "
+													.. (source.relative_path or source.name):gsub("[%c]", " "),
+												"AeroSession",
+											},
+										}, {
+											kind = source.note and "knowledge_note" or "knowledge_source",
+											id = tag_id .. ":source:" .. source.id,
+											parent = tag_id,
+											space = space,
+											source = source,
+											note = source.note,
+										})
+									end
+								end
+
+								if #tags == 0 then
+									add({ { "         No tags", "AeroDim" } }, {
+										kind = "knowledge_empty",
+										id = section_id .. ":empty",
+										parent = section_id,
+										knowledge = true,
+									})
+								end
+							elseif section == "Notes" then
+								for _, note in ipairs(space.notes or {}) do
+									add({
+										{ "         " .. note.name:gsub("[%c]", " "), "AeroSession" },
+										{
+											#(note.tags or {}) > 0 and ("  #" .. table
+												.concat(note.tags, " #")
+												:gsub("[%c]", " ")) or "",
+											"AeroTag",
+										},
+									}, {
+										kind = "knowledge_note",
+										id = "knowledge-note:" .. note.id,
+										parent = section_id,
+										space = space,
+										note = note,
+									})
+								end
+							elseif section == "Sessions" then
+								for _, s in ipairs((snapshot.knowledge_sessions or {})[space.id] or {}) do
+									add({ { "         " .. s.name, "AeroSession" } }, {
+										kind = "session",
+										knowledge = true,
+										id = "s:" .. s.key,
+										parent = section_id,
+										session = s,
+									})
+								end
+							end
+						end
+					end
+				end
+			end
+
+			add({ { "   Manage knowledge +", "AeroDim" } }, {
+				kind = "knowledge_manage",
+				id = "knowledge-manage",
+				parent = "knowledge-group",
+			})
 		end
 
 		return lines, items, marks

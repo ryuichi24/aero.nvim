@@ -6,10 +6,11 @@ NVIM_BIN ?= nvim
 GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 GO_MODULES := apps/mcp apps/companion
 LUA_PATHS := lua plugin tests apps/scripts
-VERSION ?= $(shell python3 -c 'import json; print(json.load(open("release.json"))["version"])')
+VERSION ?= $(shell sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' release.json)
 
 .PHONY: build build-mcp build-all build-companion build-companion-ui test test-lua test-lua-unit test-companion vet check check-all release clean
 .PHONY: format format-lua format-go format-web lint lint-lua lint-go lint-web hooks
+.PHONY: test-knowledge
 
 format: format-lua format-go format-web
 
@@ -64,6 +65,14 @@ test-lua: build-all
 test-lua-unit:
 	python3 tests/run.py --unit
 
+test-knowledge: build-mcp
+	$(GO) -C apps/mcp test ./internal/knowledge ./cmd/aero-mcp
+	$(NVIM_BIN) --headless -u NONE -i NONE -l tests/knowledge.lua
+	$(NVIM_BIN) --headless -u NONE -i NONE -l tests/knowledge_reader.lua
+	$(NVIM_BIN) --headless -u NONE -i NONE -l tests/knowledge_finder.lua
+	$(NVIM_BIN) --headless -u NONE -i NONE -l tests/knowledge_research.lua
+	$(NVIM_BIN) --headless -u NONE -i NONE -l tests/knowledge_sessions.lua
+
 build-companion-ui:
 	$(PNPM) --dir apps/companion/web install --frozen-lockfile
 	$(PNPM) --dir apps/companion/web run build
@@ -86,7 +95,7 @@ vet:
 
 check: test vet
 
-check-all: check test-companion test-lua
+check-all: check test-companion test-lua test-knowledge
 
 release: build-companion-ui
 	GO="$(GO)" python3 apps/scripts/build-release.py $(if $(TAG),--tag "$(TAG)")

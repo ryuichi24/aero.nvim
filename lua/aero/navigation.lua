@@ -13,6 +13,10 @@ function M.set_dashboard(context)
 end
 
 function M.code_window(kind)
+	if vim.t.aero_knowledge_reader and kind and kind ~= "content" and kind ~= "metadata" then
+		require("aero.reader").close_knowledge()
+	end
+
 	local state = dashboard.state
 
 	if config.options.dashboard.position == "current" then
@@ -60,6 +64,7 @@ end
 function M.enter_worktree(path, opts)
 	opts = opts or {}
 	local reader = require("aero.reader")
+	reader.close_knowledge()
 	reader.remember()
 
 	if not tabs.enabled() then

@@ -31,6 +31,7 @@ local function send(client, response)
 end
 
 local methods = {
+	knowledge = true,
 	reading_list_publish = true,
 	list_boards = true,
 	get_board = true,
@@ -63,20 +64,33 @@ local function pump()
 				err = { code = "INVALID_ARGUMENT", message = "unknown method" }
 			elseif binding.reading_only and request.method ~= "reading_list_publish" then
 				err = { code = "INVALID_ARGUMENT", message = "this binding only supports reading lists" }
+			elseif binding.knowledge_only and request.method ~= "knowledge" then
+				err = { code = "INVALID_ARGUMENT", message = "this binding only supports knowledge tools" }
 			elseif vim.fn.getcmdwintype() ~= "" then
 				err = { code = "EDITOR_BUSY", message = "close the command window and retry" }
 			else
 				local ok
-				local operation = request.method == "reading_list_publish" and require("aero.reading").publish
+				local operation = request.method == "knowledge" and require("aero.knowledge.tools").call
+					or request.method == "reading_list_publish" and require("aero.reading").publish
 					or require("aero.tasks.operations")[request.method]
-				ok, result, err = pcall(operation, binding, request.params or {})
+				ok, result, err = pcall(operation, binding, request.params or {}, function(value, failure)
+					if binding.revoked then
+						value, failure = nil, { code = "NOT_FOUND", message = "binding expired" }
+					elseif type(failure) == "string" then
+						failure = { code = "IO_ERROR", message = failure }
+					end
+
+					send(client, { version = M.protocol_version, id = request.id, result = value, error = failure })
+				end)
 
 				if not ok then
 					err, result = { code = "IO_ERROR", message = tostring(result) }, nil
 				end
 			end
 
-			send(client, { version = M.protocol_version, id = request.id, result = result, error = err })
+			if not (request.method == "knowledge" and type(result) == "table" and result.pending) then
+				send(client, { version = M.protocol_version, id = request.id, result = result, error = err })
+			end
 		end
 		dispatching = false
 	end)

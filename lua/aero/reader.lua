@@ -2,13 +2,17 @@
 local api = vim.api
 local M = {}
 local states = {}
-local kinds = { "source", "exports", "references", "reports", "reading" }
+local returns = {}
+local workspace_kinds = { "source", "exports", "references", "reports", "reading" }
+local knowledge_kinds = { "content", "metadata" }
 local labels = {
 	source = "Source",
 	exports = "Exported logs",
 	references = "References",
 	reports = "Reports",
 	reading = "Reading",
+	content = "Extracted content",
+	metadata = "Metadata",
 }
 local changing = false
 
@@ -26,10 +30,18 @@ end
 
 local function state()
 	local tab = api.nvim_get_current_tabpage()
-	local key = vim.t.aero_worktree or tab
+	local knowledge = vim.t.aero_knowledge_reader
+	local key = knowledge and ("knowledge:" .. knowledge.space_id .. ":" .. knowledge.source_id)
+		or vim.t.aero_worktree
+		or tab
 	states[tab] = states[tab] or {}
-	states[tab][key] = states[tab][key] or { mode = "tabs", slots = {}, active = "source" }
+	states[tab][key] = states[tab][key]
+		or { mode = "tabs", slots = {}, active = knowledge and "content" or "source", knowledge = knowledge ~= nil }
 	return states[tab][key]
+end
+
+local function kinds(s)
+	return s.knowledge and knowledge_kinds or workspace_kinds
 end
 
 local function save(slot)
@@ -60,17 +72,19 @@ function M.remember()
 end
 
 local function render(s)
+	local tabs = kinds(s)
+
 	for kind, slot in pairs(s.slots) do
 		if valid(slot.win) then
 			local bar = {}
 
-			for index, name in ipairs(kinds) do
+			for index, name in ipairs(tabs) do
 				local hl = name == kind and "TabLineSel" or "TabLine"
 				bar[#bar + 1] = "%#" .. hl .. "#%" .. index .. "@v:lua.AeroReaderClick@ " .. labels[name] .. " %T"
 			end
 
 			bar[#bar + 1] = "%#TabLineFill#%=%#TabLine#%"
-				.. (#kinds + 1)
+				.. (#tabs + 1)
 				.. "@v:lua.AeroReaderClick@ "
 				.. s.mode
 				.. " ⇄ %T"
@@ -80,12 +94,19 @@ local function render(s)
 end
 
 function M.attach(win, kind)
-	if not vim.t.aero_worktree or vim.t.aero_fullscreen or vim.t.aero_board_path then
+	if
+		not vim.t.aero_knowledge_reader and (not vim.t.aero_worktree or vim.t.aero_fullscreen or vim.t.aero_board_path)
+	then
 		return win
 	end
 
-	kind = kind or "source"
 	local s = state()
+	kind = kind or (s.knowledge and s.active or "source")
+
+	if not vim.tbl_contains(kinds(s), kind) then
+		return win
+	end
+
 	changing = true
 	local previous = s.slots[s.active]
 	save(previous)
@@ -94,7 +115,7 @@ function M.attach(win, kind)
 		require("aero.buffers").remember(previous.win)
 	end
 
-	if not next(s.slots) then
+	if not next(s.slots) and not s.knowledge then
 		s.slots.source = { buf = api.nvim_win_get_buf(win), win = win }
 		previous = s.slots.source
 	end
@@ -129,9 +150,95 @@ function M.attach(win, kind)
 	return win
 end
 
+function M.open_knowledge(space_id, source_id, kind, buf)
+	local tab = api.nvim_get_current_tabpage()
+	local active = M.active()
+	M.remember()
+	local win = require("aero.navigation").code_window(active)
+
+	if not returns[tab] then
+		returns[tab] = {
+			buf = api.nvim_win_get_buf(win),
+			kind = active,
+			winbar = vim.wo[win].winbar,
+			reader_kind = vim.w[win].aero_reader_kind,
+			view = api.nvim_win_call(win, vim.fn.winsaveview),
+		}
+	end
+
+	vim.t.aero_knowledge_reader = { space_id = space_id, source_id = source_id }
+	local s = state()
+	s.slots[kind] = s.slots[kind] or {}
+	s.slots[kind].buf = buf
+	win = M.attach(win, kind)
+	api.nvim_set_current_win(win)
+	return win
+end
+
+function M.close_knowledge()
+	if not vim.t.aero_knowledge_reader then
+		return
+	end
+
+	local tab = api.nvim_get_current_tabpage()
+	local s, previous = state(), returns[tab]
+	M.remember()
+	local win = s.win
+	changing = true
+
+	for _, slot in pairs(s.slots) do
+		if valid(slot.win) and slot.win ~= win and api.nvim_win_get_buf(slot.win) == slot.buf then
+			api.nvim_win_close(slot.win, false)
+		end
+
+		slot.win = nil
+	end
+
+	vim.t.aero_knowledge_reader = nil
+	returns[tab] = nil
+	changing = false
+
+	if not valid(win) then
+		return
+	end
+
+	if vim.t.aero_worktree and not vim.t.aero_fullscreen and not vim.t.aero_board_path then
+		win = M.attach(win, previous and previous.kind or "source")
+	else
+		api.nvim_win_set_buf(
+			win,
+			previous and api.nvim_buf_is_valid(previous.buf) and previous.buf or api.nvim_create_buf(true, false)
+		)
+		vim.wo[win].winbar = previous and previous.winbar or ""
+		vim.w[win].aero_reader_kind = previous and previous.reader_kind or nil
+
+		if previous then
+			api.nvim_win_call(win, function()
+				vim.fn.winrestview(previous.view)
+			end)
+		end
+	end
+
+	api.nvim_set_current_win(win)
+end
+
 function M.select(kind)
 	if not labels[kind] then
 		return
+	end
+
+	local knowledge = vim.t.aero_knowledge_reader
+
+	if vim.tbl_contains(knowledge_kinds, kind) then
+		if knowledge then
+			local metadata = require("aero.knowledge.metadata")
+			local open = kind == "content" and metadata.extracted_content or metadata.extraction_details
+			return open(knowledge.space_id, knowledge.source_id)
+		end
+
+		return
+	elseif knowledge then
+		M.close_knowledge()
 	end
 
 	local win = require("aero.navigation").code_window(kind)
@@ -144,7 +251,7 @@ function M.mode(mode)
 
 	if mode ~= "tabs" and mode ~= "panes" then
 		return vim.notify(
-			"Aero: use :Aero reader [tabs|panes|source|exports|references|reports|reading]",
+			"Aero: use :Aero reader [tabs|panes|source|exports|references|reports|reading|content|metadata]",
 			vim.log.levels.WARN
 		)
 	end
@@ -185,7 +292,7 @@ function M.mode(mode)
 	else
 		local last = anchor
 
-		for _, kind in ipairs(kinds) do
+		for _, kind in ipairs(kinds(s)) do
 			local slot = s.slots[kind]
 
 			if slot and slot ~= active and api.nvim_buf_is_valid(slot.buf) then
@@ -204,17 +311,23 @@ end
 
 function M.setup()
 	_G.AeroReaderClick = function(index)
-		if index == #kinds + 1 then
+		local tabs = kinds(state())
+
+		if index == #tabs + 1 then
 			M.mode()
 		else
-			M.select(kinds[index])
+			M.select(tabs[index])
 		end
 	end
 	local group = api.nvim_create_augroup("Aero.reader", { clear = true })
 	api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 		group = group,
 		callback = function()
-			if changing or not vim.t.aero_worktree or not valid(api.nvim_get_current_win()) then
+			if
+				changing
+				or (not vim.t.aero_worktree and not vim.t.aero_knowledge_reader)
+				or not valid(api.nvim_get_current_win())
+			then
 				return
 			end
 
@@ -236,6 +349,7 @@ function M.setup()
 			for tab in pairs(states) do
 				if not api.nvim_tabpage_is_valid(tab) then
 					states[tab] = nil
+					returns[tab] = nil
 				end
 			end
 		end,
