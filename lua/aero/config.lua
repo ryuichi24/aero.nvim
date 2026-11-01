@@ -175,6 +175,7 @@ local defaults = {
 	},
 	ui = {
 		dashboard = {
+			sidebar = { line_numbers = { show = false, relative = false } },
 			remote_refresh_interval = 60000, -- milliseconds between automatic remote checks per workspace
 			remote_concurrency = 2, -- maximum simultaneous background fetches
 			position = "left", -- "left" | "right" | "current"

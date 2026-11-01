@@ -37,6 +37,7 @@ require("aero").setup({
   ui = {
     dashboard = {
       position = "left", width = 40,
+      sidebar = { line_numbers = { show = false, relative = false } },
       keymaps = { open = "<CR>", close = "q" },
     },
     panel = { position = "right", width = 80 },

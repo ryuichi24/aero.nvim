@@ -319,9 +319,10 @@ api.nvim_create_autocmd("TabLeave", {
 })
 
 local function set_win_options(win)
+	local line_numbers = config.options.dashboard.sidebar.line_numbers
 	local opts = {
-		number = false,
-		relativenumber = false,
+		number = line_numbers.show,
+		relativenumber = line_numbers.show and line_numbers.relative,
 		signcolumn = "no",
 		foldcolumn = "0",
 		wrap = false,
