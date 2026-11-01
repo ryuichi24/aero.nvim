@@ -1,6 +1,7 @@
 local M = {}
 local events = require("aero.events")
 local roots = {}
+local common_dirs = {}
 
 local function canonical(path)
 	return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
@@ -38,6 +39,55 @@ end
 local function run(args)
 	local r = require("aero.install_progress").wait(args, 10000, { text = true })
 	return r.code == 0, vim.trim(r.stdout or ""), vim.trim(r.stderr or "")
+end
+
+-- Check administrative metadata without spawning Git on every sidebar update.
+function M.worktree_stamp(root)
+	local common = common_dirs[root]
+
+	if not common then
+		local ok, out = run({ "git", "-C", root, "rev-parse", "--path-format=absolute", "--git-common-dir" })
+
+		if not ok then
+			return nil
+		end
+
+		common = out
+		common_dirs[root] = common
+	end
+
+	local parts = {}
+
+	local function stamp(path)
+		local stat = vim.uv.fs_stat(path)
+
+		if stat then
+			table.insert(parts, path .. ":" .. stat.mtime.sec .. ":" .. stat.mtime.nsec .. ":" .. stat.size)
+		end
+	end
+
+	stamp(common .. "/HEAD")
+	stamp(common .. "/worktrees")
+	local scan = vim.uv.fs_scandir(common .. "/worktrees")
+
+	if scan then
+		while true do
+			local name = vim.uv.fs_scandir_next(scan)
+
+			if not name then
+				break
+			end
+
+			local path = common .. "/worktrees/" .. name
+			stamp(path)
+			stamp(path .. "/HEAD")
+			stamp(path .. "/gitdir")
+			stamp(path .. "/locked")
+		end
+	end
+
+	table.sort(parts)
+	return table.concat(parts, "\n")
 end
 
 local function run_async(args, cb)

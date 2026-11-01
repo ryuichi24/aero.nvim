@@ -68,7 +68,7 @@ local function worktrees(ws, force)
 
 	if force or not cache then
 		local list, err = git.list(ws.root)
-		cache = { list = list, err = err }
+		cache = { list = list, err = err, stamp = list and git.worktree_stamp(ws.root) }
 		state.worktrees[ws.root] = cache
 	end
 
@@ -529,9 +529,46 @@ api.nvim_create_autocmd("FocusGained", {
 		if state.buf and api.nvim_buf_is_valid(state.buf) and vim.fn.bufwinid(state.buf) ~= -1 then
 			store.load()
 			require("aero.submodules").invalidate(true)
+			state.worktrees = {}
 			load_worktrees()
 			M.render()
 		end
+	end,
+})
+
+-- Agents and external terminals can create worktrees without returning focus.
+local worktree_timer = assert(vim.uv.new_timer())
+worktree_timer:unref()
+worktree_timer:start(
+	1000,
+	1000,
+	vim.schedule_wrap(function()
+		if not state.buf or not api.nvim_buf_is_valid(state.buf) or vim.fn.bufwinid(state.buf) == -1 then
+			return
+		end
+
+		local changed = false
+
+		for _, ws in ipairs(store.data.workspaces) do
+			local cache = state.worktrees[ws.root]
+
+			if ws.expanded ~= false and cache and cache.list and cache.stamp ~= git.worktree_stamp(ws.root) then
+				worktrees(ws, true)
+				changed = true
+			end
+		end
+
+		if changed then
+			require("aero.submodules").invalidate(true)
+			M.render()
+		end
+	end)
+)
+api.nvim_create_autocmd("VimLeavePre", {
+	group = "Aero.dashboard",
+	callback = function()
+		worktree_timer:stop()
+		worktree_timer:close()
 	end,
 })
 
