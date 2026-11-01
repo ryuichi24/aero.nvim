@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ryuichi24/aero.nvim/apps/mcp/internal/knowledge"
 )
 
 var version = "0.4.0-dev"
@@ -114,6 +115,7 @@ type knowledgeCitation struct {
 }
 
 type knowledgeArgs struct {
+	Tag       string              `json:"tag,omitempty" jsonschema:"Exact registered tag for list; returns matching sources and notes within scope"`
 	Action    string              `json:"action" jsonschema:"list, search, read, read_note, table, aggregate, save_note, pin_note, jobs, cancel_job, or retry_job; scope is enforced by the host"`
 	Revision  int                 `json:"revision,omitempty" jsonschema:"Expected current note revision when editing"`
 	Pinned    bool                `json:"pinned,omitempty"`
@@ -124,6 +126,7 @@ type knowledgeArgs struct {
 	First     int                 `json:"first,omitempty" jsonschema:"First one-based chunk or table row"`
 	Last      int                 `json:"last,omitempty" jsonschema:"Last one-based chunk or table row"`
 	Limit     int                 `json:"limit,omitempty"`
+	Offset    int                 `json:"offset,omitempty" jsonschema:"Continuation offset: item offset for list, character offset for read/read_note or table row_fragment. Use returned next_offset and next_chunk/next_row as first."`
 	TableName string              `json:"table_name,omitempty"`
 	Column    int                 `json:"column,omitempty" jsonschema:"One-based numeric column for aggregate"`
 	ID        string              `json:"id,omitempty" jsonschema:"Existing note or job ID"`
@@ -175,6 +178,27 @@ func addTool[T any](server *mcp.Server, c client, method, description string) {
 }
 
 func run() error {
+	if len(os.Args) >= 2 && os.Args[1] == "extract" {
+		if len(os.Args) != 4 {
+			return fmt.Errorf("usage: aero-mcp extract PATH ORIGINAL_NAME")
+		}
+
+		var options knowledge.Options
+		if err := json.NewDecoder(os.Stdin).Decode(&options); err != nil && err != io.EOF {
+			return err
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		defer cancel()
+
+		document, err := knowledge.Extract(ctx, os.Args[2], os.Args[3], options)
+		if err != nil {
+			return err
+		}
+
+		return json.NewEncoder(os.Stdout).Encode(document)
+	}
+
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"version": version, "bridge_protocol": protocol, "knowledge_protocol": 1})
 	}

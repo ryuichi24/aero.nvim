@@ -47,6 +47,7 @@ func TestMCPDiscoveryAndScopedCall(t *testing.T) {
 	c := client{socket: path, credential: "private-binding"}
 	addTool[readArgs](server, c, "get_ticket", "Committed ticket")
 	addTool[moveArgs](server, c, "move_ticket", "Conditional movement")
+	addTool[knowledgeArgs](server, c, "knowledge", "Scoped knowledge retrieval and creation")
 
 	st, ct := mcp.NewInMemoryTransports()
 
@@ -63,7 +64,7 @@ func TestMCPDiscoveryAndScopedCall(t *testing.T) {
 	defer cs.Close()
 
 	tools, err := cs.ListTools(ctx, nil)
-	if err != nil || len(tools.Tools) != 2 {
+	if err != nil || len(tools.Tools) != 3 {
 		t.Fatalf("discovery: %v %+v", err, tools)
 	}
 

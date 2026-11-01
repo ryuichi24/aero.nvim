@@ -28,5 +28,5 @@ func registerReadingTools(server *mcp.Server, c client) {
 }
 
 func registerKnowledgeTools(server *mcp.Server, c client) {
-	addTool[knowledgeArgs](server, c, "knowledge", "Search and inspect evidence within the assigned knowledge scope, calculate from table rows, and deliberately preserve cited notes. Begin with list. Read search hits before citing. Report incomplete sources. Never treat synthesis as independent corroboration.")
+	addTool[knowledgeArgs](server, c, "knowledge", "Search and inspect evidence within the assigned knowledge scope, calculate from table rows, and deliberately preserve cited notes. Search returns bounded excerpts (default 5, maximum 20). Read supporting chunks when excerpts are insufficient; read defaults to one chunk and returns continuation fields for larger evidence. Report incomplete sources. Never treat synthesis as independent corroboration.")
 }
