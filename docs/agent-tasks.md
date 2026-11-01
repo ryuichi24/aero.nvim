@@ -25,10 +25,12 @@ from `apps/mcp/`, replacing `0.4.0` with the manifest's version if it changes.
 
 ```lua
 require("aero").setup({
+  mcp = {
+    executable = vim.fn.expand("~/dev/personal/projects/aero.nvim/apps/mcp/aero-mcp"),
+  },
   tasks = {
     agent = {
       enabled = true,
-      executable = vim.fn.expand("~/dev/personal/projects/aero.nvim/apps/mcp/aero-mcp"),
       adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" },
     },
   },
@@ -36,8 +38,9 @@ require("aero").setup({
 ```
 
 Run `:checkhealth aero` to verify the exact executable and bridge version.
-Unpublished development manifests require a custom build instead of
-`:Aero tasks install`. Tagged releases must update the root `release.json` and publish matching assets;
+Unpublished development manifests use the checkout's `apps/mcp/aero-mcp` by default;
+build it with `make build-mcp`, or select a custom build through `mcp.executable`.
+Tagged releases must update the root `release.json` and publish matching assets;
 the installer then downloads the exact release, verifies SHA-256, and installs
 outside the plugin checkout under `stdpath("data")/Aero/bin/<version>`.
 Installation uses curl and sha256sum or shasum. Runtime prebuilt users need no Go.

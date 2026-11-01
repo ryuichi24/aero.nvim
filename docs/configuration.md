@@ -4,17 +4,135 @@ Customize agent commands, layout, mappings, storage, and appearance with `setup(
 
 [Back to README](../README.md)
 
-Only specify options you want to change. The complete defaults below match
-`lua/aero/config.lua` and can be copied into your Neovim configuration.
+Only specify options you want to change. Settings are grouped by responsibility:
+
+- `sessions`: default agent, session naming, initial insert mode, and terminal activity.
+- `storage`: session/buffer persistence and the state file.
+- `mcp`: the shared `aero-mcp` server executable for tasks, reading, and knowledge.
+- `worktrees`: worktree paths and tab behavior.
+- `ui`: editor layout, dashboard, panel, terminal, inputs, mappings, and appearance.
+- `chat`: permissions, transcript, prompt, and todo popups.
+- Feature settings stay under `agents`, `tasks`, `knowledge`, `reading`, `reports`,
+  `exports`, `reference_finder`, `mermaid`, and `companion`. Lifecycle hooks use `events`.
+
+```lua
+require("aero").setup({
+  sessions = {
+    default_agent = "opencode-acp",
+    prompt_name = true,
+    start_insert = true,
+    idle_ms = 1500,
+    notify_idle = true,
+  },
+  storage = {
+    sessions = true,
+    buffers = true,
+    state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
+  },
+  mcp = { executable = false }, -- prefer a checkout build; otherwise use the version-matched installed release
+  worktrees = {
+    tabs = true,
+    -- path = function(workspace, branch) return "/your/worktree/path" end,
+  },
+  ui = {
+    dashboard = {
+      position = "left", width = 40,
+      keymaps = { open = "<CR>", close = "q" },
+    },
+    panel = { position = "right", width = 80 },
+    terminal = { height = 30 },
+    layout = { min_code_width = 20 },
+    input = { adapter = "auto", select_default = true },
+    picker = { initial_mode = "insert" },
+    animation = true,
+    fullscreen_key = "gF",
+    quote_key = "<leader>aq",
+    resize = {
+      prefix = "<C-w>",
+      keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+    },
+  },
+  chat = {
+    permissions = { auto_yes = false },
+    transcript = {
+      max_tool_lines = 20,
+      decorations = true,
+      collapsed = { turns = false, thinking = true, tool_groups = true, tools = true },
+      line_numbers = { show = false, relative = false },
+      image_previews = false,
+      show_usage = true,
+    },
+    prompt = {
+      height = 25,
+      tab_completion = true,
+      line_numbers = { show = false, relative = false },
+      -- resize_keys = { grow = "<C-w>k" },
+    },
+    todos = { enabled = true, timeout = 15000 }, -- milliseconds; 0 keeps popups open
+  },
+})
+```
+
+The complete grouped defaults are available as
+`require("aero.config").defaults`. `setup()` compiles these public groups to a
+feature-oriented internal representation (`config.options`); that representation
+is for Aero's implementation, not a user configuration API.
+
+### Merge rules
+
+Maps merge recursively, so changing one field preserves its siblings. Lists
+replace in full, including empty lists: this applies to commands, task states,
+agent adapters, extraction adapters, and allowlisted directories. Each named
+agent definition replaces its entire default definition; `agents = { codex = false }`
+removes that agent. Supported `false` switches remain `false`. Setup copies user
+tables and starts from pristine defaults on every call.
+
+### Migrating existing setup calls
+
+Earlier layout/session spellings remain accepted at the setup boundary. Grouped
+spellings win when both are supplied. Per-feature executable settings must be
+moved to `mcp.executable`. Move each setting using this table:
+
+| Earlier setting | Grouped setting |
+| --- | --- |
+| `default_agent` | `sessions.default_agent` |
+| `prompt_session_name` | `sessions.prompt_name` |
+| `start_insert`, `idle_ms`, `notify_idle` | same field under `sessions` |
+| `persist_sessions`, `persist_buffers` | `storage.sessions`, `storage.buffers` |
+| `state_file` | `storage.state_file` |
+| `worktree_path`, `worktree_tabs` | `worktrees.path`, `worktrees.tabs` |
+| `dashboard`, `panel`, `terminal`, `layout` | same field under `ui` |
+| `input`, `picker`, `icons`, `animation` | same field under `ui` |
+| `fullscreen_key`, `quote_key`, `resize`, `resize_keys` | same field under `ui` |
+| `keymaps` | `ui.dashboard.keymaps` |
+| `acp.auto_yes` | `chat.permissions.auto_yes` |
+| `acp.max_tool_lines`, `decorations`, `collapsed`, `image_previews`, `show_usage` | same field under `chat.transcript` |
+| `acp.line_numbers.transcript` | `chat.transcript.line_numbers` |
+| `acp.line_numbers.prompt` | `chat.prompt.line_numbers` |
+| `acp.prompt_height` | `chat.prompt.height` |
+| `acp.tab_completion`, `acp.resize_keys` | same field under `chat.prompt` |
+| `acp.todo_notifications` | `chat.todos.enabled` |
+| `acp.todo_notification_timeout` | `chat.todos.timeout` |
+| `reading.agent.executable` or `reading.agent.mcp_executable` | `mcp.executable` |
+| `tasks.agent.executable` or `tasks.agent.mcp_executable` | `mcp.executable` |
+| `knowledge.executable` or `knowledge.mcp_executable` | `mcp.executable` |
+
+`mcp.executable` selects one `aero-mcp` binary for all three features. The removed
+per-feature executable settings report a migration error, including when a shared
+path is also supplied. It is separate from an agent's CLI command
+(`agents.<name>.cmd`) and the companion server binary (`companion.executable`).
+
+The detailed feature examples below use the earlier spellings where applicable;
+the migration table also applies to those examples.
 
 ## Task-agent integration
 
 ```lua
 require("aero").setup({
+  mcp = { executable = false }, -- shared aero-mcp binary
   tasks = {
     agent = {
       enabled = false,
-      executable = false, -- use the version-matched installed binary; or an absolute custom path
       adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" },
       -- prompt may override the assignment instructions independently of reports.prompt
     },
@@ -26,11 +144,10 @@ require("aero").setup({
 See [agent task integration](agent-tasks.md) for builds, version-matched installation,
 draft conflicts, supported transport, and runtime binding lifetime.
 
-## Core defaults
+## Earlier setup reference
 
-Nested options are merged with defaults. Agent definitions are replaced wholesale;
-`tasks.states` and `tasks.terminal_states` replace their default lists. Optional
-settings without defaults are listed after this block.
+This reference retains earlier spellings for existing configurations. All lists
+replace their defaults; optional settings without defaults follow the block.
 
 ```lua
 require("aero").setup({
@@ -53,7 +170,7 @@ require("aero").setup({
   },
   panel = { position = "right", width = 80 }, -- left | right; false uses last window
   worktree_tabs = true,
-  terminal = { height = 12, cmd = nil }, -- nil uses { vim.o.shell }
+  terminal = { height = 30, cmd = nil }, -- nil uses { vim.o.shell }
   idle_ms = 1500, -- terminal output inactivity before idle
   notify_idle = true, -- notify when hidden sessions become idle
   start_insert = true,
@@ -137,7 +254,6 @@ require("aero").setup({
     column_width = 32,
     agent = {
       enabled = false, -- opt in to task tools for ACP sessions
-      executable = false, -- installed binary; or an absolute custom executable path
       adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" }, -- allowed names from the agents table
       prompt = "Read the ticket through Aero's task tools and follow its task_type: report means investigate and publish Markdown findings with aero_create_report; implementation means implement its requirements; general or an omitted task_type means follow the ticket's requirements. Record progress, report paths, and verification results with aero_update_ticket_body. Discover current board states before explicitly moving the ticket with aero_move_ticket. Do not write the task documents directly.",
     },
@@ -192,6 +308,19 @@ In insert mode, use Ctrl-n/Ctrl-p or the arrow keys to select a result and Enter
 to open it. Escape switches to normal mode, where `j`/`k` navigate, `i` resumes
 filtering, and `q` closes the popup.
 
+### MCP server executable
+
+`mcp.executable` defaults to `false`: prefer `apps/mcp/aero-mcp` when executable
+(build it with `make build-mcp`); otherwise use the version-matched installed
+release (`:Aero tasks install`). Unpublished revisions require a local build.
+Set an absolute path to use a custom build. Explicit paths never fall back to a different executable
+if missing or incompatible. Version and bridge compatibility are verified before use.
+
+Tasks, reading lists, and knowledge all resolve through this shared setting,
+including knowledge ingestion commands. Feature-specific MCP server registrations
+retain their separate tool sets and scoped credentials; the ACP agent launches
+them as separate stdio server processes using the same binary.
+
 ### Task options
 
 - `tasks.directory`: `"data"` stores boards and tickets under Aero's workspace-scoped
@@ -207,9 +336,6 @@ filtering, and `q` closes the popup.
   with the previous/next state mappings.
 - `tasks.agent.enabled`: enables task assignment and task-tool attachment to ACP
   sessions, including the local `/new-ticket` command.
-- `tasks.agent.executable`: `false` selects the version-matched installed MCP
-  binary. Set an absolute path for a custom build or an unpublished development
-  revision. Install published binaries with `:Aero tasks install`.
 - `tasks.agent.adapters`: names of configured ACP agents allowed to use task tools.
   Those agents must support the required ACP session capabilities; adding a name
   does not install or configure its provider.

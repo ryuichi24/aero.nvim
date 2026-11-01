@@ -401,7 +401,7 @@ with the task-agent options in the same `setup()` call. For a checkout at
 ```sh
 nvim \
   --cmd 'set rtp^=/Users/ryu/dev/personal/projects/aero.nvim' \
-  -c 'lua require("aero").setup({ tasks = { agent = { enabled = true, executable = "/Users/ryu/dev/personal/projects/aero.nvim/apps/mcp/aero-mcp" } }, companion = { bind = "100.101.102.103", port = 8765, origin = "http://100.101.102.103:8765", allow_http = true } })' \
+  -c 'lua require("aero").setup({ mcp = { executable = "/Users/ryu/dev/personal/projects/aero.nvim/apps/mcp/aero-mcp" }, tasks = { agent = { enabled = true } }, companion = { bind = "100.101.102.103", port = 8765, origin = "http://100.101.102.103:8765", allow_http = true } })' \
   -c 'Aero'
 ```
 

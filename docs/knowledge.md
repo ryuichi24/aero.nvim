@@ -7,9 +7,10 @@ multiple independent agent sessions.
 ## Start in Neovim
 
 For a development checkout, run `make build-all` so both native helpers include
-the knowledge protocol. Knowledge sessions prefer the local MCP build unless an
-executable is configured; `knowledge.executable` can select an explicit updated
-helper. An older installed helper is rejected with a rebuild instruction.
+the knowledge protocol. Tasks, reading, and knowledge share `mcp.executable`.
+By default, Aero prefers the local MCP build when present, otherwise the
+version-matched installed binary. Set `mcp.executable` for a custom helper.
+An older helper is rejected with a rebuild instruction.
 
 1. Restart Neovim after updating the plugin and run `:Aero open`.
 2. Expand **Knowledge base** and choose **Manage knowledge +**.
@@ -448,8 +449,8 @@ state; synthesis is not treated as independent corroboration of its sources.
 
 ```lua
 require("aero").setup({
+  mcp = { executable = false }, -- shared binary; set an absolute path for a custom aero-mcp build
   knowledge = {
-    executable = false, -- prefer the checkout build, or configure an updated aero-mcp path
     ingest_concurrency = 2,
     sync_interval = 60000, -- milliseconds; 0 disables periodic folder scans
     embedding_command = {}, -- your adapter executable and arguments
