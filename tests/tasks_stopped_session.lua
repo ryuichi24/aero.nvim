@@ -16,6 +16,7 @@ for _, variant in ipairs({ "supported", "unsupported", "reject", "initialize-err
 end
 
 require("aero").setup({
+	mcp = { executable = executable },
 	state_file = root .. "/state.json",
 	animation = false,
 	start_insert = false,
@@ -23,7 +24,7 @@ require("aero").setup({
 	tasks = {
 		directory = "worktree",
 		states = { "backlog", "done" },
-		agent = { enabled = true, executable = executable, adapters = vim.tbl_keys(agents) },
+		agent = { enabled = true, adapters = vim.tbl_keys(agents) },
 	},
 })
 local tasks, agent = require("aero.tasks"), require("aero.tasks.agent")

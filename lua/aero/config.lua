@@ -1,4 +1,5 @@
 local M = {}
+local schema = require("aero.config_schema")
 
 ---@class aero.Agent
 ---@field type? "terminal"|"acp"  terminal: run the CLI in a :terminal; acp: speak Agent Client Protocol over stdio
@@ -7,12 +8,33 @@ local M = {}
 ---@field key? string  dashboard key that starts this agent on the worktree under the cursor
 ---@field env? table<string, string>
 
-M.defaults = {
-	default_agent = "opencode-acp", -- agent used by the first (default) choice in the agent picker
+local defaults = {
+	sessions = {
+		default_agent = "opencode-acp", -- first (default) choice in the agent picker
+		prompt_name = true, -- ask for a name when creating a session
+		start_insert = true,
+		idle_ms = 1500, -- terminal output inactivity before idle
+		notify_idle = true, -- notify when a hidden session becomes idle
+	},
+	storage = {
+		sessions = true, -- remember sessions across restarts
+		buffers = true, -- remember the last code file/directory in each worktree
+		state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
+	},
+	mcp = {
+		executable = false, -- shared aero-mcp server; false uses the checkout build (development) or installed release
+	},
+	worktrees = {
+		tabs = true, -- give each worktree its own tab, :tcd'd to the worktree
+		-- New worktrees: <repo>/../<repo>.worktrees/<branch>.
+		path = function(ws, branch)
+			local parent = vim.fs.dirname(ws.root)
+			return vim.fs.joinpath(parent, vim.fs.basename(ws.root) .. ".worktrees", (branch:gsub("/", "-")))
+		end,
+	},
 	-- lifecycle event name -> function or list of functions
 	events = {},
 	knowledge = {
-		executable = false, -- updated aero-mcp; prefers a local checkout build when no executable is configured
 		ingest_concurrency = 2,
 		sync_interval = 60000, -- milliseconds; 0 disables recurring connected-folder scans
 		-- Optional embedding adapter: JSON {texts:[...]} on stdin, {model:string,vectors:number[][]} on stdout.
@@ -33,29 +55,28 @@ M.defaults = {
 		["codex-acp"] = { type = "acp", cmd = { "npx", "-y", "@agentclientprotocol/codex-acp" }, key = "X" },
 		["opencode-acp"] = { type = "acp", cmd = { "opencode", "acp" }, key = "O" },
 	},
-	acp = {
-		auto_yes = false, -- automatically allow permission requests in new conversations
-		-- tool call output longer than this is truncated in the chat buffer
-		max_tool_lines = 20,
-		-- prompt window height
-		prompt_height = 25,
-		tab_completion = true, -- map Tab/Shift-Tab to navigate prompt suggestions
-		decorations = true, -- native transcript cards, colors, and visual borders
-		collapsed = { -- initial transcript fold state; true collapses the section
-			turns = false,
-			thinking = true,
-			tool_groups = true,
-			tools = true,
+	chat = {
+		permissions = { auto_yes = false }, -- automatically allow requests in new conversations
+		transcript = {
+			max_tool_lines = 20, -- truncate longer tool output
+			decorations = true, -- native transcript cards, colors, and visual borders
+			collapsed = { -- initial fold state; true collapses the section
+				turns = false,
+				thinking = true,
+				tool_groups = true,
+				tools = true,
+			},
+			line_numbers = { show = false, relative = false },
+			image_previews = false, -- expose images to Markdown renderers (e.g. image.nvim)
+			show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
 		},
-		line_numbers = {
-			transcript = { show = false, relative = false },
-			prompt = { show = false, relative = false },
+		prompt = {
+			height = 25,
+			tab_completion = true, -- map Tab/Shift-Tab to navigate prompt suggestions
+			line_numbers = { show = false, relative = false },
+			-- resize_keys may override the shared shortcuts for prompt buffers
 		},
-		image_previews = false, -- expose ACP images to Markdown image renderers (e.g. image.nvim)
-		show_usage = true, -- agent-reported tokens, context usage, and cumulative fees
-		todo_notifications = true, -- session-labeled todo change popups
-		todo_notification_timeout = 15000, -- milliseconds after the last change; 0 keeps popups open
-		-- resize_keys may override the shared shortcuts for prompt buffers
+		todos = { enabled = true, timeout = 15000 }, -- milliseconds; 0 keeps popups open
 	},
 	mermaid = {
 		enabled = false, -- inline diagrams in Markdown files and ACP transcripts via image.nvim
@@ -114,7 +135,7 @@ M.defaults = {
 		explanation = { auto_open = true, position = "right", unfold = true }, -- position: "below" or "right"
 		-- {title} becomes the JSON-quoted list title in the /reading draft.
 		prompt = "Create a new reading list titled {title} for this walkthrough. Use aero_reading_list_publish, omitting the list id to create a separate list. Trace the relevant code from its entry point to the outcome in execution or data-flow order. Verify source paths and line numbers, and include a short label and a self-contained Markdown note for each stop. Explain what each relevant code block does, why it matters, and how it connects to the next stop. Include short, source-grounded code snippets in fenced blocks with language tags, and explain the syntax and language constructs used in each snippet, including operators, idioms, and non-obvious expressions. Do not assume the reader already knows the language syntax; provide these explanations up front so they do not need to ask while reading. Keep snippets focused on the code being explained rather than copying entire functions unnecessarily.",
-		agent = { enabled = false, executable = false }, -- ACP reading-list tool; uses aero-mcp
+		agent = { enabled = false }, -- ACP reading-list tool; uses the shared aero-mcp server
 	},
 	tasks = {
 		directory = "data", -- workspace scoped; "worktree" means the main checkout
@@ -125,7 +146,6 @@ M.defaults = {
 		yq = vim.env.AERO_TASKS_YQ or "yq", -- Mike Farah's Go-based yq v4
 		agent = {
 			enabled = false,
-			executable = false,
 			adapters = { "opencode-acp", "claude-agent-acp", "codex-acp" },
 			prompt = "Read the ticket through Aero's task tools and follow its task_type: report means investigate and publish Markdown findings with aero_create_report; implementation means implement its requirements; general or an omitted task_type means follow the ticket's requirements. Record progress, report paths, and verification results with aero_update_ticket_body. Discover current board states before explicitly moving the ticket with aero_move_ticket. Do not write the task documents directly.",
 		},
@@ -153,119 +173,106 @@ M.defaults = {
 			help = "g?",
 		},
 	},
-	-- where `a` on a workspace creates new worktrees: <repo>/../<repo>.worktrees/<branch>
-	worktree_path = function(ws, branch)
-		local parent = vim.fs.dirname(ws.root)
-		return vim.fs.joinpath(parent, vim.fs.basename(ws.root) .. ".worktrees", (branch:gsub("/", "-")))
-	end,
-	dashboard = {
-		remote_refresh_interval = 60000, -- milliseconds between automatic remote checks per workspace
-		remote_concurrency = 2, -- maximum simultaneous background fetches
-		position = "left", -- "left" | "right" | "current"
-		width = 40,
-	},
-	layout = {
-		min_code_width = 20, -- reserve a usable editor between dashboard and agent panel
-	},
-	-- sessions open in a fixed column at the edge of the tab, keeping the other windows for code.
-	-- set to false to open sessions in the last used window instead
-	panel = {
-		position = "right", -- "left" | "right"
-		width = 80,
-		info_open_by_default = false, -- open Session info by default when the agent panel opens
-		info_height_rows = 12, -- preferred Session info height when placed above the transcript
-		info_auto_position = true, -- move Session info above/beside the transcript as the panel resizes
-		info_position_threshold_columns = 100, -- combined transcript/info width required for side-by-side placement
-	},
-	-- the per-worktree shell opened with :Aero term / `t`, below the code window
-	terminal = {
-		height = 30,
-		cmd = nil, -- default: { vim.o.shell }
-	},
-	-- give each worktree its own tab, :tcd'd to the worktree; opening a session or pressing `e`
-	-- switches to it. set to false to keep everything in the current tab
-	worktree_tabs = true,
-	-- a session with no terminal output for this long is considered idle (waiting for you)
-	idle_ms = 1500,
-	-- notify when a session in a hidden buffer goes from busy to idle
-	notify_idle = true,
-	start_insert = true,
-	-- spin the icon of busy sessions (dashboard, panel winbar, transcript footer, running tools)
-	animation = true,
-	-- normal-mode key in every pane, including code; false disables the mapping
-	fullscreen_key = "gF",
-	-- visual-mode quote action in code and agent logs; false disables the mapping
-	quote_key = "<leader>aq",
-	-- normal-mode repeat resizing in every Aero pane; false disables the shortcuts
-	resize = {
-		prefix = "<C-w>",
-		keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
-		steps = { grow = 1, shrink = 1, narrow = 1, widen = 1 }, -- positive rows/columns per keypress
-	},
-	-- remember sessions across restarts so they can be resumed
-	persist_sessions = true,
-	-- ask for a name when creating a session with `a` or an agent shortcut
-	prompt_session_name = true,
-	input = {
-		adapter = "auto", -- "auto" | "dressing" | "snacks" | "vim_ui" | function(opts, callback)
-		select_default = true, -- select session names in supported input UIs
-	},
-	picker = {
-		initial_mode = "insert", -- "insert" | "normal" for searchable popups
-		workspaces = {}, -- initial_mode overrides the shared default
-		sessions = {},
-		worktrees = {},
-	},
-	-- remember the last code file/directory in each worktree across restarts
-	persist_buffers = true,
-	state_file = vim.fn.stdpath("data") .. "/Aero/state.json",
-	icons = {
-		expanded = "▾",
-		collapsed = "▸",
-		busy = "◐",
-		idle = "●",
-		waiting = "?",
-		exited = "✗",
-		stopped = "○",
-	},
-	-- dashboard keymaps; set an entry to false to disable it
-	keymaps = {
-		open = "<CR>",
-		expand = "l",
-		collapse = "h",
-		toggle = "<Tab>",
-		open_vsplit = "<C-v>",
-		open_split = "<C-x>",
-		open_tab = "<C-t>",
-		add = "a",
-		add_workspace = "A",
-		delete = "d",
-		stop = "s",
-		restart = "r",
-		rename = "N",
-		move = "m",
-		refresh = "R",
-		yank_name = "yy",
-		yank_path = "yY",
-		pull = "P",
-		switch_branch = "gb",
-		review = "gr",
-		cd = ".",
-		edit = "e",
-		open_board_markdown = "I", -- open the selected board's raw Markdown file
-		edit_enter = "<C-CR>", -- open the selected worktree in the code pane
-		edit_mouse = "<C-LeftMouse>", -- open the clicked worktree in the code pane
-		terminal = "t",
-		next_workspace = "]]",
-		prev_workspace = "[[",
-		close = "q",
-		help = "g?",
+	ui = {
+		dashboard = {
+			remote_refresh_interval = 60000, -- milliseconds between automatic remote checks per workspace
+			remote_concurrency = 2, -- maximum simultaneous background fetches
+			position = "left", -- "left" | "right" | "current"
+			width = 40,
+			-- Set an entry to false to disable it.
+			keymaps = {
+				open = "<CR>",
+				expand = "l",
+				collapse = "h",
+				toggle = "<Tab>",
+				open_vsplit = "<C-v>",
+				open_split = "<C-x>",
+				open_tab = "<C-t>",
+				add = "a",
+				add_workspace = "A",
+				delete = "d",
+				stop = "s",
+				restart = "r",
+				rename = "N",
+				move = "m",
+				refresh = "R",
+				yank_name = "yy",
+				yank_path = "yY",
+				pull = "P",
+				switch_branch = "gb",
+				review = "gr",
+				cd = ".",
+				edit = "e",
+				open_board_markdown = "I", -- open the selected board's raw Markdown file
+				edit_enter = "<C-CR>", -- open the selected worktree in the code pane
+				edit_mouse = "<C-LeftMouse>", -- open the clicked worktree in the code pane
+				terminal = "t",
+				next_workspace = "]]",
+				prev_workspace = "[[",
+				close = "q",
+				help = "g?",
+			},
+		},
+		layout = {
+			min_code_width = 20, -- reserve a usable editor between dashboard and agent panel
+		},
+		-- sessions open in a fixed column at the edge of the tab, keeping the other windows for code.
+		-- set to false to open sessions in the last used window instead
+		panel = {
+			position = "right", -- "left" | "right"
+			width = 80,
+			info_open_by_default = false, -- open Session info by default when the agent panel opens
+			info_height_rows = 12, -- preferred Session info height when placed above the transcript
+			info_auto_position = true, -- move Session info above/beside the transcript as the panel resizes
+			info_position_threshold_columns = 100, -- combined transcript/info width required for side-by-side placement
+		},
+		-- the per-worktree shell opened with :Aero term / `t`, below the code window
+		terminal = {
+			height = 30,
+			cmd = nil, -- default: { vim.o.shell }
+		},
+		-- spin the icon of busy sessions (dashboard, panel winbar, transcript footer, running tools)
+		animation = true,
+		-- normal-mode key in every pane, including code; false disables the mapping
+		fullscreen_key = "gF",
+		-- visual-mode quote action in code and agent logs; false disables the mapping
+		quote_key = "<leader>aq",
+		-- normal-mode repeat resizing in every Aero pane; false disables the shortcuts
+		resize = {
+			prefix = "<C-w>",
+			keys = { grow = "k", shrink = "j", narrow = "h", widen = "l" },
+			steps = { grow = 1, shrink = 1, narrow = 1, widen = 1 }, -- positive rows/columns per keypress
+		},
+		input = {
+			adapter = "auto", -- "auto" | "dressing" | "snacks" | "vim_ui" | function(opts, callback)
+			select_default = true, -- select session names in supported input UIs
+		},
+		picker = {
+			initial_mode = "insert", -- "insert" | "normal" for searchable popups
+			workspaces = {}, -- initial_mode overrides the shared default
+			sessions = {},
+			worktrees = {},
+		},
+		icons = {
+			expanded = "▾",
+			collapsed = "▸",
+			busy = "◐",
+			idle = "●",
+			waiting = "?",
+			exited = "✗",
+			stopped = "○",
+		},
 	},
 }
-M.options = vim.deepcopy(M.defaults)
+
+-- Public defaults follow setup's grouped schema. options is the compiled,
+-- feature-oriented runtime representation used by Aero's internal modules.
+M.defaults = vim.deepcopy(defaults)
+local runtime_defaults = schema.runtime(defaults)
+M.options = vim.deepcopy(runtime_defaults)
 
 function M.setup(opts)
-	opts = vim.tbl_extend("force", {}, opts or {})
+	opts = schema.runtime(opts)
 
 	-- Accept earlier configuration names; canonical properties take precedence.
 	if opts.reference_finder == nil then
@@ -286,18 +293,14 @@ function M.setup(opts)
 
 	local agents = opts.agents
 	opts.agents = nil
-	M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
-
-	for _, field in ipairs({ "states", "terminal_states" }) do
-		if opts.tasks and opts.tasks[field] ~= nil then
-			M.options.tasks[field] = vim.deepcopy(opts.tasks[field])
-		end
-	end
+	local options = schema.merge(runtime_defaults, opts)
 
 	-- agent definitions are replaced wholesale so list-valued commands never get merged index-by-index
 	for name, agent in pairs(agents or {}) do
-		M.options.agents[name] = agent or nil
+		options.agents[name] = agent and vim.deepcopy(agent) or nil
 	end
+
+	M.options = options
 end
 
 return M

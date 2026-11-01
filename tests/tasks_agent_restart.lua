@@ -30,6 +30,7 @@ end
 
 local root = require("aero.storage").canonical(assert(vim.env.AERO_RESTART_ROOT))
 require("aero").setup({
+	mcp = { executable = executable },
 	state_file = root .. "/state.json",
 	animation = false,
 	start_insert = false,
@@ -40,7 +41,7 @@ require("aero").setup({
 	tasks = {
 		directory = "worktree",
 		states = { "todo", "in progress", "review" },
-		agent = { enabled = true, executable = executable, adapters = { "fixture", "board_fixture" } },
+		agent = { enabled = true, adapters = { "fixture", "board_fixture" } },
 	},
 })
 local sessions, store, tasks = require("aero.session"), require("aero.store"), require("aero.tasks")

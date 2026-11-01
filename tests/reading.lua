@@ -316,12 +316,15 @@ local executable = vim.env.AERO_MCP_EXECUTABLE
 
 if executable then
 	local config = require("aero.config").options
-	config.reading.agent = { enabled = true, executable = executable }
+	config.reading.agent = { enabled = true }
+	config.mcp.executable = executable
 	local agent = require("aero.reading_agent")
 	local session = { key = binding.session_key, worktree = root, mcp_servers = { { name = "custom" } } }
 
 	assert(agent.attach(session))
 	assert(#session.mcp_servers == 2 and session.mcp_servers[2].name == "aero-reading")
+	assert(session.mcp_servers[2].command == require("aero.tasks.install").resolve())
+	assert(session.mcp_servers[2].command == require("aero.knowledge.store").executable())
 	assert(agent.attach(session))
 	assert(#session.mcp_servers == 2)
 

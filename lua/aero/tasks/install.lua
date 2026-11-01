@@ -69,8 +69,8 @@ local function version_matches(path, release, configured)
 				.. detected
 				.. "). "
 				.. (
-					configured
-						and "Rebuild tasks.agent.executable with make build-mcp, or set it to false and run :Aero tasks install."
+					(configured or not release.published)
+						and "Rebuild aero-mcp with make build-mcp or check mcp.executable."
 					or "Run :Aero tasks install to reinstall the matching release."
 				)
 	end
@@ -89,26 +89,31 @@ function M.resolve(executable)
 		return nil, release_err
 	end
 
-	local path = executable or require("aero.config").options.tasks.agent.executable
+	local path = executable or require("aero.config").options.mcp.executable
 	local configured = type(path) == "string" and path ~= ""
 
 	if type(path) ~= "string" or path == "" then
-		if not release.published then
-			return nil, "this development revision requires tasks.agent.executable; build apps/mcp/cmd/aero-mcp locally"
-		end
+		local checkout = vim.fs.joinpath(plugin_root, "apps", "mcp", "aero-mcp")
 
-		local err
-		path, err = installed_path(release)
+		if vim.fn.executable(checkout) == 1 then
+			path = checkout
+			configured = true
+		elseif not release.published then
+			return nil, "this development revision requires aero-mcp; run make build-mcp or configure mcp.executable"
+		else
+			local err
+			path, err = installed_path(release)
 
-		if not path then
-			return nil, err
+			if not path then
+				return nil, err
+			end
 		end
 	end
 
 	path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
 
 	if vim.fn.executable(path) ~= 1 then
-		return nil, "task executable is not executable: " .. path
+		return nil, "MCP executable is not executable: " .. path
 	end
 
 	local ok, err = version_matches(path, release, configured)
@@ -128,7 +133,8 @@ function M.install()
 		return nil, err
 	end
 
-	local configured = require("aero.config").options.tasks.agent.executable
+	local configured = require("aero.config").options.mcp.executable
+	local installed
 
 	if release.published and (type(configured) ~= "string" or configured == "") then
 		local path, path_err = installed_path(release)
@@ -209,10 +215,12 @@ function M.install()
 			vim.notify(download_err, vim.log.levels.ERROR)
 			return nil, download_err
 		end
+
+		installed = path
 	end
 
 	local path
-	path, err = M.resolve()
+	path, err = M.resolve(installed)
 	vim.notify(path or err, path and vim.log.levels.INFO or vim.log.levels.WARN)
 	return path, err
 end

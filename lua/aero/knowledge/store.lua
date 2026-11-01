@@ -12,15 +12,7 @@ function M.directory()
 end
 
 function M.executable()
-	local options = require("aero.config").options
-	local requested = options.knowledge.executable or options.tasks.agent.executable
-
-	if type(requested) ~= "string" or requested == "" then
-		local local_build = vim.fs.normalize(M.script("../mcp/aero-mcp"))
-		requested = vim.fn.executable(local_build) == 1 and local_build or nil
-	end
-
-	return require("aero.tasks.install").resolve(requested)
+	return require("aero.tasks.install").resolve()
 end
 
 function M.id()

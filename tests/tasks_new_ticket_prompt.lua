@@ -80,7 +80,7 @@ local executable = assert(vim.env.AERO_MCP_EXECUTABLE, "build aero-mcp and set A
 local config = require("aero.config").options
 config.tasks.directory = "worktree"
 config.tasks.agent.enabled = true
-config.tasks.agent.executable = executable
+config.mcp.executable = executable
 config.tasks.agent.adapters = { "fixture" }
 local tasks = require("aero.tasks")
 local board = assert(tasks.create_board({ root = root }, "Empty board"))

@@ -16,17 +16,27 @@ storage.read = function(file)
 
 	return text, read_err
 end
+local executable = vim.fn.executable
+vim.fn.executable = function()
+	return 0
+end
 local path, err = install.resolve()
+vim.fn.executable = executable
 
 assert(not path and err:find("development revision", 1, true))
 
-local config = require("aero.config").options.tasks.agent
+local config = require("aero.config").options.mcp
 config.executable = root .. "/missing"
 path, err = install.resolve()
 
 assert(not path and err:find("not executable", 1, true))
 
 if vim.env.AERO_MCP_EXECUTABLE then
+	-- Development auto-detection uses the same checkout binary for every feature.
+	config.executable = false
+
+	assert(install.resolve())
+
 	config.executable = vim.env.AERO_MCP_EXECUTABLE
 
 	assert(install.resolve())
@@ -134,7 +144,7 @@ config.executable = installed
 local before = downloads
 failed, err = install.install()
 
-assert(not failed and err:find(installed, 1, true) and err:find("tasks.agent.executable", 1, true))
+assert(not failed and err:find(installed, 1, true) and err:find("mcp.executable", 1, true))
 assert(downloads == before, "custom executable must not be overwritten")
 
 config.executable = ""
@@ -142,6 +152,15 @@ executable_version = version
 
 assert(install.install(), "empty executable should use release installation")
 
+-- Without a checkout build, every feature can resolve the installed release.
+local checkout = vim.fn.getcwd() .. "/apps/mcp/aero-mcp"
+vim.fn.executable = function(file)
+	return file == checkout and 0 or executable(file)
+end
+
+assert(install.resolve() == installed, "automatic resolution did not fall back to the installed release")
+
+vim.fn.executable = executable
 storage.read, vim.system, vim.fn.stdpath = read, system, stdpath
 vim.fn.delete(root, "rf")
 print("Task executable resolution tests passed.")

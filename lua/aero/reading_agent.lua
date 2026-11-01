@@ -8,7 +8,7 @@ local function attach(session)
 		return true
 	end
 
-	local executable, err = require("aero.tasks.install").resolve(options.executable)
+	local executable, err = require("aero.tasks.install").resolve()
 
 	if not executable then
 		return nil, err

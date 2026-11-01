@@ -130,8 +130,10 @@ assert(configured:find("Configured tools: not reported", 1, true))
 
 local reading_options = require("aero.config").options.reading.agent
 local original_reading = vim.deepcopy(reading_options)
+local mcp_options = require("aero.config").options.mcp
+local original_executable = mcp_options.executable
 reading_options.enabled = true
-reading_options.executable = directory .. "/missing-mcp"
+mcp_options.executable = directory .. "/missing-mcp"
 local failed = { worktree = session.worktree, key = "failed-mcp" }
 local attached, attach_err = require("aero.reading_agent").attach(failed)
 
@@ -144,6 +146,7 @@ assert(require("aero.reading_agent").attach(failed))
 assert(not table.concat(mcp.lines(failed), "\n"):find("Attachment error", 1, true))
 
 require("aero.config").options.reading.agent = original_reading
+mcp_options.executable = original_executable
 mcp.result(session, "aero-reading", nil, { message = "test attachment failure" })
 info.update()
 text = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")

@@ -234,7 +234,7 @@ local function attach(session)
 
 	if version.code ~= 0 or not decoded or type(capability) ~= "table" or capability.knowledge_protocol ~= 1 then
 		return nil,
-			"knowledge tools require an updated aero-mcp; run make build-mcp and configure knowledge.executable to the resulting binary"
+			"knowledge tools require an updated aero-mcp; run make build-mcp and configure mcp.executable to the resulting binary"
 	end
 
 	return require("aero.mcp_attachment").attach(session, {

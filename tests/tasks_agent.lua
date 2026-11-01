@@ -8,6 +8,7 @@ root = require("aero.storage").canonical(root)
 assert(vim.system({ "git", "init", root }):wait().code == 0)
 
 require("aero").setup({
+	mcp = { executable = executable },
 	state_file = root .. "/state.json",
 	animation = false,
 	start_insert = false,
@@ -15,7 +16,7 @@ require("aero").setup({
 	tasks = {
 		directory = "worktree",
 		states = { "todo", "in progress", "review" },
-		agent = { enabled = true, executable = executable, adapters = { "fixture" } },
+		agent = { enabled = true, adapters = { "fixture" } },
 	},
 })
 local ws = { root = root }

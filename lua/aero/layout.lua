@@ -17,7 +17,7 @@ local directions = {
 
 local function resize_direction(name)
 	local direction = directions[name]
-	local options = config.options.resize or config.defaults.resize
+	local options = config.options.resize or config.defaults.ui.resize
 	local step = options.steps[name]
 	M.resize(direction[1] * step, direction[2])
 end
@@ -400,7 +400,7 @@ function M.resize(delta, axis)
 
 	stop_resize()
 	resize_mode = { win = win, buf = buf, saved = {}, keys = {}, allowed = {} }
-	local repeat_keys = config.options.resize and config.options.resize.keys or config.defaults.resize.keys
+	local repeat_keys = config.options.resize and config.options.resize.keys or config.defaults.ui.resize.keys
 
 	for name in pairs(directions) do
 		local key = repeat_keys[name]

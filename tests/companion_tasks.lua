@@ -4,6 +4,7 @@ local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/modes.py"
 require("aero").setup({
+	mcp = { executable = assert(vim.env.AERO_MCP_EXECUTABLE) },
 	state_file = root .. "/state.json",
 	animation = false,
 	start_insert = false,
@@ -11,7 +12,7 @@ require("aero").setup({
 	tasks = {
 		directory = "worktree",
 		states = { "todo", "review" },
-		agent = { enabled = true, executable = assert(vim.env.AERO_MCP_EXECUTABLE), adapters = { "fixture" } },
+		agent = { enabled = true, adapters = { "fixture" } },
 	},
 })
 local store, tasks = require("aero.store"), require("aero.tasks")

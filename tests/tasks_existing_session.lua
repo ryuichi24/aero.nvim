@@ -9,6 +9,7 @@ root = require("aero.storage").canonical(root)
 local execution = root .. "/execution"
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/modes.py"
 require("aero").setup({
+	mcp = { executable = executable },
 	state_file = root .. "/state.json",
 	animation = false,
 	start_insert = false,
@@ -22,7 +23,6 @@ require("aero").setup({
 		states = { "todo", "review" },
 		agent = {
 			enabled = true,
-			executable = executable,
 			adapters = { "fixture" },
 			prompt = "Configured task instructions.",
 		},
