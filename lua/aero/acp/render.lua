@@ -628,7 +628,7 @@ function M.build(chat, opts)
 		push(spinner.frame() .. " starting " .. one_line(chat.s.agent) .. "…", "AeroChatMeta", "body")
 		marks[#marks].spinner_col = 0
 	elseif chat.state == "ready" and #chat.blocks == 0 then
-		push("Press i to write a prompt, :w or <C-s> to send it.", "AeroChatMeta")
+		push("Press i to write a prompt, /send to send it.", "AeroChatMeta")
 	end
 
 	return lines, marks, options, block_lines, sections
