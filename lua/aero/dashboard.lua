@@ -163,6 +163,20 @@ function M.collapse(kind)
 	end
 
 	if kind == "all" then
+		state.general_open, state.knowledge_open = false, false
+
+		if animation_snapshot then
+			local snapshot =
+				vim.tbl_extend("force", animation_snapshot, { knowledge_open = true, knowledge_expanded = {} })
+			local _, items = require("aero.dashboard.model").build(snapshot)
+
+			for _, item in pairs(items) do
+				if item.expanded ~= nil and item.kind:match("^knowledge_") then
+					state.knowledge_expanded[item.id] = false
+				end
+			end
+		end
+
 		state.submodules_expanded, state.repositories_expanded = {}, {}
 	end
 

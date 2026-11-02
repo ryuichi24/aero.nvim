@@ -30,6 +30,15 @@ end
 require("aero.tasks").list_removed = function()
 	return {}
 end
+require("aero.knowledge").catalog = function()
+	return {
+		collections = { { id = "collection", name = "Research collection" } },
+		spaces = { { id = "space", collection_id = "collection", name = "Research space", sources = {}, notes = {} } },
+	}
+end
+require("aero.knowledge.agent").sessions = function()
+	return {}
+end
 aero.open()
 local win, buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
 
@@ -80,12 +89,32 @@ assert(not line("Saved log") and not line("Saved report"))
 
 local code = api.nvim_create_buf(true, false)
 local other = api.nvim_open_win(code, true, { split = "right", win = win })
+
+assert(line("New conversation") and line("Research space"))
+
 vim.cmd("Aero collapse")
 
 assert(api.nvim_get_current_win() == other, "collapse changed focus")
 assert(not line("main") and not store.data.workspaces[1].expanded)
+assert(not line("New conversation") and not line("Research collection"))
+assert(select(2, line("General")):find("▸", 1, true))
+assert(select(2, line("Knowledge base")):find("▸", 1, true))
 
 api.nvim_set_current_win(win)
+expand("General")
+expand("Knowledge base")
+
+assert(line("New conversation") and line("Research collection"))
+assert(not line("Research space"), "knowledge collection was not collapsed")
+
+expand("Research collection")
+
+assert(line("Research space") and not line("Sources"), "hidden knowledge space was not collapsed")
+
+expand("Research space")
+
+assert(select(2, line("Sources")):find("▸", 1, true), "hidden knowledge section was not collapsed")
+
 expand("One")
 
 assert(select(2, line("main")):find("▸", 1, true))
