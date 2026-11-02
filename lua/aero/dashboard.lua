@@ -1027,6 +1027,8 @@ function actions.add()
 		require("aero.general").new()
 	elseif item.kind == "knowledge_group" or item.kind == "knowledge_manage" then
 		require("aero.knowledge").open()
+	elseif item.kind == "knowledge_collection" then
+		require("aero.knowledge").new_space(item.collection.id)
 	elseif item.kind == "knowledge_source" or item.kind == "knowledge_folder" then
 		local directory = item.directory
 		local folder_id = item.folder and item.folder.id or item.source and item.source.folder_id

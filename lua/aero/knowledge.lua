@@ -409,6 +409,12 @@ local function prompt(label, callback)
 	end)
 end
 
+function M.new_space(collection_id)
+	prompt("Space name", function(value)
+		return M.create_space(collection_id, value)
+	end)
+end
+
 local function select(items, label, callback)
 	vim.ui.select(items, {
 		prompt = label,
@@ -785,9 +791,7 @@ function M.open(collection_id)
 					return M.rename("collections", collection.id, value)
 				end)
 			elseif not space.id then
-				prompt("Space name", function(value)
-					return M.create_space(collection.id, value)
-				end)
+				M.new_space(collection.id)
 			else
 				M.browse_space(space)
 			end
