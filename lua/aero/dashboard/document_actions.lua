@@ -66,7 +66,21 @@ function M.move(item, changed)
 end
 
 function M.rename(item, changed)
-	if item.kind == "board" then
+	if item.kind == "knowledge_source" then
+		require("aero.input").input({ prompt = "Source name: ", default = item.source.name }, function(value)
+			if not value or vim.trim(value) == "" then
+				return
+			end
+
+			local source, err = require("aero.knowledge").rename_source(item.space.id, item.source.id, value)
+
+			if not source then
+				return notify(tostring(err), vim.log.levels.ERROR)
+			end
+
+			changed(source)
+		end)
+	elseif item.kind == "board" then
 		vim.ui.input(
 			{ prompt = "Rename board: ", default = item.board.metadata and item.board.metadata.title },
 			function(name)

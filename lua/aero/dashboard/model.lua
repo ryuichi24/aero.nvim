@@ -215,11 +215,14 @@ function M.build(snapshot)
 
 							if section == "Sources" then
 								local function add_source(source, parent_id, indent)
+									local renamed = source.relative_path
+										and source.name ~= vim.fs.basename(source.relative_path)
 									add({
 										{
 											indent
 												.. (
-													source.folder_id and (source.relative_path or source.name)
+													renamed and source.name
+													or source.folder_id and (source.relative_path or source.name)
 													or vim.fs.basename(source.relative_path or source.name)
 												):gsub("[%c]", " "),
 											"AeroSession",

@@ -74,6 +74,15 @@ function M.rename(kind, key, title)
 	end)
 end
 
+function M.rename_source(space_id, source_id, title)
+	return transaction(function(data)
+		local source = find(find(data.spaces, space_id).sources, source_id)
+		source.relative_path = source.relative_path or source.name
+		source.name = name(title)
+		return source
+	end)
+end
+
 function M.delete_item(space_id, kind, key)
 	return transaction(function(data)
 		local space = find(data.spaces, space_id)
