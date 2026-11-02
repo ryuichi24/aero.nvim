@@ -259,6 +259,7 @@ function M.collapse(kind)
 end
 
 function M.render()
+	require("aero.dashboard.folds").save(state)
 	local buf = state.buf
 
 	if not (buf and api.nvim_buf_is_valid(buf)) then
@@ -412,11 +413,13 @@ function M.open(focus_worktree)
 
 	-- git state (and other nvim instances' changes) may have changed while the dashboard was hidden
 	store.load()
+	require("aero.dashboard.folds").restore(state)
 	state.worktrees = {}
 	local selected_path
 
 	if focus_worktree then
 		state.workspace_open = true
+		local revealed_workspaces = {}
 		local path = vim.fs.normalize(vim.fn.resolve(vim.t.aero_worktree or vim.fn.getcwd()))
 
 		for _, repository in
@@ -433,6 +436,7 @@ function M.open(focus_worktree)
 				if root == path or (not vim.t.aero_worktree and path:sub(1, #root + 1) == root .. "/") then
 					if not selected_path or #wt.path > #selected_path then
 						ws.expanded = true
+						revealed_workspaces[ws.root] = true
 						selected_path = wt.path
 					end
 				end
@@ -449,12 +453,18 @@ function M.open(focus_worktree)
 				for _, wt in ipairs(worktrees(ws).list or {}) do
 					if wt.path == ancestor.worktree then
 						ws.expanded = true
+						revealed_workspaces[ws.root] = true
 					end
 				end
 			end
 
 			ancestor = ancestor.parent
 		end
+
+		for root in pairs(revealed_workspaces) do
+			store.set_expanded(root, true)
+		end
+
 		state.reveal_path = selected_path
 	end
 
@@ -1561,6 +1571,7 @@ end
 
 function M.setup()
 	M.teardown()
+	require("aero.dashboard.folds").restore(state)
 	M.setup_highlights()
 	M.set_keymaps()
 	local function visible()

@@ -22,6 +22,7 @@ automatically.
 | Data | Restored behavior |
 | --- | --- |
 | Workspaces | Registered repos and expanded/collapsed state |
+| Sidebar folds | Workspace, General, and Knowledge base headings; worktrees and nested sections |
 | Sessions | Names, agent choices, and ACP IDs per worktree; processes start when opened |
 | ACP transcripts | Messages, thoughts, tools, plans, permission outcomes, session ID, and usage metrics |
 | Terminal scrollback | Saved text above new output, within terminal scrollback limits |
@@ -35,6 +36,10 @@ while paths reopen across restarts.
 `persist_sessions = false` disables session/log persistence; `persist_buffers = false`
 independently disables cross-restart code-buffer memory. Use `NVIM_APPNAME=Aero-dev`
 or a separate `state_file` for isolated development state.
+
+Sidebar fold choices are saved when changed, including `:Aero collapse`, and restored
+when reopening the sidebar or restarting Neovim. They are independent of session and
+buffer persistence. Nodes without a saved choice keep their usual defaults.
 
 ## Exported Markdown logs
 

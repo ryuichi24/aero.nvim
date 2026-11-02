@@ -5,7 +5,7 @@
 local config = require("aero.config")
 local events = require("aero.events")
 local M = {}
-M.data = { workspaces = {}, sessions = {}, worktree_buffers = {} }
+M.data = { workspaces = {}, sessions = {}, worktree_buffers = {}, sidebar = {} }
 
 local function read()
 	local f, err, code = io.open(config.options.state_file, "r")
@@ -43,12 +43,14 @@ local function read()
 		workspaces = workspaces,
 		sessions = type(data.sessions) == "table" and data.sessions or {},
 		worktree_buffers = type(data.worktree_buffers) == "table" and data.worktree_buffers or {},
+		sidebar = type(data.sidebar) == "table" and data.sidebar or {},
 	}
 end
 
 local function write(data)
 	local path = config.options.state_file
 	local out = { workspaces = data.workspaces, sessions = vim.empty_dict(), worktree_buffers = vim.empty_dict() }
+	out.sidebar = data.sidebar
 
 	if config.options.persist_buffers then
 		for wt, buffer in pairs(data.worktree_buffers) do
@@ -76,6 +78,7 @@ function M.load()
 	end
 
 	M.data.workspaces = data.workspaces
+	M.data.sidebar = data.sidebar
 
 	if config.options.persist_buffers then
 		M.data.worktree_buffers = data.worktree_buffers
@@ -134,6 +137,33 @@ local function update(fn)
 	end
 
 	return unpack(result, 1, result.n)
+end
+
+--- Merge changed sidebar fold choices without replacing other instances' choices.
+function M.set_sidebar(changes)
+	return update(function(data)
+		data.sidebar = data.sidebar or {}
+
+		for name, value in pairs(changes) do
+			if type(value) == "table" then
+				data.sidebar[name] = type(data.sidebar[name]) == "table" and data.sidebar[name] or {}
+
+				for key, expanded in pairs(value) do
+					if expanded == vim.NIL then
+						data.sidebar[name][key] = nil
+					else
+						data.sidebar[name][key] = expanded
+					end
+				end
+			else
+				if value == vim.NIL then
+					data.sidebar[name] = nil
+				else
+					data.sidebar[name] = value
+				end
+			end
+		end
+	end)
 end
 
 --- Merge only these worktrees' buffer snapshots into the latest shared state.
