@@ -68,7 +68,7 @@ function M.candidates()
 	return start + 1, acp.omnifunc(0, before:sub(start + 1))
 end
 
-function M.setup(buf, root, candidates)
+function M.setup(buf, root, candidates, history)
 	vim.bo[buf].completeopt = "menu,menuone,noinsert,noselect"
 	local saved
 	local paths = require("aero.acp.paths")
@@ -229,6 +229,12 @@ function M.setup(buf, root, candidates)
 				if path_menu.visible(buf) then
 					path_menu.move(buf, completion == "<C-n>" and 1 or -1)
 					return
+				end
+
+				if vim.fn.pumvisible() == 0 and history and (key == "<Up>" or key == "<Down>") then
+					if history(key == "<Up>" and -1 or 1) then
+						return
+					end
 				end
 
 				local keys = vim.fn.pumvisible() == 1 and completion or key

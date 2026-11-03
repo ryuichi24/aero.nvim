@@ -191,6 +191,8 @@ require("aero").setup({
 The default is `false`. `gY` still overrides it for the current conversation.
 
 The prompt is a regular Markdown buffer; closing it retains the draft.
+Its header shows the current history index and total submitted prompt count (oldest is 1),
+or `—/N (draft)` when editing a draft rather than browsing history.
 With `persist_sessions = true` (the default), unfinished prompts are automatically
 saved per session and restored when you reopen the session after restarting Neovim.
 Submit with `:Aero prompt send` or Ctrl-Enter; `:w` keeps the draft and Ctrl-s has no submit binding.
@@ -206,6 +208,7 @@ Your terminal must send Ctrl-Enter as a distinct key (for example, using Kitty's
 | `<CR>` | Run a local slash command or insert a newline |
 | `<C-x><C-o>` | Complete slash commands |
 | `<C-n>` / `<C-p>` | Next / previous suggestion |
+| `<Up>` / `<Down>` (normal or insert mode) | Previous / next submitted prompt from any line; Down past the newest restores your draft. These keys do not move the cursor between lines |
 | `<Tab>` / `<S-Tab>` | Next / previous suggestion when `acp.tab_completion = true` |
 | `@` (insert mode) | Show inline fuzzy suggestions for worktree files and folders |
 | `q` | Close in normal mode |

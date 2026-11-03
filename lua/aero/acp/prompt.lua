@@ -3,6 +3,53 @@
 local api = vim.api
 local M = {}
 
+function M.header(chat)
+	local buf = chat.prompt_buf
+
+	if not buf or not api.nvim_buf_is_valid(buf) then
+		return
+	end
+
+	local count = #require("aero.prompts").items(chat)
+	local history = chat.prompt_history
+	local index = history and history.tick == api.nvim_buf_get_changedtick(buf) and history.index
+	local position = index and index <= #history.items and tostring(index) or "—"
+	local bar = ("%%=Prompt · History %s/%d%s "):format(position, count, position == "—" and " (draft)" or "")
+
+	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+		vim.wo[win].winbar = bar
+	end
+end
+
+function M.history(chat, direction)
+	local buf = chat.prompt_buf
+	local tick = api.nvim_buf_get_changedtick(buf)
+	local history = chat.prompt_history
+
+	if not history or history.tick ~= tick then
+		history = {
+			items = require("aero.prompts").items(chat),
+			draft = api.nvim_buf_get_lines(buf, 0, -1, false),
+			cursor = api.nvim_win_get_cursor(0),
+		}
+		history.index = #history.items + 1
+		chat.prompt_history = history
+	end
+
+	if #history.items == 0 or (direction > 0 and history.index > #history.items) then
+		return false
+	end
+
+	history.index = math.max(1, math.min(#history.items + 1, history.index + direction))
+	local item = history.items[history.index]
+	local lines = item and vim.split(item.text, "\n", { plain = true }) or history.draft
+	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	api.nvim_win_set_cursor(0, item and { direction < 0 and 1 or #lines, 0 } or history.cursor)
+	history.tick = api.nvim_buf_get_changedtick(buf)
+	M.header(chat)
+	return true
+end
+
 local function reference_command(text)
 	return text == "/reference" or text == "/context"
 end
@@ -217,6 +264,13 @@ function M.buffer(chat, lookup)
 			if current then
 				current.draft = api.nvim_buf_get_lines(buf, 0, -1, false)
 				current:save_history()
+				vim.schedule(function()
+					local latest = lookup(key)
+
+					if latest then
+						M.header(latest)
+					end
+				end)
 			end
 		end,
 	})
@@ -243,6 +297,17 @@ function M.buffer(chat, lookup)
 	end
 
 	map({ "n", "i" }, "<C-CR>", with_chat("send_prompt_buf"), "send prompt")
+
+	for key_name, direction in pairs({ ["<Up>"] = -1, ["<Down>"] = 1 }) do
+		map("n", key_name, function()
+			local current = lookup(key)
+
+			if current then
+				M.history(current, direction)
+			end
+		end, "navigate prompt history")
+	end
+
 	map("n", "<CR>", function()
 		local current = lookup(key)
 
@@ -291,7 +356,15 @@ function M.buffer(chat, lookup)
 	map({ "n", "i" }, "<C-c>", with_chat("cancel"), "cancel turn")
 	vim.bo[buf].omnifunc = "v:lua.require'aero.acp'.omnifunc"
 	vim.b[buf].aero_chat_key = key
-	require("aero.acp.completion").setup(buf, chat.s.worktree)
+	require("aero.acp.completion").setup(buf, chat.s.worktree, nil, function(direction)
+		local current = lookup(key)
+
+		if current then
+			M.history(current, direction)
+		end
+
+		return true
+	end)
 	require("aero.fullscreen").bind(buf)
 	return buf
 end
@@ -348,6 +421,7 @@ function M.compose(chat)
 		layout.track(api.nvim_get_current_win(), "prompt", chat.s.key)
 	end
 
+	M.header(chat)
 	vim.cmd.startinsert({ bang = api.nvim_buf_get_lines(buf, 0, -1, false)[1] ~= "" })
 end
 
