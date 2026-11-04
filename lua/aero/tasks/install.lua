@@ -71,7 +71,7 @@ local function version_matches(path, release, configured)
 				.. (
 					(configured or not release.published)
 						and "Rebuild aero-mcp with make build-mcp or check mcp.executable."
-					or "Run :Aero tasks install to reinstall the matching release."
+					or "Run :Aero mcp install to reinstall the matching release."
 				)
 	end
 

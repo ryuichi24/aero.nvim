@@ -50,7 +50,7 @@ tagging, and publishing procedure.
 
 For published releases, a lazy.nvim build hook can call
 `require("aero.tasks.install").install()`; vim.pack users can run
-`:Aero tasks install` manually. An explicit executable supports offline use.
+`:Aero mcp install` manually. An explicit executable supports offline use.
 
 ## Work on a ticket
 

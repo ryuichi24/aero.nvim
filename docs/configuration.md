@@ -313,7 +313,7 @@ filtering, and `q` closes the popup.
 
 `mcp.executable` defaults to `false`: prefer `apps/mcp/aero-mcp` when executable
 (build it with `make build-mcp`); otherwise use the version-matched installed
-release (`:Aero tasks install`). Unpublished revisions require a local build.
+release (`:Aero mcp install`). Unpublished revisions require a local build.
 Set an absolute path to use a custom build. Explicit paths never fall back to a different executable
 if missing or incompatible. Version and bridge compatibility are verified before use.
 

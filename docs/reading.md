@@ -16,7 +16,7 @@ require("aero").setup({
 ```
 
 The tool uses the shared `mcp.executable` setting, as do tasks and knowledge.
-Install a matching release with `:Aero tasks install`. Development checkouts use
+Install a matching release with `:Aero mcp install`. Development checkouts use
 `apps/mcp/aero-mcp` after `make build-mcp`; set `mcp.executable` to an absolute path
 for a custom build. Task-agent integration does not need to be enabled.
 Requires macOS/Linux and an ACP adapter that supports stdio MCP servers.

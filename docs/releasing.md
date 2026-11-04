@@ -174,7 +174,7 @@ gh release view v0.1.0
 gh release edit v0.1.0 --draft=false
 ```
 
-Users can then install the exact manifest version with `:Aero tasks install`.
+Users can then install the exact manifest version with `:Aero mcp install`.
 The installer verifies the executable against `SHA256SUMS`. See
 [agent task integration](agent-tasks.md#setup) for installation setup.
 Companion users run `:Aero companion install` to download and verify the matching

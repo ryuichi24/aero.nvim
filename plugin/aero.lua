@@ -149,12 +149,12 @@ local subcommands = {
 
 		require("aero").ticket(args[1])
 	end,
-	tasks = function(args)
+	mcp = function(args)
 		if args[1] == "install" then
 			return require("aero.tasks.install").install()
 		end
 
-		vim.notify("Aero: use :Aero tasks install", vim.log.levels.WARN)
+		vim.notify("Aero: use :Aero mcp install", vim.log.levels.WARN)
 	end,
 	quote = function(_, opts)
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
@@ -279,7 +279,7 @@ end, {
 			end, { "install", "start", "stop", "pair", "devices", "revoke" })
 		end
 
-		if words[2] == "tasks" and (#words > 2 or cmdline:match("%s$")) then
+		if words[2] == "mcp" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
 			end, { "install" })
