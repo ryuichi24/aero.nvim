@@ -249,6 +249,13 @@ local function prepare_integrations(s, agent, opts)
 		return false
 	end
 
+	local browser_ok, browser_err = require("aero.browser.agent").attach(s)
+
+	if not browser_ok then
+		vim.notify("Aero: cannot attach browser tools: " .. tostring(browser_err), vim.log.levels.ERROR)
+		return false
+	end
+
 	local knowledge_ok, knowledge_err = require("aero.knowledge.agent").attach(s)
 
 	if not knowledge_ok then
@@ -619,6 +626,7 @@ function M.delete(s)
 	end
 
 	require("aero.reading_agent").detach(s)
+	require("aero.browser.agent").detach(s)
 	require("aero.knowledge.agent").detach(s)
 	local data = events.session(s)
 	M.stop(s)

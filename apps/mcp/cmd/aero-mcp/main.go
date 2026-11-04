@@ -209,7 +209,7 @@ func run() error {
 
 	flags := flag.NewFlagSet(os.Args[1], flag.ContinueOnError)
 	socket := flags.String("socket", connectionEnv("SOCKET"), "Aero instance socket")
-	toolsets := flags.String("tools", "", "Comma-separated tool sets: tasks, reports, reading, knowledge")
+	toolsets := flags.String("tools", "", "Comma-separated tool sets: tasks, reports, reading, knowledge, browser")
 
 	readingOnly := flags.Bool("reading-only", false, "Expose only reading-list tools")
 

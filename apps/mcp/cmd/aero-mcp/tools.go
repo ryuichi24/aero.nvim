@@ -7,6 +7,7 @@ var toolsetsByName = map[string]func(*mcp.Server, client){
 	"reports":   registerReportTools,
 	"reading":   registerReadingTools,
 	"knowledge": registerKnowledgeTools,
+	"browser":   registerBrowserTools,
 }
 
 func registerTaskTools(server *mcp.Server, c client) {

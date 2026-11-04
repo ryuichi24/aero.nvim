@@ -31,6 +31,10 @@ local function send(client, response)
 end
 
 local methods = {
+	browser_open = true,
+	browser_pages = true,
+	browser_action = true,
+	browser_done = true,
 	knowledge = true,
 	reading_list_publish = true,
 	list_boards = true,
@@ -54,6 +58,7 @@ local function pump()
 			local item = table.remove(queue, 1)
 			local request, client = item.request, item.client
 			local binding = bindings[request.credential]
+			local browser_method = type(request.method) == "string" and request.method:match("^browser_") ~= nil
 			local result, err
 
 			if request.version ~= M.protocol_version then
@@ -66,12 +71,17 @@ local function pump()
 				err = { code = "INVALID_ARGUMENT", message = "this binding only supports reading lists" }
 			elseif binding.knowledge_only and request.method ~= "knowledge" then
 				err = { code = "INVALID_ARGUMENT", message = "this binding only supports knowledge tools" }
+			elseif binding.browser_only and not browser_method or browser_method and not binding.browser_only then
+				err = { code = "INVALID_ARGUMENT", message = "browser methods require a dedicated browser binding" }
 			elseif vim.fn.getcmdwintype() ~= "" then
 				err = { code = "EDITOR_BUSY", message = "close the command window and retry" }
 			else
 				local ok
 				local operation = request.method == "knowledge" and require("aero.knowledge.tools").call
 					or request.method == "reading_list_publish" and require("aero.reading").publish
+					or browser_method and function(scope, params, callback)
+						return require("aero.browser.tools").call(scope, request.method, params, callback)
+					end
 					or require("aero.tasks.operations")[request.method]
 				ok, result, err = pcall(operation, binding, request.params or {}, function(value, failure)
 					if binding.revoked then
@@ -88,7 +98,9 @@ local function pump()
 				end
 			end
 
-			if not (request.method == "knowledge" and type(result) == "table" and result.pending) then
+			if
+				not ((request.method == "knowledge" or browser_method) and type(result) == "table" and result.pending)
+			then
 				send(client, { version = M.protocol_version, id = request.id, result = result, error = err })
 			end
 		end

@@ -15,6 +15,7 @@ func TestToolsetDiscovery(t *testing.T) {
 	}{
 		{"reading", []string{"aero_reading_list_publish"}},
 		{"knowledge", []string{"aero_knowledge"}},
+		{"browser", []string{"aero_browser_action", "aero_browser_done", "aero_browser_open", "aero_browser_pages"}},
 		{"reports,reading,reports", []string{"aero_create_report", "aero_reading_list_publish"}},
 		{"tasks", []string{"aero_create_ticket", "aero_get_board", "aero_get_ticket", "aero_list_boards", "aero_move_ticket", "aero_update_ticket_body", "aero_update_ticket_metadata"}},
 	} {

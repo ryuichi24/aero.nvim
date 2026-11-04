@@ -13,11 +13,13 @@ local tools_by_set = {
 	reports = { "aero_create_report" },
 	reading = { "aero_reading_list_publish" },
 	knowledge = { "aero_knowledge" },
+	browser = { "aero_browser_open", "aero_browser_pages", "aero_browser_action", "aero_browser_done" },
 }
 local defaults = {
 	["aero-tasks"] = "tasks,reports,reading",
 	["aero-reading"] = "reading",
 	["aero-knowledge"] = "knowledge",
+	["aero-browser"] = "browser",
 }
 
 function M.result(session, name, ok, err)
@@ -51,7 +53,7 @@ local function selection(server)
 end
 
 local function scope(session, name)
-	if name == "aero-reading" then
+	if name == "aero-reading" or name == "aero-browser" then
 		return "Worktree: " .. session.worktree
 	elseif name == "aero-tasks" then
 		local binding = session.task_binding
