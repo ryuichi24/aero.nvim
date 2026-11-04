@@ -48,6 +48,29 @@ function M.check()
 	else
 		vim.health.info("aero-mcp: disabled; enable tasks.agent.enabled to use task-agent integration")
 	end
+
+	vim.health.start("Aero browser (optional)")
+	local browser, browser_error = require("aero.browser.setup").check(true)
+
+	if browser then
+		vim.health.ok("terminal-browser: " .. browser.executable .. " (embedding capability verified)")
+		vim.health.info("Live Kitty graphics and input compatibility require a terminal smoke test.")
+	else
+		vim.health.warn(browser_error.message, {
+			browser_error.suggested_command,
+			browser_error.next_step,
+			browser_error.installation_url,
+		})
+	end
+
+	local failure = require("aero.browser").failure(vim.t.aero_worktree)
+
+	if failure and failure.code == "browser_startup_failed" then
+		vim.health.warn(
+			failure.message .. "\n" .. (failure.details or ""),
+			{ failure.next_step or "Retry browser setup." }
+		)
+	end
 end
 
 return M

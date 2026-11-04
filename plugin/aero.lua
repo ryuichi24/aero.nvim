@@ -4,6 +4,9 @@ end
 
 vim.g.loaded_Aero = true
 local subcommands = {
+	browser = function(args)
+		require("aero").browser(args)
+	end,
 	info = function()
 		require("aero.session_info").toggle()
 	end,
@@ -197,6 +200,12 @@ end, {
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
 
+		if words[2] == "browser" and (#words > 2 or cmdline:match("%s$")) then
+			return vim.tbl_filter(function(value)
+				return vim.startswith(value, arglead)
+			end, { "open", "next", "prev", "pages", "attach", "stop" })
+		end
+
 		if words[2] == "knowledge" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(value)
 				return vim.startswith(value, arglead)
@@ -244,7 +253,18 @@ end, {
 		if words[2] == "reader" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "tabs", "panes", "source", "exports", "references", "reports", "reading", "content", "metadata" })
+			end, {
+				"tabs",
+				"panes",
+				"source",
+				"exports",
+				"references",
+				"reports",
+				"reading",
+				"browser",
+				"content",
+				"metadata",
+			})
 		end
 
 		if words[2] == "prompt" and (#words > 2 or cmdline:match("%s$")) then

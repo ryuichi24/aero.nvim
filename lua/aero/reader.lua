@@ -3,7 +3,7 @@ local api = vim.api
 local M = {}
 local states = {}
 local returns = {}
-local workspace_kinds = { "source", "exports", "references", "reports", "reading" }
+local workspace_kinds = { "source", "exports", "references", "reports", "reading", "browser" }
 local knowledge_kinds = { "content", "metadata" }
 local labels = {
 	source = "Source",
@@ -11,10 +11,12 @@ local labels = {
 	references = "References",
 	reports = "Reports",
 	reading = "Reading",
+	browser = "Browser",
 	content = "Extracted content",
 	metadata = "Metadata",
 }
 local changing = false
+local browser_options = { "number", "relativenumber", "signcolumn", "foldcolumn", "statuscolumn", "wrap" }
 
 local function valid(win)
 	return win
@@ -47,12 +49,21 @@ end
 local function save(slot)
 	if slot and valid(slot.win) and api.nvim_win_get_buf(slot.win) == slot.buf then
 		slot.view = api.nvim_win_call(slot.win, vim.fn.winsaveview)
+		slot.options = {}
+
+		for _, name in ipairs(browser_options) do
+			slot.options[name] = vim.wo[slot.win][name]
+		end
 	end
 end
 
 local function show(slot, win)
 	slot.win = win
 	api.nvim_win_set_buf(win, slot.buf)
+
+	for name, value in pairs(slot.options or {}) do
+		vim.wo[win][name] = value
+	end
 
 	if slot.view then
 		api.nvim_win_call(win, function()
@@ -118,12 +129,16 @@ function M.attach(win, kind)
 	if not next(s.slots) and not s.knowledge then
 		s.slots.source = { buf = api.nvim_win_get_buf(win), win = win }
 		previous = s.slots.source
+		save(previous)
 	end
 
 	local slot = s.slots[kind]
 
 	if not slot or not api.nvim_buf_is_valid(slot.buf) then
-		slot = { buf = api.nvim_create_buf(true, false) }
+		slot = {
+			buf = api.nvim_create_buf(true, false),
+			options = vim.deepcopy(s.slots.source and s.slots.source.options),
+		}
 		s.slots[kind] = slot
 	end
 
@@ -147,6 +162,18 @@ function M.attach(win, kind)
 	vim.w[win].aero_reader_kind = kind
 	render(s)
 	changing = false
+
+	if kind == "browser" then
+		require("aero.browser").show(win)
+		slot.buf = api.nvim_win_get_buf(win)
+		vim.wo[win].number = false
+		vim.wo[win].relativenumber = false
+		vim.wo[win].signcolumn = "no"
+		vim.wo[win].foldcolumn = "0"
+		vim.wo[win].statuscolumn = ""
+		vim.wo[win].wrap = vim.bo[slot.buf].filetype ~= "aero-browser"
+	end
+
 	return win
 end
 
@@ -251,7 +278,7 @@ function M.mode(mode)
 
 	if mode ~= "tabs" and mode ~= "panes" then
 		return vim.notify(
-			"Aero: use :Aero reader [tabs|panes|source|exports|references|reports|reading|content|metadata]",
+			"Aero: use :Aero reader [tabs|panes|source|exports|references|reports|reading|browser|content|metadata]",
 			vim.log.levels.WARN
 		)
 	end

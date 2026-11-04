@@ -147,16 +147,27 @@ function M.panel()
 end
 
 --- Select a reader slot or display mode; nil toggles tabs/panes.
----@param action? "source"|"exports"|"references"|"reports"|"reading"|"tabs"|"panes"
+---@param action? "source"|"exports"|"references"|"reports"|"reading"|"browser"|"tabs"|"panes"
 function M.reader(action)
 	ensure_setup()
 	local reader = require("aero.reader")
 
-	if vim.tbl_contains({ "source", "exports", "references", "reports", "reading", "content", "metadata" }, action) then
+	if
+		vim.tbl_contains(
+			{ "source", "exports", "references", "reports", "reading", "browser", "content", "metadata" },
+			action
+		)
+	then
 		return reader.select(action)
 	end
 
 	return reader.mode(action)
+end
+
+--- Open or control the current worktree's browser.
+function M.browser(args)
+	ensure_setup()
+	return require("aero.browser").command(args or {})
 end
 
 function M.reading(action)

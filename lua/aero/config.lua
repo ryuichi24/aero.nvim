@@ -9,6 +9,12 @@ local schema = require("aero.config_schema")
 ---@field env? table<string, string>
 
 local defaults = {
+	browser = {
+		agent = { enabled = false }, -- opt-in worktree-scoped browser MCP tools for ACP agents
+		cmd = { "terminal-browser" },
+		cell_width = 10, -- terminal cell size in pixels; adjust to match your terminal font
+		cell_height = 20,
+	},
 	sessions = {
 		default_agent = "opencode-acp", -- first (default) choice in the agent picker
 		prompt_name = true, -- ask for a name when creating a session
