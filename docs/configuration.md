@@ -13,7 +13,13 @@ Only specify options you want to change. Settings are grouped by responsibility:
 - `ui`: editor layout, dashboard, panel, terminal, inputs, mappings, and appearance.
 - `chat`: permissions, transcript, prompt, and todo popups.
 - Feature settings stay under `agents`, `tasks`, `knowledge`, `reading`, `reports`,
-  `exports`, `reference_finder`, `mermaid`, and `companion`. Lifecycle hooks use `events`.
+  `exports`, `reference_finder`, `mermaid`, `browser`, and `companion`. Lifecycle hooks use `events`.
+
+The experimental [worktree browser](browser.md) uses `browser.cmd`,
+`browser.cell_width`, and `browser.cell_height` for terminal-browser launch and
+terminal pixel sizing. Set `browser.agent.enabled = true` (default `false`) to
+attach its worktree-scoped MCP tools to ACP agents. Missing browser dependencies
+produce setup guidance rather than preventing tool registration.
 
 ```lua
 require("aero").setup({

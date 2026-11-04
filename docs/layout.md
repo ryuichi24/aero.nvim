@@ -7,7 +7,7 @@ Arrange code, agents, prompts, and shells while keeping their buffers and proces
 ## Reader panel
 
 Within each worktree, the reader panel has independent **Source**, **Exported logs**,
-**References**, **Reports**, and **Reading** slots. Opening a report, exported log, or
+**References**, **Reports**, **Reading**, and **Browser** slots. Opening a report, exported log, or
 reference from the dashboard selects its slot without replacing the source buffer.
 Reading-list quickfix entries open in **Reading** when you press Enter.
 Each slot keeps its buffer and reading position when switching. Returning to a
@@ -36,9 +36,12 @@ Click a slot in the reader panel's window bar, or use:
 | `:Aero reader references` | References |
 | `:Aero reader reports` | Reports |
 | `:Aero reader reading` | Reading-list source files |
+| `:Aero reader browser` | Worktree browser (experimental) |
 
 These slots are local to the reader panel; they do not create Neovim tabpages.
 `gt` and `gT` switch Neovim tabpages rather than reading slots.
+See [Worktree browser](browser.md) for terminal-browser setup, page navigation,
+and sharing a page with an agent.
 
 For custom keymaps, call the public Lua function directly:
 

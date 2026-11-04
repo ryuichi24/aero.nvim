@@ -118,6 +118,18 @@ Press `e` on a worktree to browse source files with Oil or Neovim's directory br
 
 [Reading tabs, source browsing, and panes mode](docs/layout.md#reader-panel)
 
+### Worktree browser (experimental)
+
+Use `:Aero reader browser` to open terminal-browser in a worktree-specific reader
+slot. Open websites or local HTML files, switch between page tabs using keyboard
+commands, and attach an explicit browser/page target to an agent's draft.
+Requires terminal-browser and a local terminal with Kitty graphics support.
+Missing installations show a setup page with retry controls. Enable
+`browser.agent.enabled` to give ACP agents scoped browser MCP tools, including
+actionable installation errors when the browser is unavailable.
+
+[Browser setup, commands, and current limitations](docs/browser.md)
+
 ### Agent panels and navigation
 
 Keep agents beside your code, monitor their activity, and expand any pane with
