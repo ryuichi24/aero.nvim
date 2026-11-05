@@ -14,9 +14,12 @@ are runtime-only; Aero does not restore them after restarting Neovim.
   protocol and the `ls --all --json` / targeted `action` interfaces.
 - Run Neovim in a local terminal supporting Kitty graphics and Unicode image
   placeholders, with true-color rendering enabled (`:set termguicolors`).
-- Match the configured cell dimensions to your terminal font's pixel dimensions.
-  Incorrect dimensions can cause scaling or clipping. Terminal font changes
-  require stopping and reopening the browser with updated dimensions.
+- Neovim 0.12+ and a browser advertising `image-frames` use host-managed image
+  delivery. This keeps graphics and editor redraws on the same TUI output queue.
+- Aero automatically reads cell dimensions from the enclosing terminal's pixel
+  and character dimensions, including after resizes or font changes. If the
+  terminal does not report pixel dimensions, match `cell_width` / `cell_height`
+  to your font. Set `auto_cell_size = false` to force manual dimensions.
 
 If the executable is missing, the Browser slot displays a setup page with the
 platform's installation command. Press `Y` to copy it, `O` to open the upstream
@@ -32,18 +35,40 @@ Run `:checkhealth aero` to see the resolved executable path, embedding capabilit
 and the current worktree's last startup failure. These checks do not verify live
 graphics or keyboard behavior.
 
-This integration uses upstream's embedding socket, not graphics escape sequences
-inside an ordinary terminal subprocess. Neovim displays image placeholders in a
-virtual terminal buffer; terminal-browser sends the image data to the enclosing
-terminal. Remote UIs, SSH, and multiplexer passthrough are not verified by this
-initial integration. Live rendering and keyboard behavior require testing with
-your terminal/browser build; automated tests exercise the socket protocol using
-a local fixture rather than Chromium.
+This integration uses upstream's embedding socket. With host-managed delivery,
+terminal-browser hands Aero shared-memory RGBA frames instead of writing graphics
+to the terminal independently. Aero compresses and uploads the latest frame via
+`nvim_ui_send()`, then displays image placeholders in a virtual terminal buffer.
+Frame uploads do not depend on mouse, cursor, or focus events. Superseded frames
+are discarded and their shared memory is released.
+Updates at the same size edit Kitty's displayed base frame in place. Replacing
+the image on every update would delete its placements and leave unchanged
+placeholder cells blank until the terminal repaints them.
+Resizing invalidates the old image placement and clears reflowed placeholders;
+frames for the previous pixel size are discarded until the resized frame arrives.
+
+Each graphics packet is wrapped for tmux passthrough when `TMUX_PANE` is set.
+Enable `allow-passthrough` and ensure tmux preserves true-color RGB values: the
+placeholder foreground encodes the image ID, so 256-color conversion breaks it.
+Image bytes travel inline, including over SSH; no image files need to be read by
+the local terminal. The local terminal still needs Kitty graphics and Unicode
+image placeholder support.
+
+Older Neovim/browser builds fall back to direct terminal writes. In tmux that
+path targets the attached client's terminal, and across SSH it uses inline
+transfer. Restart the worktree browser after reattaching tmux from a different
+terminal. This fallback does not serialize image writes with Neovim redraws.
+
+Remote UIs, nested multiplexers, and simultaneous tmux clients are not verified.
+Live rendering and keyboard behavior require testing with your terminal/browser
+build; automated tests cover the embedding protocol and frame delivery, not the
+terminal emulator's final display.
 
 ```lua
 require("aero").setup({
   browser = {
     cmd = { "terminal-browser" },
+    auto_cell_size = true,
     cell_width = 10,
     cell_height = 20,
   },
