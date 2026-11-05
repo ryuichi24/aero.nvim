@@ -1,11 +1,26 @@
 vim.opt.rtp:prepend(vim.fn.getcwd())
 local api, uv = vim.api, vim.uv
+vim.env.SSH_CONNECTION, vim.env.SSH_TTY = nil, nil
 require("aero.config").setup({ companion = { auto_start = false }, browser = { cmd = { "true" } } })
 local reader = require("aero.reader")
 reader.setup()
 local browser = require("aero.browser")
+local detected_cell
+require("aero.browser.terminal").cell = function()
+	return detected_cell
+end
+local drawn
+local channel_send = api.nvim_chan_send
+api.nvim_chan_send = function(channel, data)
+	if data:find(vim.fn.nr2char(0x10eeee), 1, true) then
+		drawn = data
+	end
+
+	return channel_send(channel, data)
+end
 local launches, stopped, notices, clients, incoming = {}, {}, {}, {}, {}
 local controls = {}
+local host_frames = false
 local control_path = vim.fn.tempname() .. ".sock"
 local control_server = assert(uv.new_pipe(false))
 
@@ -33,7 +48,12 @@ vim.system = function(command, _, callback)
 	if command[2] == "capabilities" then
 		return {
 			wait = function()
-				return { code = 0, stdout = '{"capabilities":["embedding"]}' }
+				return {
+					code = 0,
+					stdout = vim.json.encode({
+						capabilities = host_frames and { "embedding", "image-frames" } or { "embedding" },
+					}),
+				}
 			end,
 		}
 	end
@@ -139,10 +159,32 @@ assert(init.transport == "file")
 assert(init.cols == api.nvim_win_get_width(win))
 assert(init.width == init.cols * 10)
 
-launches[1].client:write(vim.json.encode({ type = "placed", imageId = init.imageId, cols = 4, rows = 2 }) .. "\n")
+launches[1].client:write(vim.json.encode({ type = "placed", imageId = init.imageId, cols = 1000, rows = 2 }) .. "\n")
 wait(function()
 	return table.concat(api.nvim_buf_get_lines(first, 0, -1, false)):find(vim.fn.nr2char(0x10eeee), 1, true) ~= nil
 end)
+local encoded_row = assert(drawn:match("\027%[1;1H(.-)\027%[2;1H"))
+local codepoints = vim.fn.str2list(encoded_row, true)
+
+assert(#codepoints == 297 * 3, "Kitty supports exactly 297 coordinate diacritics")
+assert(codepoints[15 * 3] == 0x0352, "Column 14 must encode Kitty's COMBINING FERMATA")
+assert(codepoints[297 * 3] == 0x1d244)
+
+for _, invalid in ipairs({ 0x065c, 0x06e3, 0x06ea, 0x06ed, 0x0711, 0x0742 }) do
+	assert(not vim.tbl_contains(codepoints, invalid), "Unsupported Kitty coordinate diacritic")
+end
+
+detected_cell = { 7, 13 }
+api.nvim_exec_autocmds("WinResized", {})
+wait(function()
+	for _, entry in ipairs(incoming) do
+		if entry.browser == 1 and entry.message.type == "size" and entry.message.cell[1] == 7 then
+			return entry.message.width == entry.message.cols * 7 and entry.message.height == entry.message.rows * 13
+		end
+	end
+end)
+
+assert(vim.deep_equal(browser.instance(vim.t.aero_worktree).cell, { 7, 13 }))
 
 reader.select("source")
 
@@ -203,6 +245,7 @@ package.loaded["aero.compose"] = original_compose
 
 vim.cmd.tabnew()
 vim.t.aero_worktree = "/tmp"
+vim.env.SSH_CONNECTION = "192.0.2.1 12345 192.0.2.2 22"
 reader.attach(api.nvim_get_current_win())
 browser.command({ "open", "https://example.com/other" })
 local second = api.nvim_get_current_buf()
@@ -210,6 +253,13 @@ local second = api.nvim_get_current_buf()
 assert(second ~= first)
 assert(#launches == 2)
 assert(launches[1].env.PIXEL_EMBED ~= launches[2].env.PIXEL_EMBED)
+
+wait(function()
+	return received("init", 2) ~= nil
+end)
+
+assert(received("init", 2).transport == "inline")
+assert(vim.deep_equal(received("init", 2).cell, { 7, 13 }))
 
 browser.command({ "prev" })
 wait(function()
@@ -230,10 +280,17 @@ reader.select("browser")
 assert(api.nvim_get_current_buf() == first)
 
 browser.command({ "stop" })
+host_frames = true
 reader.select("browser")
 
 assert(#launches == 3)
 assert(api.nvim_get_current_buf() ~= first)
+
+wait(function()
+	return received("init", 3) ~= nil
+end)
+
+assert(received("init", 3).transport == "host")
 
 browser.command({ "stop" })
 

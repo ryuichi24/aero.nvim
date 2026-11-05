@@ -12,7 +12,8 @@ local defaults = {
 	browser = {
 		agent = { enabled = false }, -- opt-in worktree-scoped browser MCP tools for ACP agents
 		cmd = { "terminal-browser" },
-		cell_width = 10, -- terminal cell size in pixels; adjust to match your terminal font
+		auto_cell_size = true, -- use the enclosing terminal's reported pixel dimensions
+		cell_width = 10, -- fallback pixels per cell when automatic detection is unavailable
 		cell_height = 20,
 	},
 	sessions = {

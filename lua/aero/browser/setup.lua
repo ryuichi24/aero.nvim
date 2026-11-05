@@ -83,20 +83,27 @@ function M.show(win, worktree, failure)
 		"",
 		failure.message,
 		"",
-		"Install terminal-browser:",
-		"  " .. (failure.suggested_command or "See installation instructions below."),
-		"",
-		"Then run in an external terminal:",
-		"  terminal-browser setup",
-		"",
-		"[R] Retry detection    [Y] Copy install command    [O] Installation instructions",
-		"",
-		"No Neovim restart is required to retry.",
-		"If Neovim's PATH is stale, configure an absolute executable path:",
-		'  browser = { cmd = { "/path/to/terminal-browser" } }',
-		"",
-		M.installation_url,
 	}
+
+	if failure.code ~= "browser_unavailable" and failure.code ~= "browser_frame_failed" then
+		vim.list_extend(lines, {
+			"Install terminal-browser:",
+			"  " .. (failure.suggested_command or "See installation instructions below."),
+			"",
+			"Then run in an external terminal:",
+			"  terminal-browser setup",
+			"",
+			"[R] Retry detection    [Y] Copy install command    [O] Installation instructions",
+			"",
+			"No Neovim restart is required to retry.",
+			"If Neovim's PATH is stale, configure an absolute executable path:",
+			'  browser = { cmd = { "/path/to/terminal-browser" } }',
+			"",
+			M.installation_url,
+		})
+	else
+		vim.list_extend(lines, { "[R] Retry detection", "", "No Neovim restart is required to retry." })
+	end
 
 	if failure.next_step then
 		vim.list_extend(lines, { "", failure.next_step })

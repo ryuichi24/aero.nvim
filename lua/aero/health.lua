@@ -65,7 +65,7 @@ function M.check()
 
 	local failure = require("aero.browser").failure(vim.t.aero_worktree)
 
-	if failure and failure.code == "browser_startup_failed" then
+	if failure and (failure.code == "browser_startup_failed" or failure.code == "browser_frame_failed") then
 		vim.health.warn(
 			failure.message .. "\n" .. (failure.details or ""),
 			{ failure.next_step or "Retry browser setup." }

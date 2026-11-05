@@ -7,6 +7,8 @@ local serial = 0
 local initialized = false
 local opening = {}
 local failures = {}
+-- Exact Kitty protocol indices, not a general list of combining characters:
+-- https://sw.kovidgoyal.net/kitty/_downloads/f0a0de9ec8d9ff4456206db8e0814937/rowcolumn-diacritics.txt
 local diacritics = {
 	0x0305,
 	0x030d,
@@ -22,6 +24,7 @@ local diacritics = {
 	0x034c,
 	0x0350,
 	0x0351,
+	0x0352,
 	0x0357,
 	0x035b,
 	0x0363,
@@ -74,7 +77,6 @@ local diacritics = {
 	0x0659,
 	0x065a,
 	0x065b,
-	0x065c,
 	0x065d,
 	0x065e,
 	0x06d6,
@@ -88,15 +90,11 @@ local diacritics = {
 	0x06e0,
 	0x06e1,
 	0x06e2,
-	0x06e3,
 	0x06e4,
 	0x06e7,
 	0x06e8,
-	0x06ea,
 	0x06eb,
 	0x06ec,
-	0x06ed,
-	0x0711,
 	0x0730,
 	0x0732,
 	0x0733,
@@ -107,7 +105,6 @@ local diacritics = {
 	0x073f,
 	0x0740,
 	0x0741,
-	0x0742,
 	0x0743,
 	0x0745,
 	0x0747,
@@ -350,7 +347,7 @@ local function draw(s, message)
 
 	local id = message.imageId
 	local output = {
-		"\027[2J\027[H",
+		"\027[2J\027[3J\027[H",
 		string.format(
 			"\027[38;2;%d;%d;%dm",
 			bit.band(bit.rshift(id, 16), 255),
@@ -386,6 +383,11 @@ local function stop(s)
 
 	s.stopped = true
 	instances[s.worktree] = nil
+
+	if s.frames then
+		s.frames.stop()
+	end
+
 	close_handle(s.connection)
 	close_handle(s.server)
 	uv.fs_unlink(s.socket)
@@ -406,11 +408,25 @@ local function refresh()
 		send(s, { type = "focus", focused = win == api.nvim_get_current_win() })
 
 		if win then
+			if require("aero.config").options.browser.auto_cell_size then
+				local cell = require("aero.browser.terminal").cell(s.tty)
+
+				if cell then
+					s.cell[1], s.cell[2] = cell[1], cell[2]
+				end
+			end
+
 			local message = size(s, win)
-			local signature = message.cols .. ":" .. message.rows
+			local signature = table.concat({ message.cols, message.rows, s.cell[1], s.cell[2] }, ":")
 
 			if signature ~= s.size then
 				s.size = signature
+
+				if s.frames then
+					s.frames.resize(message)
+					api.nvim_chan_send(s.channel, "\027[2J\027[3J\027[H")
+				end
+
 				send(s, message)
 			end
 		end
@@ -441,9 +457,41 @@ local function setup()
 end
 
 local function tty_path()
+	local pane = vim.env.TMUX_PANE
+	local local_ui = false
+
+	for _, ui in ipairs(api.nvim_list_uis()) do
+		local_ui = local_ui or (ui.stdin_tty == true and ui.stdout_tty == true)
+	end
+
+	if local_ui and pane and pane ~= "" then
+		-- Embedded terminal-browser writes unwrapped Kitty graphics. Send those
+		-- directly to the enclosing client, not the pane where tmux consumes them.
+		local ok, resolved = pcall(function()
+			return vim.system(
+				{ "tmux", "display-message", "-p", "-t", pane, "#{client_tty}" },
+				{ text = true, timeout = 3000 }
+			)
+				:wait()
+		end)
+
+		if ok and resolved.code == 0 then
+			local tty = vim.trim(resolved.stdout or "")
+
+			if tty:match("^/dev/%S+$") then
+				return tty
+			end
+		end
+
+		return nil
+	end
+
 	local result = vim.system({ "ps", "-p", tostring(vim.fn.getpid()), "-o", "tty=" }, { text = true }):wait()
 	local tty = vim.trim(result.stdout or "")
-	return result.code == 0 and tty ~= "" and tty ~= "??" and (tty:sub(1, 1) == "/" and tty or "/dev/" .. tty) or nil
+
+	if result.code == 0 and tty ~= "" and tty ~= "??" then
+		return tty:sub(1, 1) == "/" and tty or "/dev/" .. tty
+	end
 end
 
 function M.show(win, url, worktree)
@@ -483,7 +531,8 @@ function M.show(win, url, worktree)
 	if not tty or #api.nvim_list_uis() == 0 then
 		failure = {
 			code = "browser_unavailable",
-			message = "Embedding requires a local terminal UI with Kitty graphics support.",
+			message = "Could not resolve a terminal device for the attached Neovim UI.",
+			next_step = "Run Neovim in a local terminal with Kitty graphics support. In tmux, ensure TMUX_PANE identifies Neovim's pane, tmux is on Neovim's PATH, and a local client is attached, then retry.",
 		}
 		failures[worktree] = failure
 		require("aero.browser.setup").show(win, worktree, failure)
@@ -495,12 +544,38 @@ function M.show(win, url, worktree)
 	serial = serial + 1
 	s = {
 		worktree = worktree,
+		tty = tty,
 		buf = api.nvim_create_buf(false, true),
 		socket = vim.fn.tempname() .. ".sock",
 		cell = { options.cell_width, options.cell_height },
 		image = 0x700000 + (vim.fn.getpid() % 4096) * 256 + serial,
+		-- File transport requires the terminal to share the browser's filesystem.
+		transport = ((vim.env.SSH_CONNECTION or "") ~= "" or (vim.env.SSH_TTY or "") ~= "") and "inline" or "file",
 	}
+
+	if options.auto_cell_size then
+		s.cell = require("aero.browser.terminal").cell(tty) or s.cell
+	end
+
 	instances[worktree] = s
+
+	if api.nvim_ui_send and vim.tbl_contains(ready.capabilities, "image-frames") then
+		s.transport = "host"
+		s.frames = require("aero.browser.frames").new(s.image, (vim.env.TMUX_PANE or "") ~= "", function(message)
+			draw(s, message)
+		end, function(message)
+			local target = visible_window(s)
+			stop(s)
+			failures[worktree] = {
+				code = "browser_frame_failed",
+				message = "Browser frame delivery failed.",
+				details = message,
+				next_step = "Retry the browser. If frame delivery fails again, report the details below; terminal-browser was already detected successfully.",
+			}
+			require("aero.browser.setup").show(target, worktree, failures[worktree])
+		end)
+	end
+
 	api.nvim_buf_set_name(s.buf, "aero://browser/" .. vim.fn.getpid() .. "/" .. serial)
 	vim.bo[s.buf].bufhidden = "hide"
 	vim.bo[s.buf].swapfile = false
@@ -585,12 +660,27 @@ function M.show(win, url, worktree)
 						s.joined = true
 						local target = visible_window(s)
 						local init = target and size(s, target, "init")
-							or { type = "init", cols = 80, rows = 24, cell = s.cell }
+							or {
+								type = "init",
+								cols = 80,
+								rows = 24,
+								width = 80 * s.cell[1],
+								height = 24 * s.cell[2],
+								cell = s.cell,
+							}
 						init.imageId, init.transport, init.focused =
-							s.image, "file", target == api.nvim_get_current_win()
+							s.image, s.transport, target == api.nvim_get_current_win()
+
+						if s.frames then
+							s.frames.resize(init)
+							s.size = table.concat({ init.cols, init.rows, s.cell[1], s.cell[2] }, ":")
+						end
+
 						send(s, init)
 					elseif message.type == "placed" then
 						draw(s, message)
+					elseif message.type == "frame" and s.frames then
+						s.frames.push(message)
 					elseif message.type == "clipboard" and type(message.text) == "string" then
 						vim.fn.setreg("+", message.text)
 					end
