@@ -281,6 +281,7 @@ assert(api.nvim_get_current_buf() == first)
 
 browser.command({ "stop" })
 host_frames = true
+api.nvim_ui_send = function() end
 reader.select("browser")
 
 assert(#launches == 3)
@@ -291,6 +292,18 @@ wait(function()
 end)
 
 assert(received("init", 3).transport == "host")
+
+browser.command({ "stop" })
+
+-- Older Neovim versions must fall back even when the browser supports host frames.
+api.nvim_ui_send = nil
+vim.env.SSH_CONNECTION = nil
+reader.select("browser")
+wait(function()
+	return received("init", 4) ~= nil
+end)
+
+assert(received("init", 4).transport == "file")
 
 browser.command({ "stop" })
 
