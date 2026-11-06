@@ -26,7 +26,7 @@ local function choose_name(callback)
 		return
 	end
 
-	vim.ui.input({ prompt = "Terminal name: ", default = generated }, function(value)
+	require("aero.input").input({ prompt = "Terminal name: ", default = generated }, function(value)
 		if value ~= nil then
 			value = vim.trim(value):gsub("[%c]", " ")
 			callback(value ~= "" and value or generated)
@@ -174,7 +174,7 @@ function M.rename(name)
 	if name ~= nil then
 		apply(name)
 	else
-		vim.ui.input({ prompt = "Terminal name: ", default = tab.name or "" }, apply)
+		require("aero.input").input({ prompt = "Terminal name: ", default = tab.name or "" }, apply)
 	end
 end
 
