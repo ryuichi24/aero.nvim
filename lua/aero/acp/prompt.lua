@@ -55,12 +55,15 @@ local function reference_command(text)
 end
 
 local function enter_command(text)
+	local selector = not text:find("[\r\n]") and text:match("^/(%S+)")
 	return text == "/prompt"
 		or text == "/report"
 		or reference_command(text)
 		or text == "/cancel"
 		or text == "/export"
 		or text == "/resume"
+		or selector == "model"
+		or selector == "mode"
 end
 
 -- Draft-building commands act on the current line, preserving the rest of the draft.

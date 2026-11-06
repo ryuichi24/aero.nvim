@@ -46,13 +46,15 @@ end
 
 assert(picked == 2)
 
--- Both Enter mappings must dispatch standalone reference commands rather than add a newline.
-local mapped_chat = { s = { key = "reference-test", worktree = vim.fn.getcwd(), name = "test" } }
+-- Both Enter mappings must dispatch local commands rather than add a newline.
+local mapped_chat = { s = { key = "reference-test", worktree = vim.fn.getcwd(), name = "test" }, blocks = {} }
+local dispatched = {}
 
 function mapped_chat:save_history() end
 
 function mapped_chat:send_prompt_buf()
 	picked = picked + 1
+	table.insert(dispatched, table.concat(api.nvim_buf_get_lines(self.prompt_buf, 0, -1, false), "\n"))
 end
 
 local mapped_buf = prompt.buffer(mapped_chat, function()
@@ -63,13 +65,37 @@ api.nvim_set_current_buf(mapped_buf)
 for _, mode in ipairs({ "n", "i" }) do
 	local mapping = vim.fn.maparg("<CR>", mode, false, true)
 
-	for _, command in ipairs({ "/reference", "/context" }) do
+	for _, command in ipairs({
+		"/reference",
+		"/context",
+		"/model",
+		"/model provider/model-id",
+		"/model Model Display Name",
+		"/mode",
+		"/mode plan",
+		"/prompt",
+		"/report",
+		"/cancel",
+		"/export",
+		"/resume",
+	}) do
 		api.nvim_buf_set_lines(mapped_buf, 0, -1, false, { command })
 		mapping.callback()
+
+		assert(dispatched[#dispatched] == command, mode .. " Enter did not dispatch " .. command)
+	end
+
+	for _, lines in ipairs({ { "/models" }, { "/model-id" }, { "/model", "keep this draft" } }) do
+		api.nvim_buf_set_lines(mapped_buf, 0, -1, false, lines)
+		api.nvim_win_set_cursor(0, { 1, 0 })
+		local count = #dispatched
+		mapping.callback()
+
+		assert(#dispatched == count, "Enter dispatched ordinary draft text")
 	end
 end
 
-assert(picked == 6, "Enter did not dispatch reference commands in both modes")
+assert(picked == 26, "Enter did not dispatch local commands in both modes")
 
 reference.pick = old_pick
 print("prompt send: ok")
