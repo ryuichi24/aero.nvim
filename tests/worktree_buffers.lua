@@ -46,7 +46,7 @@ aero.setup({
 	persist_buffers = phase ~= "disabled",
 	worktree_tabs = phase ~= "shared",
 	reports = { directory = dir .. "/reports" },
-	terminal = { cmd = { "cat" } },
+	terminal = { cmd = { "cat" }, prompt_for_name = false },
 	agents = { pty = { cmd = { "cat" }, resume = { "cat" } } },
 })
 local buffers = require("aero.buffers")
