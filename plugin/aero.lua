@@ -163,6 +163,14 @@ local subcommands = {
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
 	end,
 	term = function(args)
+		if args[1] == "search" and #args == 1 then
+			return require("aero.terminal").search()
+		end
+
+		if args[1] == "rename" then
+			return require("aero.terminal").rename(#args > 1 and table.concat(args, " ", 2) or nil)
+		end
+
 		if #args == 1 and vim.tbl_contains({ "new", "next", "prev", "split", "vsplit", "close" }, args[1]) then
 			return require("aero.terminal").action(args[1])
 		end
@@ -172,7 +180,10 @@ local subcommands = {
 		end
 
 		if #args > 0 then
-			vim.notify("Aero: use :Aero term [new|next|prev|split|vsplit|close|history]", vim.log.levels.WARN)
+			vim.notify(
+				"Aero: use :Aero term [new|next|prev|split|vsplit|close|rename [name]|search|history]",
+				vim.log.levels.WARN
+			)
 			return
 		end
 
@@ -239,9 +250,13 @@ end, {
 		end
 
 		if words[2] == "term" and (#words > 2 or cmdline:match("%s$")) then
+			if #words > 3 or (#words == 3 and cmdline:match("%s$")) then
+				return {}
+			end
+
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "new", "next", "prev", "split", "vsplit", "close", "history" })
+			end, { "new", "next", "prev", "split", "vsplit", "close", "rename", "search", "history" })
 		end
 
 		if words[2] == "review" and (#words > 2 or cmdline:match("%s$")) then

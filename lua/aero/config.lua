@@ -238,6 +238,7 @@ local defaults = {
 		terminal = {
 			height = 30,
 			cmd = nil, -- default: { vim.o.shell }
+			prompt_for_name = true, -- prompt for new terminal tabs; false generates readable names
 		},
 		-- spin the icon of busy sessions (dashboard, panel winbar, transcript footer, running tools)
 		animation = true,

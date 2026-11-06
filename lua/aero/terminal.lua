@@ -8,6 +8,31 @@ local api = vim.api
 ---@type table<string, integer> worktree path -> terminal buffer
 local bufs = {}
 local workspaces = {}
+local name_sequence = 0
+
+local function choose_name(callback)
+	local adjectives = { "calm", "bright", "gentle", "swift", "quiet", "sunny", "bold", "lucky" }
+	local animals = { "otter", "fox", "owl", "panda", "robin", "lynx", "heron", "badger" }
+	local bytes = assert(vim.uv.random(2))
+	name_sequence = name_sequence + 1
+	local generated = adjectives[bytes:byte(1) % #adjectives + 1]
+		.. "-"
+		.. animals[bytes:byte(2) % #animals + 1]
+		.. "-"
+		.. name_sequence
+
+	if not config.options.terminal.prompt_for_name then
+		callback(generated)
+		return
+	end
+
+	vim.ui.input({ prompt = "Terminal name: ", default = generated }, function(value)
+		if value ~= nil then
+			value = vim.trim(value):gsub("[%c]", " ")
+			callback(value ~= "" and value or generated)
+		end
+	end)
+end
 
 local function workspace(path)
 	workspaces[path] = workspaces[path] or { tabs = { {} }, active = 1 }
@@ -116,14 +141,40 @@ local function header(path)
 	local state = workspace(path)
 	local labels = {}
 
-	for i in ipairs(state.tabs) do
-		labels[#labels + 1] = i == state.active and ("[" .. i .. "]") or tostring(i)
+	for i, tab in ipairs(state.tabs) do
+		local label = tostring(i) .. (tab.name and (": " .. tab.name) or "")
+		labels[#labels + 1] = i == state.active and ("[" .. label .. "]") or label
 	end
 
 	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
-		if M.is_term_win(win) then
-			vim.wo[win].winbar = " Term " .. table.concat(labels, "  ")
+		if vim.b[api.nvim_win_get_buf(win)].aero_term == path then
+			vim.wo[win].winbar = " Term " .. table.concat(labels, "  "):gsub("%%", "%%%%")
 		end
+	end
+end
+
+--- Name the active terminal tab; an empty name restores the numbered label.
+function M.rename(name)
+	local path = M.current_worktree()
+	local state = workspace(path)
+	local tab = state.tabs[state.active]
+	local function apply(value)
+		if value == nil or not vim.tbl_contains(state.tabs, tab) then
+			return
+		end
+
+		value = vim.trim(value):gsub("[%c]", " ")
+		tab.name = value ~= "" and value or nil
+
+		if M.current_worktree() == path then
+			header(path)
+		end
+	end
+
+	if name ~= nil then
+		apply(name)
+	else
+		vim.ui.input({ prompt = "Terminal name: ", default = tab.name or "" }, apply)
 	end
 end
 
@@ -153,6 +204,23 @@ end
 function M.open(path, code_win)
 	local state = workspace(path)
 	local tab = state.tabs[state.active]
+
+	if not tab.name and not tab.buf and not tab.tree then
+		local result
+		choose_name(function(name)
+			if workspaces[path] ~= state or state.tabs[state.active] ~= tab then
+				return
+			end
+
+			tab.name = name
+
+			if api.nvim_win_is_valid(code_win) and M.current_worktree() == path then
+				result = M.open(path, code_win)
+			end
+		end)
+		return result
+	end
+
 	local win = M.win()
 
 	if win and vim.b[api.nvim_win_get_buf(win)].aero_term == path then
@@ -210,14 +278,95 @@ function M.hide()
 	end
 end
 
+--- Search terminal tabs across worktrees and jump to the selected shell group.
+function M.search()
+	local items = {}
+
+	for path, state in pairs(workspaces) do
+		for i, tab in ipairs(state.tabs) do
+			if tab.buf or tab.tree then
+				items[#items + 1] = {
+					key = path .. ":" .. i,
+					path = path,
+					tab = tab,
+					label = (tab.name or ("Terminal " .. i)) .. "  ·  " .. path .. "  ·  " .. i,
+				}
+			end
+		end
+	end
+
+	table.sort(items, function(a, b)
+		return a.label < b.label
+	end)
+
+	if #items == 0 then
+		vim.notify("Aero: no terminal sessions to search")
+		return
+	end
+
+	local picker = require("aero.picker")
+	picker.open({
+		title = "term search",
+		items = function()
+			return items
+		end,
+		label = function(entry)
+			return entry.label
+		end,
+		footer = " Ctrl-n/p: select · i: search · Enter: jump · q: close ",
+		select = function(entry)
+			picker.close()
+			local state = workspaces[entry.path]
+			local index = 0
+
+			for i, tab in ipairs(state and state.tabs or {}) do
+				if tab == entry.tab then
+					index = i
+					break
+				end
+			end
+
+			if index == 0 then
+				vim.notify("Aero: terminal session has been closed", vim.log.levels.WARN)
+				return
+			end
+
+			local navigation = require("aero.navigation")
+
+			if not navigation.enter_worktree(entry.path) then
+				return
+			end
+
+			M.hide()
+			state.active = index
+			M.open(entry.path, navigation.code_window())
+		end,
+	})
+end
+
 --- Manage worktree-local terminal tabs and independent split shells.
-function M.action(action)
+function M.action(action, name)
 	local path = M.current_worktree()
 	local state = workspace(path)
 	local code_win = require("aero.navigation").code_window()
 
+	if action == "new" and not name then
+		local result
+		choose_name(function(value)
+			if M.current_worktree() == path then
+				result = M.action("new", value)
+			end
+		end)
+		return result
+	end
+
 	if action == "split" or action == "vsplit" then
 		local parent = M.open(path, code_win)
+
+		if not parent then
+			return
+		end
+
 		local buf = api.nvim_create_buf(false, true)
 		local win = api.nvim_open_win(buf, true, { split = action == "vsplit" and "right" or "below", win = parent })
 		vim.b[buf].aero_term = path
@@ -230,7 +379,7 @@ function M.action(action)
 	M.hide()
 
 	if action == "new" then
-		state.tabs[#state.tabs + 1] = {}
+		state.tabs[#state.tabs + 1] = { name = name }
 		state.active = #state.tabs
 	elseif action == "next" or action == "prev" then
 		state.active = (state.active - 1 + (action == "next" and 1 or -1)) % #state.tabs + 1
