@@ -66,6 +66,8 @@ descendants even when they were automatically expanded by existing sessions.
 | `:Aero term vsplit` | Split the focused terminal pane side by side with a new shell |
 | `:Aero term split` | Split the focused terminal pane above/below with a new shell |
 | `:Aero term close` | Close the active terminal tab and stop its shells |
+| `:Aero term rename [name]` | Name the active terminal tab; omit the name to open a prompt |
+| `:Aero term search` | Search terminal tabs by name across worktrees and jump to one |
 | `:Aero term history` | Copy or paste a command from the worktree terminal history |
 
 The dashboard displays local worktrees before starting background remote checks.
@@ -268,7 +270,29 @@ cannot preserve are reported rather than merged automatically.
 ## Terminal command history
 
 Terminal tabs belong to the worktree and are separate from Neovim tab pages.
+Opening the first terminal or running `:Aero term new` prompts for a name by
+default. Cancel to leave the existing terminals unchanged. Accepting an empty
+name uses the suggested random human-readable name, such as `calm-otter-1`.
+Disable the prompt to assign these names automatically:
+
+```lua
+require("aero").setup({
+  ui = {
+    terminal = { prompt_for_name = false }, -- default: true
+  },
+})
+```
+
+Split panes belong to the same named terminal tab and do not prompt separately.
 The terminal header shows the available tabs with the active tab in brackets.
+Name a tab with `:Aero term rename Dev server` to show `[1: Dev server]` in
+the header. Names stay with their tabs when switching or hiding the terminal.
+Run `:Aero term rename` and clear the prompt to restore the numbered label.
+Use `:Aero term search` to find a terminal by name across all worktrees in this
+Neovim process. Press `i` to filter, Ctrl-n/Ctrl-p to select, and Enter to jump.
+Ctrl-n/Ctrl-p work in both normal and insert mode; `j`/`k` also select in normal mode.
+Results include the worktree path and tab number to distinguish duplicate names.
+Selecting a result opens its worktree and restores that terminal tab's split panes.
 Each split pane runs its own shell in the worktree directory. Use normal Neovim
 window navigation to move between panes (leave terminal mode with Ctrl-\\ Ctrl-n).
 Switching terminal tabs or hiding the terminal keeps all shells running and
