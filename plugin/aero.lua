@@ -163,12 +163,16 @@ local subcommands = {
 		require("aero").quote(opts.range > 0 and { opts.line1, opts.line2 } or nil)
 	end,
 	term = function(args)
+		if #args == 1 and vim.tbl_contains({ "new", "next", "prev", "split", "vsplit", "close" }, args[1]) then
+			return require("aero.terminal").action(args[1])
+		end
+
 		if args[1] == "history" and #args == 1 then
 			return require("aero.terminal").history()
 		end
 
 		if #args > 0 then
-			vim.notify("Aero: use :Aero term [history]", vim.log.levels.WARN)
+			vim.notify("Aero: use :Aero term [new|next|prev|split|vsplit|close|history]", vim.log.levels.WARN)
 			return
 		end
 
@@ -237,7 +241,7 @@ end, {
 		if words[2] == "term" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "history" })
+			end, { "new", "next", "prev", "split", "vsplit", "close", "history" })
 		end
 
 		if words[2] == "review" and (#words > 2 or cmdline:match("%s$")) then

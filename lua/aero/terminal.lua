@@ -1,5 +1,5 @@
--- A shell per worktree, shown in a split at the bottom of the code window. Hiding it keeps the
--- shell running; the buffer is marked with b:aero_term = worktree path.
+-- Worktree-local terminal tabs and split shells. Hidden panes keep running;
+-- each terminal buffer is marked with b:aero_term = worktree path.
 local config = require("aero.config")
 local layout = require("aero.layout")
 local M = {}
@@ -7,6 +7,12 @@ local api = vim.api
 
 ---@type table<string, integer> worktree path -> terminal buffer
 local bufs = {}
+local workspaces = {}
+
+local function workspace(path)
+	workspaces[path] = workspaces[path] or { tabs = { {} }, active = 1 }
+	return workspaces[path]
+end
 
 --- The worktree the current tab works on.
 function M.current_worktree()
@@ -36,25 +42,23 @@ function M.is_term_win(win)
 end
 
 --- Show the worktree's terminal below `code_win` (starting a shell if needed) and focus it.
-function M.open(worktree, code_win)
-	local win = M.win()
+local function open_shell(worktree, code_win, target)
+	local win = target or M.win()
 	local buf = bufs[worktree]
-
-	if win and api.nvim_win_get_buf(win) == buf and alive(buf) then
-		api.nvim_set_current_win(win)
-		vim.cmd.startinsert()
-		return win
-	end
-
 	local fresh = not alive(buf)
 
-	if fresh then
-		if buf and api.nvim_buf_is_valid(buf) then
-			api.nvim_buf_delete(buf, { force = true })
-		end
-
+	if fresh and not (buf and api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "nofile") then
+		local old = buf
 		buf = api.nvim_create_buf(false, true)
 		bufs[worktree] = buf
+
+		if win then
+			layout.set_buf(win, buf)
+		end
+
+		if old and api.nvim_buf_is_valid(old) then
+			api.nvim_buf_delete(old, { force = true })
+		end
 	end
 
 	if win then
@@ -89,6 +93,97 @@ function M.open(worktree, code_win)
 	return win
 end
 
+local function capture(node)
+	if node[1] == "leaf" then
+		local buf = api.nvim_win_get_buf(node[2])
+		return vim.b[buf].aero_term and { "leaf", buf } or nil
+	end
+
+	local children = {}
+
+	for _, child in ipairs(node[2]) do
+		local saved = capture(child)
+
+		if saved then
+			children[#children + 1] = saved
+		end
+	end
+
+	return #children == 1 and children[1] or #children > 1 and { node[1], children } or nil
+end
+
+local function header(path)
+	local state = workspace(path)
+	local labels = {}
+
+	for i in ipairs(state.tabs) do
+		labels[#labels + 1] = i == state.active and ("[" .. i .. "]") or tostring(i)
+	end
+
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		if M.is_term_win(win) then
+			vim.wo[win].winbar = " Term " .. table.concat(labels, "  ")
+		end
+	end
+end
+
+local function restore(node, win, path)
+	if node[1] == "leaf" then
+		bufs[path] = node[2]
+		layout.set_buf(win, node[2])
+		open_shell(path, win, win)
+		return
+	end
+
+	local windows = { win }
+
+	for i = 2, #node[2] do
+		windows[i] = api.nvim_open_win(api.nvim_create_buf(false, true), false, {
+			split = node[1] == "row" and "right" or "below",
+			win = windows[i - 1],
+		})
+	end
+
+	for i, child in ipairs(node[2]) do
+		restore(child, windows[i], path)
+	end
+end
+
+--- Show the active terminal tab, restoring its split panes.
+function M.open(path, code_win)
+	local state = workspace(path)
+	local tab = state.tabs[state.active]
+	local win = M.win()
+
+	if win and vim.b[api.nvim_win_get_buf(win)].aero_term == path then
+		local current = api.nvim_get_current_win()
+
+		if M.is_term_win(current) then
+			win = current
+		end
+
+		api.nvim_set_current_win(win)
+		bufs[path] = api.nvim_win_get_buf(win)
+		vim.cmd.startinsert()
+		return win
+	end
+
+	if win then
+		M.hide()
+	end
+
+	bufs[path] = tab.buf
+	win = open_shell(path, code_win)
+
+	if tab.tree then
+		restore(tab.tree, win, path)
+	end
+
+	tab.buf = bufs[path]
+	header(path)
+	return api.nvim_get_current_win()
+end
+
 --- Hide the terminal window in this tab (the shell keeps running).
 function M.hide()
 	if require("aero.fullscreen").close("terminal") then
@@ -97,13 +192,76 @@ function M.hide()
 
 	local win = M.win()
 
-	if win and #api.nvim_tabpage_list_wins(0) > 1 then
+	if win then
+		local path = vim.b[api.nvim_win_get_buf(win)].aero_term
+		local state = workspace(path)
+		local tab = state.tabs[state.active]
+		tab.tree = capture(vim.fn.winlayout())
+		tab.buf = bufs[path]
 		layout.remember(win)
-		local buf = api.nvim_win_get_buf(win)
-		local worktree = vim.b[buf].aero_term
-		api.nvim_win_close(win, false)
-		require("aero.events").emit("terminal_closed", { worktree = worktree, win = win, buf = buf })
+
+		for _, pane in ipairs(api.nvim_tabpage_list_wins(0)) do
+			if M.is_term_win(pane) and #api.nvim_tabpage_list_wins(0) > 1 then
+				local buf = api.nvim_win_get_buf(pane)
+				api.nvim_win_close(pane, false)
+				require("aero.events").emit("terminal_closed", { worktree = path, win = pane, buf = buf })
+			end
+		end
 	end
+end
+
+--- Manage worktree-local terminal tabs and independent split shells.
+function M.action(action)
+	local path = M.current_worktree()
+	local state = workspace(path)
+	local code_win = require("aero.navigation").code_window()
+
+	if action == "split" or action == "vsplit" then
+		local parent = M.open(path, code_win)
+		local buf = api.nvim_create_buf(false, true)
+		local win = api.nvim_open_win(buf, true, { split = action == "vsplit" and "right" or "below", win = parent })
+		vim.b[buf].aero_term = path
+		bufs[path] = buf
+		open_shell(path, win, win)
+		header(path)
+		return
+	end
+
+	M.hide()
+
+	if action == "new" then
+		state.tabs[#state.tabs + 1] = {}
+		state.active = #state.tabs
+	elseif action == "next" or action == "prev" then
+		state.active = (state.active - 1 + (action == "next" and 1 or -1)) % #state.tabs + 1
+	elseif action == "close" then
+		local tab = table.remove(state.tabs, state.active)
+		local function dispose(node)
+			if not node then
+				return
+			end
+
+			if node[1] == "leaf" then
+				if api.nvim_buf_is_valid(node[2]) then
+					api.nvim_buf_delete(node[2], { force = true })
+				end
+			else
+				for _, child in ipairs(node[2]) do
+					dispose(child)
+				end
+			end
+		end
+		dispose(tab.tree or (tab.buf and { "leaf", tab.buf }))
+		state.active = math.max(1, math.min(state.active, #state.tabs))
+
+		if #state.tabs == 0 then
+			workspaces[path] = nil
+			bufs[path] = nil
+			return
+		end
+	end
+
+	return M.open(path, code_win)
 end
 
 --- Stop and forget the worktree's terminal (e.g. when the worktree is removed).
@@ -111,6 +269,13 @@ function M.delete(worktree)
 	require("aero.terminal_history").delete(worktree)
 	local buf = bufs[worktree]
 	bufs[worktree] = nil
+	workspaces[worktree] = nil
+
+	for _, candidate in ipairs(api.nvim_list_bufs()) do
+		if vim.b[candidate].aero_term == worktree then
+			api.nvim_buf_delete(candidate, { force = true })
+		end
+	end
 
 	if buf and api.nvim_buf_is_valid(buf) then
 		api.nvim_buf_delete(buf, { force = true })
@@ -138,6 +303,7 @@ function M.history()
 
 	local function paste(entry, replay)
 		picker.close()
+		M.open(worktree, require("aero.navigation").code_window())
 		local buf = bufs[worktree]
 
 		if not alive(buf) then
@@ -145,7 +311,6 @@ function M.history()
 			return
 		end
 
-		M.open(worktree, require("aero.navigation").code_window())
 		local command = entry.command
 
 		if replay and entry.cwd then
