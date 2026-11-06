@@ -61,6 +61,11 @@ descendants even when they were automatically expanded by existing sessions.
 | `:Aero pull` | Pull the selected worktree's upstream, fast-forward only |
 | `:Aero review [base-ref]` | Review local changes, or committed changes from an explicit base's merge-base |
 | `:Aero term` | Toggle the current worktree's shell |
+| `:Aero term new` | Create a terminal tab with a new shell |
+| `:Aero term next` / `prev` | Switch terminal tabs |
+| `:Aero term vsplit` | Split the focused terminal pane side by side with a new shell |
+| `:Aero term split` | Split the focused terminal pane above/below with a new shell |
+| `:Aero term close` | Close the active terminal tab and stop its shells |
 | `:Aero term history` | Copy or paste a command from the worktree terminal history |
 
 The dashboard displays local worktrees before starting background remote checks.
@@ -261,6 +266,14 @@ pulls of a worktree are ignored. Divergent branches, missing upstreams, and chan
 cannot preserve are reported rather than merged automatically.
 
 ## Terminal command history
+
+Terminal tabs belong to the worktree and are separate from Neovim tab pages.
+The terminal header shows the available tabs with the active tab in brackets.
+Each split pane runs its own shell in the worktree directory. Use normal Neovim
+window navigation to move between panes (leave terminal mode with Ctrl-\\ Ctrl-n).
+Switching terminal tabs or hiding the terminal keeps all shells running and
+restores the split arrangement when shown again. Terminal tabs and running
+shells last for the current Neovim process.
 
 Use `:Aero term history` to list commands from the current worktree's terminal,
 newest first. The picker shows success/failure, working directory, start time,
