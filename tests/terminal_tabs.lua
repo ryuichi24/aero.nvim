@@ -31,6 +31,18 @@ local function panes()
 	return result
 end
 
+local function dimensions()
+	local result = {}
+
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		if terminal.is_term_win(win) then
+			result[api.nvim_win_get_buf(win)] = { api.nvim_win_get_width(win), api.nvim_win_get_height(win) }
+		end
+	end
+
+	return result
+end
+
 local ok, err = xpcall(function()
 	terminal.open(path, code)
 	local first = api.nvim_get_current_buf()
@@ -46,6 +58,17 @@ local ok, err = xpcall(function()
 	local original = panes()
 
 	assert(#original == 3, "three independent panes")
+
+	api.nvim_win_set_width(api.nvim_get_current_win(), 57)
+	api.nvim_win_set_height(api.nvim_get_current_win(), 5)
+	local original_sizes = dimensions()
+
+	for _ = 1, 3 do
+		terminal.hide()
+		terminal.open(path, code)
+
+		assert(vim.deep_equal(dimensions(), original_sizes), "toggle preserves each pane's width and height")
+	end
 
 	local jobs = {}
 
@@ -86,6 +109,7 @@ local ok, err = xpcall(function()
 	terminal.action("prev")
 
 	assert(vim.deep_equal(panes(), original), "switch restores all original panes")
+	assert(vim.deep_equal(dimensions(), original_sizes), "tab switching preserves pane dimensions")
 	assert(vim.wo.winbar:find("[1: Dev server 100%%]", 1, true), "name survives tab switching")
 
 	local input = vim.ui.input

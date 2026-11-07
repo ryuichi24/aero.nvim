@@ -121,7 +121,9 @@ end
 local function capture(node)
 	if node[1] == "leaf" then
 		local buf = api.nvim_win_get_buf(node[2])
-		return vim.b[buf].aero_term and { "leaf", buf } or nil
+		return vim.b[buf].aero_term
+				and { "leaf", buf, width = api.nvim_win_get_width(node[2]), height = api.nvim_win_get_height(node[2]) }
+			or nil
 	end
 
 	local children = {}
@@ -178,11 +180,12 @@ function M.rename(name)
 	end
 end
 
-local function restore(node, win, path)
+local function restore(node, win, path, sizes)
 	if node[1] == "leaf" then
 		bufs[path] = node[2]
 		layout.set_buf(win, node[2])
 		open_shell(path, win, win)
+		sizes[#sizes + 1] = { win = win, width = node.width, height = node.height }
 		return
 	end
 
@@ -196,7 +199,7 @@ local function restore(node, win, path)
 	end
 
 	for i, child in ipairs(node[2]) do
-		restore(child, windows[i], path)
+		restore(child, windows[i], path, sizes)
 	end
 end
 
@@ -242,13 +245,21 @@ function M.open(path, code_win)
 
 	bufs[path] = tab.buf
 	win = open_shell(path, code_win)
+	local sizes = {}
 
 	if tab.tree then
-		restore(tab.tree, win, path)
+		restore(tab.tree, win, path, sizes)
 	end
 
 	tab.buf = bufs[path]
 	header(path)
+
+	-- Apply dimensions only after all splits and their winbars exist.
+	for _, size in ipairs(sizes) do
+		api.nvim_win_set_width(size.win, size.width)
+		api.nvim_win_set_height(size.win, size.height)
+	end
+
 	return api.nvim_get_current_win()
 end
 
