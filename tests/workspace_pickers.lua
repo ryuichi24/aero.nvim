@@ -51,6 +51,26 @@ local function filter(query)
 	api.nvim_exec_autocmds("TextChangedI", { buffer = api.nvim_get_current_buf() })
 end
 
+local function assert_sidebar_worktree(path)
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		local buf = api.nvim_win_get_buf(win)
+
+		if vim.bo[buf].filetype == "Aero" then
+			local row = api.nvim_win_get_cursor(win)[1]
+			local line = api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
+			local branch = path:find("feature", 1, true) and "feature" or "main"
+
+			assert(line:find(branch, 1, true), "sidebar did not reveal " .. path .. ": " .. line)
+			assert(api.nvim_get_current_win() ~= win, "revealing the worktree stole focus")
+
+			return win
+		end
+	end
+
+	error("sidebar is missing")
+end
+
+aero.open()
 vim.cmd("Aero worktrees")
 local search = api.nvim_get_current_buf()
 local lines, win = results()
@@ -75,12 +95,17 @@ key("<CR>")
 assert(vim.fn.resolve(vim.fn.getcwd()) == dir .. "/alpha-feature")
 assert(not api.nvim_buf_is_valid(search))
 
+assert_sidebar_worktree(dir .. "/alpha-feature")
+
 local tab = api.nvim_get_current_tabpage()
+api.nvim_win_set_cursor(assert_sidebar_worktree(dir .. "/alpha-feature"), { 1, 0 })
 aero.worktrees()
 filter("alpha feature")
 key("<CR>")
 
 assert(api.nvim_get_current_tabpage() == tab, "existing worktree tab was not reused")
+
+assert_sidebar_worktree(dir .. "/alpha-feature")
 
 vim.cmd("Aero workspaces")
 lines = results()
@@ -91,6 +116,8 @@ key("j")
 key("<CR>")
 
 assert(vim.fn.resolve(vim.fn.getcwd()) == dir .. "/beta", "workspace did not open its root checkout")
+
+assert_sidebar_worktree(dir .. "/beta")
 
 -- Switching popup types closes the previous one.
 aero.workspaces()
@@ -119,6 +146,8 @@ tab = api.nvim_get_current_tabpage()
 key("<CR>")
 
 assert(api.nvim_get_current_tabpage() == tab and vim.fn.resolve(vim.fn.getcwd()) == dir .. "/alpha")
+
+assert_sidebar_worktree(dir .. "/alpha")
 
 store.data.workspaces = {}
 vim.fn.delete(dir .. "/state.json")

@@ -147,6 +147,10 @@ function M.open_worktree(path, opener, opts)
 		return
 	end
 
+	if dashboard.reveal_worktree then
+		dashboard.reveal_worktree()
+	end
+
 	local kind = opener and "source" or require("aero.reader").active()
 	local win = M.code_window(kind)
 	api.nvim_set_current_win(win)

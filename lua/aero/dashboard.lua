@@ -381,7 +381,13 @@ function M.open(focus_worktree)
 
 	if is_open() then
 		api.nvim_set_current_win(state.win)
-		M.render()
+
+		if focus_worktree then
+			M.reveal_worktree()
+		else
+			M.render()
+		end
+
 		return
 	end
 
@@ -415,9 +421,28 @@ function M.open(focus_worktree)
 	store.load()
 	require("aero.dashboard.folds").restore(state)
 	state.worktrees = {}
-	local selected_path
+	require("aero.submodules").invalidate(true)
 
 	if focus_worktree then
+		M.reveal_worktree()
+	end
+
+	load_worktrees()
+	M.render()
+	require("aero.events").emit(
+		"dashboard_opened",
+		{ win = state.win, buf = state.buf, tab = api.nvim_get_current_tabpage() }
+	)
+end
+
+--- Reveal the current checkout without taking focus away from its code or session window.
+function M.reveal_worktree()
+	if not is_open() then
+		return
+	end
+
+	local selected_path
+	do
 		state.workspace_open = true
 		local revealed_workspaces = {}
 		local path = vim.fs.normalize(vim.fn.resolve(vim.t.aero_worktree or vim.fn.getcwd()))
@@ -467,24 +492,8 @@ function M.open(focus_worktree)
 
 		state.reveal_path = selected_path
 	end
-
-	require("aero.submodules").invalidate(true)
 	load_worktrees()
 	M.render()
-
-	if selected_path then
-		for row, item in pairs(state.items) do
-			if item.kind == "worktree" and item.wt.path == selected_path then
-				api.nvim_win_set_cursor(state.win, { row, 0 })
-				break
-			end
-		end
-	end
-
-	require("aero.events").emit(
-		"dashboard_opened",
-		{ win = state.win, buf = state.buf, tab = api.nvim_get_current_tabpage() }
-	)
 end
 
 --- Register a fullscreen window displaying the shared dashboard buffer.
@@ -628,7 +637,7 @@ require("aero.session_target").set_dashboard_selection(function()
 	local selected = api.nvim_get_current_buf() == state.buf
 	return selected, selected and current_item() or nil
 end)
-navigation.set_dashboard({ state = state, is_open = is_open, open = M.open })
+navigation.set_dashboard({ state = state, is_open = is_open, open = M.open, reveal_worktree = M.reveal_worktree })
 
 function M.selected_workspace()
 	local item = api.nvim_get_current_buf() == state.buf and current_item()
