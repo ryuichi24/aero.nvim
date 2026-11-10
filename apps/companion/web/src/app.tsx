@@ -11,7 +11,11 @@ import { useSnapshotStream } from './connection/use-snapshot-stream';
 import { useCompanionActions } from './actions/use-companion-actions';
 import { useCompanionRoute } from './navigation/use-companion-route';
 import { useSessionPosition } from './navigation/use-session-position';
-import { scopeSnapshot, reviewGroups as selectReviewGroups } from './selectors/workspace-scope';
+import {
+  sceneSnapshot,
+  scopeSnapshot,
+  reviewGroups as selectReviewGroups,
+} from './selectors/workspace-scope';
 import { SubmoduleBrowser } from './submodule-browser';
 import { CompanionProvider, useCompanionDispatch, useCompanionState } from './companion-context';
 import { draftKey } from './companion-state';
@@ -108,17 +112,20 @@ function Companion() {
     setRecent,
   } = useWorkspacePreferences();
   const [contextSearch, setContextSearch] = useState('');
+  const activeSnapshot = sceneSnapshot(snapshot);
   useEffect(() => {
     if (!snapshot?.connected) return;
     if (
       workspaceScope &&
-      !snapshot.workspaces.some((workspace) => workspace.root === workspaceScope)
+      !snapshot.workspaces.some(
+        (workspace) => workspace.root === workspaceScope && workspace.in_scene !== false,
+      )
     )
       setWorkspaceScope('');
   }, [snapshot, workspaceScope, setWorkspaceScope]);
   const workspaceView =
     view === 'reports' || view === 'source' || view === 'git' || view === 'reference';
-  const scopedSnapshot = scopeSnapshot(snapshot, workspaceScope);
+  const scopedSnapshot = scopeSnapshot(activeSnapshot, workspaceScope);
   const reviewTree = scopedSnapshot?.worktrees.find((tree) => tree.path === reviewWorktree);
   const reviewGroups = selectReviewGroups(scopedSnapshot, contextSearch);
   const navigate = useCompanionRoute(
@@ -289,6 +296,23 @@ function Companion() {
             {connection}
           </span>
           <div className="header-actions">
+            {!!snapshot?.scenes?.length && (
+              <label>
+                Scene
+                <select
+                  aria-label="Scene"
+                  value={snapshot.active_scene || ''}
+                  disabled={!online || submitting || !!pending}
+                  onChange={(event) => void act('scene_switch', { scene_id: event.target.value })}
+                >
+                  {snapshot.scenes.map((scene) => (
+                    <option key={scene.id} value={scene.id}>
+                      {scene.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               ref={attentionButton}
               className="attention-trigger"
@@ -510,7 +534,7 @@ function Companion() {
               onChange={(event) => setWorkspaceScope(event.target.value)}
             >
               <option value="">All workspaces</option>
-              {snapshot?.workspaces.map((workspace) => (
+              {activeSnapshot?.workspaces.map((workspace) => (
                 <option key={workspace.root} value={workspace.root}>
                   {workspace.name}
                 </option>

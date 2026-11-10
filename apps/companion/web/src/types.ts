@@ -35,6 +35,7 @@ export interface TranscriptBlock {
 }
 
 export interface Session {
+  in_scene?: boolean;
   scope?: 'general' | 'workspace';
   pinned?: boolean;
   archived?: boolean;
@@ -94,6 +95,8 @@ export interface InboxEvent {
 }
 
 export interface Snapshot {
+  scenes?: { id: string; name: string }[];
+  active_scene?: string;
   companion?: {
     ui?: {
       source_collapsed_by_default?: boolean;
@@ -107,8 +110,9 @@ export interface Snapshot {
   error?: string;
   sessions: Session[];
   inbox: InboxEvent[];
-  workspaces: { root: string; name: string; expanded?: boolean }[];
+  workspaces: { root: string; name: string; expanded?: boolean; in_scene?: boolean }[];
   worktrees: {
+    in_scene?: boolean;
     path: string;
     workspace?: string;
     branch?: string;
@@ -128,6 +132,7 @@ export interface Selection {
 }
 
 export type ActionPath =
+  | 'scene_switch'
   | 'reference_update'
   | 'session_assign_board'
   | 'prompt'
@@ -142,6 +147,7 @@ export type ActionPath =
   | 'worktree_rename'
   | 'worktree_delete';
 export interface ActionData {
+  scene_id?: string;
   scope?: 'general';
   field?: 'pinned' | 'archived';
   value?: boolean;

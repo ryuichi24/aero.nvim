@@ -7,6 +7,36 @@ import type { Snapshot } from './types';
 import { FakeEvents, initial, response, connect, open, draft } from './test/companion-harness';
 
 describe('mobile companion', () => {
+  it('switches scenes through the host and follows authoritative scene updates', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ result: { status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    const snapshot = {
+      ...initial,
+      epoch: 'scene-test-epoch',
+      active_scene: 'default',
+      scenes: [
+        { id: 'default', name: 'Default' },
+        { id: 'research', name: 'Research' },
+      ],
+    };
+    connect(snapshot);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Scene' }), 'research');
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    const [url, request] = fetch.mock.calls[0];
+    expect(url).toBe('/api/scene_switch');
+    expect(JSON.parse(request.body)).toMatchObject({ scene_id: 'research', epoch: snapshot.epoch });
+    connect({
+      ...snapshot,
+      active_scene: 'research',
+      sessions: [{ ...initial.sessions[0], in_scene: false }],
+    });
+    expect((screen.getByRole('combobox', { name: 'Scene' }) as HTMLSelectElement).value).toBe(
+      'research',
+    );
+    expect(screen.queryByRole('button', { name: /Test agent ·/ })).toBeNull();
+  });
+
   it('keeps submodule sessions and external review checkouts available within the parent workspace scope', async () => {
     const fetch = vi.fn().mockResolvedValue(response({ entries: [] }));
     vi.stubGlobal('fetch', fetch);

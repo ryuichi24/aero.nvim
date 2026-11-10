@@ -81,7 +81,10 @@ export function useCompanionActions(
 
   async function act(path: ActionPath, extra: Partial<ActionData> = {}) {
     const lifecycle =
-      path.startsWith('session_') || path.startsWith('worktree_') || path === 'reference_update';
+      path.startsWith('session_') ||
+      path.startsWith('worktree_') ||
+      path === 'reference_update' ||
+      path === 'scene_switch';
     const target = extra.session
       ? { id: extra.session, conversation: extra.conversation }
       : selected;

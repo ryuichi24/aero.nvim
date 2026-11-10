@@ -39,6 +39,9 @@ export function parseSnapshot(text: string): Snapshot {
     !record(value) ||
     typeof value.connected !== 'boolean' ||
     typeof value.cursor !== 'string' ||
+    !optionalString(value, 'active_scene') ||
+    (value.scenes !== undefined &&
+      !list(value.scenes, (scene) => strings(scene, ['id', 'name']))) ||
     !list(value.sessions, validSession) ||
     !list(value.inbox, (event) =>
       strings(event, ['id', 'session', 'conversation', 'kind', 'text']),

@@ -1,6 +1,22 @@
 import { groupSessions } from '../sessionGroups';
 import type { Snapshot } from '../types';
 
+export function sceneSnapshot(snapshot: Snapshot | null): Snapshot | null {
+  if (!snapshot?.active_scene) return snapshot;
+  const workspaces = snapshot.workspaces.filter((workspace) => workspace.in_scene !== false);
+  const worktrees = snapshot.worktrees.filter((tree) => tree.in_scene !== false);
+  const paths = new Set(worktrees.map((tree) => tree.path));
+  const roots = new Set(workspaces.map((workspace) => workspace.root));
+  return {
+    ...snapshot,
+    workspaces,
+    worktrees,
+    sessions: snapshot.sessions.filter((session) => session.in_scene !== false),
+    boards: snapshot.boards?.filter((board) => roots.has(board.workspace)),
+    submodules: snapshot.submodules?.filter((entry) => paths.has(entry.worktree)),
+  };
+}
+
 export function scopeSnapshot(snapshot: Snapshot | null, workspace: string): Snapshot | null {
   if (!snapshot || !workspace) return snapshot;
   const roots = new Set([workspace]);
