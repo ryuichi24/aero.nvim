@@ -66,8 +66,11 @@ The attention inbox remains global. When another scene has unread attention even
 the sidebar header shows an **elsewhere** count with a reminder to use `:Aero inbox`.
 Opening an event follows its session into a scene containing it.
 
-The companion retains its cross-scene overview of sessions and registered
-workspaces. Manage and switch the editor's active scene from Neovim.
+The companion's **Scene** selector switches the editor's active scene and follows
+changes made in Neovim. Home, session lists, and workspace navigation show content
+from that scene; workspace scope further narrows those lists. Attention remains
+available across scenes, and switching does not stop background agents.
+Create, rename, delete, and manage scene membership from Neovim.
 
 Scene definitions, workspace memberships, the active scene, and last selections
 are saved alongside Aero's existing state. Existing state automatically belongs to
