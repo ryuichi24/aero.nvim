@@ -15,10 +15,20 @@ git.list_async = function(_, callback)
 	pending = callback
 end
 local bridge = require("aero.companion")
+-- Stopped sessions retain removed worktrees in the registry and wire projection.
+store.data.sessions[dir .. "/removed-checkout"] = {}
 local initial = bridge.dispatch("snapshot")
 
 assert(pending and calls == 1, "snapshot did not start background discovery")
-assert(initial.worktrees[1].path == vim.fn.getcwd(), "initial snapshot lost the workspace")
+assert(
+	vim.tbl_contains(
+		vim.tbl_map(function(tree)
+			return tree.path
+		end, initial.worktrees),
+		vim.fn.getcwd()
+	),
+	"initial snapshot lost the workspace"
+)
 
 bridge.dispatch("snapshot")
 
@@ -52,6 +62,27 @@ assert(
 
 vim.uv.now = original_now
 git.list, git.list_async = original_list, original_async
+store.data.sessions[dir .. "/removed-checkout"] = nil
+-- Existing non-repositories also need bounded retries, without hiding a later
+-- successful resolution after cache invalidation.
+vim.fn.mkdir(dir, "p")
+git.invalidate()
+local attempts = 0
+git.list = function()
+	attempts = attempts + 1
+	return nil, "not a git repository"
+end
+
+assert(not git.main_root(dir))
+assert(not git.main_root(dir))
+assert(attempts == 1, "failed root discovery was repeated during polling")
+
+git.invalidate()
+git.main_root(dir)
+
+assert(attempts == 2, "invalidation did not permit root discovery to retry")
+
+git.list = original_list
 local completed = false
 git.list_async(vim.fn.getcwd(), function(list, err)
 	assert(list and not err and #list > 0, "asynchronous Git discovery failed")

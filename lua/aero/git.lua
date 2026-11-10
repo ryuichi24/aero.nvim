@@ -2,6 +2,7 @@ local M = {}
 local events = require("aero.events")
 local roots = {}
 local common_dirs = {}
+local root_failures = {}
 
 local function canonical(path)
 	return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
@@ -26,6 +27,7 @@ end
 
 function M.invalidate()
 	roots = {}
+	root_failures = {}
 end
 
 function M.correct_main(list, common, main)
@@ -210,8 +212,22 @@ function M.main_root(path)
 		return cached
 	end
 
+	-- Persisted sessions can outlive their checkout. Polling their metadata must
+	-- not spawn Git repeatedly for missing paths or non-repositories.
+	if not vim.uv.fs_stat(path) then
+		return nil, "worktree directory unavailable"
+	end
+
+	local failure = root_failures[path]
+
+	if failure and vim.uv.now() - failure.at < 5000 then
+		return nil, failure.err
+	end
+
 	local list, err = M.list(path)
-	return list and list[1] and list[1].path or nil, err
+	local root = list and list[1] and list[1].path
+	root_failures[path] = not root and { at = vim.uv.now(), err = err } or nil
+	return root, err
 end
 
 local function branch_exists(root, branch)
