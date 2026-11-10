@@ -8,6 +8,7 @@ local tabs = require("aero.tabs")
 local terminal = require("aero.terminal")
 local reports = require("aero.reports")
 local navigation = require("aero.navigation")
+local scenes = require("aero.scenes")
 local M = {}
 local api = vim.api
 local state = {
@@ -80,7 +81,7 @@ end
 local function load_worktrees()
 	local roots = {}
 
-	for _, workspace in ipairs(store.data.workspaces) do
+	for _, workspace in ipairs(scenes.workspaces()) do
 		if workspace.expanded ~= false then
 			worktrees(workspace)
 
@@ -115,7 +116,7 @@ local animation_snapshot
 local rendering, render_again = false, false
 
 local function build()
-	local snapshot = require("aero.dashboard.snapshot").prepare(store.data.workspaces, state, remote_changed)
+	local snapshot = require("aero.dashboard.snapshot").prepare(scenes.workspaces(), state, remote_changed)
 	animation_snapshot = snapshot
 	return require("aero.dashboard.model").build(snapshot)
 end
@@ -207,7 +208,7 @@ function M.collapse(kind)
 		end
 	end
 
-	for _, ws in ipairs(store.data.workspaces) do
+	for _, ws in ipairs(scenes.workspaces()) do
 		if kind == "all" or kind == "boards" then
 			state.boards_expanded[ws.root] = false
 		end
@@ -474,7 +475,7 @@ function M.reveal_worktree()
 			state.submodules_expanded[ancestor.worktree] = true
 			state.repositories_expanded[ancestor.mount] = true
 
-			for _, ws in ipairs(store.data.workspaces) do
+			for _, ws in ipairs(scenes.workspaces()) do
 				for _, wt in ipairs(worktrees(ws).list or {}) do
 					if wt.path == ancestor.worktree then
 						ws.expanded = true
@@ -555,6 +556,18 @@ function M.refresh()
 	M.render()
 end
 
+function M.save_scene()
+	require("aero.dashboard.folds").save(state)
+end
+
+function M.scene_changed()
+	require("aero.dashboard.folds").restore(state)
+	state.worktrees = {}
+	state.items = {}
+	state.reveal_path = nil
+	animation_snapshot = nil
+end
+
 -- another nvim instance may have changed the workspaces or sessions meanwhile
 api.nvim_create_autocmd("FocusGained", {
 	group = "Aero.dashboard",
@@ -582,7 +595,7 @@ worktree_timer:start(
 
 		local changed = false
 
-		for _, ws in ipairs(store.data.workspaces) do
+		for _, ws in ipairs(scenes.workspaces()) do
 			local cache = state.worktrees[ws.root]
 
 			if ws.expanded ~= false and cache and cache.list and cache.stamp ~= git.worktree_stamp(ws.root) then
@@ -618,7 +631,7 @@ api.nvim_create_autocmd("BufWritePost", {
 			return
 		end
 
-		for _, ws in ipairs(store.data.workspaces) do
+		for _, ws in ipairs(scenes.workspaces()) do
 			local directory = require("aero.tasks").directory(ws)
 
 			if directory and require("aero.storage").inside(event.file, directory) then
@@ -796,7 +809,9 @@ function actions.open(how)
 		return
 	end
 
-	if item.kind == "session" and item.knowledge then
+	if item.kind == "scene" then
+		scenes.open()
+	elseif item.kind == "session" and item.knowledge then
 		require("aero.knowledge.agent").show(item.session)
 	elseif item.kind == "knowledge_manage" then
 		require("aero.knowledge").open()
@@ -1056,7 +1071,9 @@ function actions.add()
 		return M.add_workspace()
 	end
 
-	if item.general or item.kind == "general_group" then
+	if item.kind == "scene" then
+		scenes.command({ "new" })
+	elseif item.general or item.kind == "general_group" then
 		require("aero.general").new()
 	elseif item.kind == "knowledge_group" or item.kind == "knowledge_manage" then
 		require("aero.knowledge").open()
@@ -1125,7 +1142,9 @@ function actions.rename()
 		return
 	end
 
-	if item.kind == "session" then
+	if item.kind == "scene" then
+		return scenes.command({ "rename" })
+	elseif item.kind == "session" then
 		return require("aero.dashboard.session_actions").rename(item.session, M.render)
 	end
 
@@ -1157,6 +1176,10 @@ function actions.delete()
 
 	if not item then
 		return
+	end
+
+	if item.kind == "scene" then
+		return scenes.command({ "delete" })
 	end
 
 	if item.kind == "knowledge_note" or item.kind == "knowledge_source" or item.kind == "knowledge_folder" then
@@ -1503,7 +1526,7 @@ function M.pick(scope)
 			ipairs(require("aero.repositories").list(function(ws)
 				local cache = worktrees(ws)
 				return cache.list, cache.err
-			end))
+			end, scope == "all"))
 		do
 			local ws = repository.ws
 
@@ -1543,6 +1566,10 @@ function M.pick(scope)
 			)
 		end,
 	}, function(c)
+		if c then
+			scenes.activate(c.session)
+		end
+
 		if c and panel.enabled() then
 			if not enter_worktree(c.session.worktree) then
 				return

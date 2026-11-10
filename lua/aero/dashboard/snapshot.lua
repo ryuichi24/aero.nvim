@@ -192,6 +192,15 @@ function M.prepare(workspaces, state, on_repository_changed)
 	end
 
 	snapshot.workspace_open = state.workspace_open ~= false
+	snapshot.scene = require("aero.scenes").find(require("aero.scenes").current())
+	snapshot.scene_attention = 0
+
+	for _, entry in ipairs(require("aero.inbox").items()) do
+		if not require("aero.scenes").contains(entry.session) then
+			snapshot.scene_attention = snapshot.scene_attention + 1
+		end
+	end
+
 	snapshot.general_open = state.general_open ~= false
 	snapshot.knowledge_open = state.knowledge_open ~= false
 	snapshot.knowledge_expanded = state.knowledge_expanded
@@ -209,7 +218,7 @@ function M.prepare(workspaces, state, on_repository_changed)
 	for _, s in ipairs(session.list(directory)) do
 		local def = store.find_session(directory, s.name) or {}
 
-		if not def.archived then
+		if not def.archived and require("aero.scenes").owns(def) then
 			table.insert(snapshot.general_sessions, { session = s, pinned = def.pinned == true })
 		end
 	end

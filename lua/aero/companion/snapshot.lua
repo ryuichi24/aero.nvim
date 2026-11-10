@@ -80,7 +80,7 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 	for _, repository in
 		ipairs(require("aero.repositories").list(function()
 			return {}
-		end))
+		end, true))
 	do
 		table.insert(result.workspaces, repository.ws)
 	end

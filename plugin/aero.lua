@@ -4,6 +4,9 @@ end
 
 vim.g.loaded_Aero = true
 local subcommands = {
+	scene = function(args)
+		require("aero").scene(args)
+	end,
 	browser = function(args)
 		require("aero").browser(args)
 	end,
@@ -66,8 +69,8 @@ local subcommands = {
 		require("aero").pull()
 	end,
 	pick = function(args)
-		if #args > 1 or args[1] and args[1] ~= "current" then
-			vim.notify("Aero: use :Aero pick [current]", vim.log.levels.WARN)
+		if #args > 1 or args[1] and args[1] ~= "current" and args[1] ~= "all" then
+			vim.notify("Aero: use :Aero pick [current|all]", vim.log.levels.WARN)
 			return
 		end
 
@@ -79,8 +82,8 @@ local subcommands = {
 	general = function(args)
 		require("aero").general(args[1])
 	end,
-	sessions = function()
-		require("aero").sessions()
+	sessions = function(args)
+		require("aero").sessions(args[1])
 	end,
 	inbox = function()
 		require("aero").inbox()
@@ -91,11 +94,11 @@ local subcommands = {
 	companion = function(args)
 		require("aero.companion").command(args[1])
 	end,
-	workspaces = function()
-		require("aero").workspaces()
+	workspaces = function(args)
+		require("aero").workspaces(args[1])
 	end,
-	worktrees = function()
-		require("aero").worktrees()
+	worktrees = function(args)
+		require("aero").worktrees(args[1])
 	end,
 	resume = function(args)
 		require("aero").resume(args[1])
@@ -215,6 +218,27 @@ end, {
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
 
+		if words[2] == "scene" and (#words > 2 or cmdline:match("%s$")) then
+			local values = { "new", "switch", "rename", "delete", "add", "remove" }
+
+			if #words > 3 or #words == 3 and cmdline:match("%s$") then
+				values = vim.tbl_map(function(scene)
+					return scene.name
+				end, require("aero.scenes").list())
+			end
+
+			return vim.tbl_filter(function(value)
+				return vim.startswith(value, arglead)
+			end, values)
+		end
+
+		if
+			vim.tbl_contains({ "workspaces", "worktrees", "sessions" }, words[2])
+			and (#words > 2 or cmdline:match("%s$"))
+		then
+			return vim.startswith("all", arglead) and { "all" } or {}
+		end
+
 		if words[2] == "browser" and (#words > 2 or cmdline:match("%s$")) then
 			return vim.tbl_filter(function(value)
 				return vim.startswith(value, arglead)
@@ -246,7 +270,7 @@ end, {
 
 			return vim.tbl_filter(function(s)
 				return vim.startswith(s, arglead)
-			end, { "current" })
+			end, { "current", "all" })
 		end
 
 		if words[2] == "term" and (#words > 2 or cmdline:match("%s$")) then

@@ -9,6 +9,14 @@ function M.directory()
 	return vim.fs.dirname(config.options.state_file) .. "/general"
 end
 
+function M.list(archived)
+	return vim.tbl_filter(function(s)
+		local definition = store.find_session(s.worktree, s.name) or {}
+		return require("aero.scenes").owns(definition)
+			and (archived == nil or (definition.archived == true) == archived)
+	end, session.list(M.directory()))
+end
+
 local function notify(err)
 	vim.notify("Aero: " .. tostring(err), vim.log.levels.WARN)
 end
@@ -51,7 +59,7 @@ end
 
 function M.history(archived)
 	store.load()
-	local items = session.list(M.directory())
+	local items = M.list()
 	local content = {}
 
 	for _, s in ipairs(items) do

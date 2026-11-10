@@ -6,7 +6,7 @@ local function canonical(path)
 	return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
 end
 
-function M.list(load)
+function M.list(load, all)
 	local result, errors, seen, roots = {}, {}, {}, {}
 	load = load or function(ws)
 		return require("aero.git").list(ws.root)
@@ -34,7 +34,7 @@ function M.list(load)
 		table.insert(result, { ws = ws, list = unique })
 	end
 
-	for _, ws in ipairs(require("aero.store").data.workspaces) do
+	for _, ws in ipairs(require("aero.scenes").workspaces(all)) do
 		local list, err = load(ws)
 
 		if not list and err then
@@ -45,7 +45,11 @@ function M.list(load)
 	end
 
 	for _, repository in ipairs(require("aero.submodules").known_repositories()) do
-		append(repository.ws, repository.list)
+		local tree = repository.list and repository.list[1]
+
+		if all or tree and require("aero.scenes").contains({ worktree = tree.path }) then
+			append(repository.ws, repository.list)
+		end
 	end
 
 	return result, errors

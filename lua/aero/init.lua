@@ -8,6 +8,7 @@ function M.setup(opts)
 	require("aero.store").load()
 	require("aero.buffers").setup()
 	require("aero.dashboard").setup()
+	require("aero.scenes").setup()
 	require("aero.layout").setup()
 	require("aero.reader").setup()
 	require("aero.quote").setup()
@@ -57,6 +58,12 @@ end
 function M.knowledge(args, opts)
 	ensure_setup()
 	return require("aero.knowledge").command(args or {}, opts or { range = 0 })
+end
+
+--- Switch or manage scenes containing workspaces, General, and Knowledge base.
+function M.scene(args)
+	ensure_setup()
+	return require("aero.scenes").command(args or {})
 end
 
 function M.close()
@@ -111,9 +118,9 @@ function M.general(action)
 end
 
 --- Search active sessions across worktrees in a live popup.
-function M.sessions()
+function M.sessions(scope)
 	ensure_setup()
-	require("aero.sessions").open()
+	require("aero.sessions").open(scope)
 end
 
 --- Review ACP events needing attention across worktrees.
@@ -123,15 +130,15 @@ function M.inbox()
 end
 
 --- Search registered workspaces and focus the selected workspace's code window.
-function M.workspaces()
+function M.workspaces(scope)
 	ensure_setup()
-	require("aero.workspaces").open()
+	require("aero.workspaces").open(scope)
 end
 
 --- Search worktrees grouped by workspace and focus the selected code window.
-function M.worktrees()
+function M.worktrees(scope)
 	ensure_setup()
-	require("aero.workspaces").worktrees()
+	require("aero.workspaces").worktrees({ scope = scope })
 end
 
 --- Reconnect the selected ACP session to an existing adapter conversation ID.

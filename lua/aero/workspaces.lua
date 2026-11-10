@@ -7,7 +7,7 @@ local function path(pathname)
 	return vim.fn.fnamemodify(pathname, ":~")
 end
 
-function M.open()
+function M.open(scope)
 	store.load()
 	picker.open({
 		title = "workspaces",
@@ -15,7 +15,7 @@ function M.open()
 		items = function()
 			local items = {}
 
-			for _, ws in ipairs(store.data.workspaces) do
+			for _, ws in ipairs(require("aero.scenes").workspaces(scope == "all")) do
 				table.insert(items, { key = ws.root, name = ws.name, root = ws.root })
 			end
 
@@ -32,6 +32,7 @@ function M.open()
 			return a.root < b.root
 		end,
 		select = function(ws)
+			require("aero.scenes").activate({ worktree = ws.root })
 			require("aero").open_worktree(ws.root)
 		end,
 	})
@@ -41,7 +42,7 @@ function M.worktrees(opts)
 	opts = opts or {}
 	store.load()
 	local items = {}
-	local repositories, errors = require("aero.repositories").list()
+	local repositories, errors = require("aero.repositories").list(nil, opts.scope == "all")
 
 	for _, repository in ipairs(repositories) do
 		local ws = repository.ws
@@ -89,6 +90,7 @@ function M.worktrees(opts)
 			return a.wt.path < b.wt.path
 		end,
 		select = opts.select or function(item)
+			require("aero.scenes").activate({ worktree = item.wt.path })
 			require("aero").open_worktree(item.wt.path)
 		end,
 	})

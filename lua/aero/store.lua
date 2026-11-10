@@ -5,20 +5,61 @@
 local config = require("aero.config")
 local events = require("aero.events")
 local M = {}
-M.data = { workspaces = {}, sessions = {}, worktree_buffers = {}, sidebar = {} }
+M.data = { version = 1, workspaces = {}, sessions = {}, worktree_buffers = {}, sidebar = {} }
 
-local function read()
-	local f, err, code = io.open(config.options.state_file, "r")
+local function scene_defaults(data)
+	data.scenes = data.scenes or { { id = "default", name = "Default" } }
+	data.active_scene = data.active_scene or "default"
+	local found, default = false, false
 
-	if not f then
-		return nil, code ~= 2 and err or nil
+	for _, scene in ipairs(data.scenes) do
+		found = found or scene.id == data.active_scene
+		default = default or scene.id == "default"
 	end
 
-	local ok, data = pcall(vim.json.decode, f:read("*a"))
-	f:close()
+	if not default then
+		table.insert(data.scenes, 1, { id = "default", name = "Default" })
+	end
 
-	if not (ok and type(data) == "table") then
-		return nil, "invalid state JSON: " .. config.options.state_file
+	if not found then
+		data.active_scene = "default"
+	end
+
+	return data
+end
+
+scene_defaults(M.data)
+
+local function upgrade(data)
+	assert(data.version == nil or data.version == 1, "unsupported Aero state version: " .. tostring(data.version))
+
+	if data.version == 1 then
+		return data, false
+	end
+
+	scene_defaults(data)
+
+	for _, workspace in ipairs(type(data.workspaces) == "table" and data.workspaces or {}) do
+		if type(workspace) == "table" then
+			workspace.scene_ids = workspace.scene_ids or { "default" }
+		end
+	end
+
+	for _, sessions in pairs(type(data.sessions) == "table" and data.sessions or {}) do
+		for _, definition in ipairs(sessions) do
+			definition.scene_id = definition.scene_id or "default"
+		end
+	end
+
+	data.version = 1
+	return data, true
+end
+
+local function read(locked)
+	local data, err = require("aero.versioned_file").read(config.options.state_file, upgrade, locked)
+
+	if not data then
+		return nil, err
 	end
 
 	local workspaces = {}
@@ -34,23 +75,29 @@ local function read()
 					root = root,
 					name = type(ws.name) == "string" and ws.name ~= "" and ws.name or vim.fs.basename(root),
 					expanded = ws.expanded ~= false,
+					scene_ids = type(ws.scene_ids) == "table" and ws.scene_ids or { "default" },
 				})
 			end
 		end
 	end
 
-	return {
+	return scene_defaults({
+		version = data.version,
 		workspaces = workspaces,
 		sessions = type(data.sessions) == "table" and data.sessions or {},
 		worktree_buffers = type(data.worktree_buffers) == "table" and data.worktree_buffers or {},
 		sidebar = type(data.sidebar) == "table" and data.sidebar or {},
-	}
+		scenes = type(data.scenes) == "table" and data.scenes or nil,
+		active_scene = type(data.active_scene) == "string" and data.active_scene or nil,
+	})
 end
 
 local function write(data)
 	local path = config.options.state_file
 	local out = { workspaces = data.workspaces, sessions = vim.empty_dict(), worktree_buffers = vim.empty_dict() }
 	out.sidebar = data.sidebar
+	out.scenes, out.active_scene = data.scenes, data.active_scene
+	out.version = 1
 
 	if config.options.persist_buffers then
 		for wt, buffer in pairs(data.worktree_buffers) do
@@ -70,15 +117,17 @@ local function write(data)
 end
 
 --- Pick up changes other instances saved. With persist_sessions off, sessions only live here.
-function M.load()
-	local data, err = read()
+function M.load(locked)
+	local data, err = read(locked)
 
 	if not data then
 		return not err, err
 	end
 
 	M.data.workspaces = data.workspaces
+	M.data.version = data.version
 	M.data.sidebar = data.sidebar
+	M.data.scenes, M.data.active_scene = data.scenes, data.active_scene
 
 	if config.options.persist_buffers then
 		M.data.worktree_buffers = data.worktree_buffers
@@ -100,7 +149,7 @@ local function update(fn)
 	end
 
 	local result = pack(require("aero.state_lock").with_lock(config.options.state_file, function()
-		local loaded, load_err = M.load()
+		local loaded, load_err = M.load(true)
 
 		if not loaded then
 			return nil, load_err
@@ -139,27 +188,45 @@ local function update(fn)
 	return unpack(result, 1, result.n)
 end
 
+--- Scene changes use the same locked transaction as workspace/session changes.
+function M.update_scenes(callback)
+	return update(function(data)
+		scene_defaults(data)
+		return callback(data)
+	end)
+end
+
 --- Merge changed sidebar fold choices without replacing other instances' choices.
 function M.set_sidebar(changes)
 	return update(function(data)
 		data.sidebar = data.sidebar or {}
+		local sidebar = data.sidebar
+
+		if data.active_scene ~= "default" then
+			for _, scene in ipairs(data.scenes or {}) do
+				if scene.id == data.active_scene then
+					scene.sidebar = scene.sidebar or {}
+					sidebar = scene.sidebar
+				end
+			end
+		end
 
 		for name, value in pairs(changes) do
 			if type(value) == "table" then
-				data.sidebar[name] = type(data.sidebar[name]) == "table" and data.sidebar[name] or {}
+				sidebar[name] = type(sidebar[name]) == "table" and sidebar[name] or {}
 
 				for key, expanded in pairs(value) do
 					if expanded == vim.NIL then
-						data.sidebar[name][key] = nil
+						sidebar[name][key] = nil
 					else
-						data.sidebar[name][key] = expanded
+						sidebar[name][key] = expanded
 					end
 				end
 			else
 				if value == vim.NIL then
-					data.sidebar[name] = nil
+					sidebar[name] = nil
 				else
-					data.sidebar[name] = value
+					sidebar[name] = value
 				end
 			end
 		end
@@ -194,10 +261,21 @@ function M.add_workspace(root)
 		local ws = M.find_workspace(root)
 
 		if ws then
+			ws.scene_ids = ws.scene_ids or { "default" }
+
+			if not vim.tbl_contains(ws.scene_ids, M.data.active_scene or "default") then
+				table.insert(ws.scene_ids, M.data.active_scene or "default")
+			end
+
 			return ws, false
 		end
 
-		ws = { name = vim.fs.basename(root), root = root, expanded = true }
+		ws = {
+			name = vim.fs.basename(root),
+			root = root,
+			expanded = true,
+			scene_ids = { M.data.active_scene or "default" },
+		}
 		table.insert(M.data.workspaces, ws)
 		return ws, true
 	end)
@@ -241,7 +319,16 @@ function M.set_expanded(root, expanded)
 		local ws = M.find_workspace(root)
 
 		if ws then
-			ws.expanded = expanded
+			if M.data.active_scene and M.data.active_scene ~= "default" then
+				for _, scene in ipairs(M.data.scenes) do
+					if scene.id == M.data.active_scene then
+						scene.workspace_expanded = scene.workspace_expanded or {}
+						scene.workspace_expanded[root] = expanded
+					end
+				end
+			else
+				ws.expanded = expanded
+			end
 		end
 	end)
 end
@@ -274,7 +361,8 @@ function M.add_session(worktree, agent, taken, requested_name)
 			name, n = agent .. "-" .. n, n + 1
 		end
 		data.sessions[worktree] = data.sessions[worktree] or {}
-		table.insert(data.sessions[worktree], { name = name, agent = agent })
+		local definition = { name = name, agent = agent, scene_id = data.active_scene or "default" }
+		table.insert(data.sessions[worktree], definition)
 		return name
 	end)
 end

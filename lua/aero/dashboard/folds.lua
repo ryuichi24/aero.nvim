@@ -33,6 +33,12 @@ end
 
 function M.restore(state)
 	local saved = store.data.sidebar or {}
+	local scenes = require("aero.scenes")
+	local scene = scenes.find(scenes.current())
+
+	if scene and scene.id ~= "default" then
+		saved = scene.sidebar or {}
+	end
 
 	for _, name in ipairs(headings) do
 		state[name] = nil

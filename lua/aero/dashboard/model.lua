@@ -110,7 +110,13 @@ function M.build(snapshot)
 		items[#lines], marks[#lines] = item, { hls = highlights, virt = virt }
 	end
 
-	add({ { " Aero", "AeroTitle" }, { "  g? for help", "AeroDim" } })
+	local attention = (snapshot.scene_attention or 0) > 0
+			and ("  " .. snapshot.scene_attention .. " elsewhere · :Aero inbox")
+		or "  g? for help"
+	add({
+		{ snapshot.scene and (" Scene: " .. snapshot.scene.name) or " Aero", "AeroTitle" },
+		{ attention, "AeroDim" },
+	}, snapshot.scene and { kind = "scene", id = "scene:" .. snapshot.scene.id } or nil)
 	add({})
 
 	if not snapshot.nested and not snapshot.grouped then

@@ -83,6 +83,7 @@ function M.select(entry)
 		return
 	end
 
+	require("aero.scenes").activate(s)
 	local win = require("aero").open_worktree(s.worktree)
 
 	if not win then

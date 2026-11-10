@@ -17,14 +17,16 @@ end
 
 M.close = picker.close
 
-function M.open()
+function M.open(scope)
 	picker.open({
 		title = "active sessions",
 		config_key = "sessions",
 		filetype = "aero_sessions",
 		live = true,
 		items = function()
-			return vim.tbl_filter(session.is_running, session.all())
+			return vim.tbl_filter(function(s)
+				return session.is_running(s) and (scope == "all" or require("aero.scenes").contains(s))
+			end, session.all())
 		end,
 		label = label,
 		group = function(s)
@@ -44,6 +46,14 @@ function M.open()
 			if not session.is_running(s) then
 				vim.notify("Aero: session is no longer active", vim.log.levels.INFO)
 				return
+			end
+
+			require("aero.scenes").activate(s)
+
+			if s.worktree == require("aero.general").directory() then
+				return require("aero.general").show(s)
+			elseif require("aero.knowledge.agent").scope(s) then
+				return require("aero.knowledge.agent").show(s)
 			end
 
 			local win = require("aero").open_worktree(s.worktree)

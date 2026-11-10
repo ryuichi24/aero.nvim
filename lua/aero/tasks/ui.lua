@@ -34,7 +34,7 @@ function M.workspace(callback)
 		return
 	end
 
-	local workspaces = require("aero.store").data.workspaces
+	local workspaces = require("aero.scenes").workspaces()
 
 	if #workspaces == 1 then
 		callback(workspaces[1])

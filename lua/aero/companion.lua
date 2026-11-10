@@ -25,7 +25,7 @@ local lifecycle = {
 }
 
 local function worktrees()
-	local workspaces = require("aero.store").data.workspaces
+	local workspaces = require("aero.scenes").workspaces(true)
 	local roots = vim.json.encode(workspaces)
 
 	if roots ~= worktree_roots or uv.now() - worktree_cache_at >= 5000 then
@@ -41,7 +41,7 @@ local function worktrees()
 	for _, repository in
 		ipairs(require("aero.repositories").list(function(ws)
 			return worktree_cache[ws.root]
-		end))
+		end, true))
 	do
 		for _, tree in ipairs(repository.list) do
 			local wt = vim.deepcopy(tree)

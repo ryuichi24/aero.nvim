@@ -39,12 +39,23 @@ function M.catalog()
 		return nil, tostring(data)
 	end
 
+	local scenes = require("aero.scenes")
+	data.collections = vim.tbl_filter(scenes.owns, data.collections)
+	local visible = {}
+
+	for _, collection in ipairs(data.collections) do
+		visible[collection.id] = true
+	end
+
+	data.spaces = vim.tbl_filter(function(space)
+		return visible[space.collection_id] == true
+	end, data.spaces)
 	return vim.deepcopy(data)
 end
 
 function M.create_collection(title)
 	return transaction(function(data)
-		local item = { id = id(), name = name(title) }
+		local item = { id = id(), name = name(title), scene_id = require("aero.scenes").current() }
 		table.insert(data.collections, item)
 		return item
 	end)

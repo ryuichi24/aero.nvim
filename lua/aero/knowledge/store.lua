@@ -39,15 +39,8 @@ function M.find(items, key)
 	error("knowledge item no longer exists: " .. tostring(key))
 end
 
-function M.read()
-	local path = M.directory() .. "/catalog.json"
-
-	if not vim.uv.fs_stat(path) then
-		return { version = 1, collections = {}, spaces = {}, jobs = {}, research_scopes = {} }
-	end
-
-	local data = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
-	assert(type(data) == "table" and data.version == 1, "invalid knowledge catalog version")
+local function prepare(data)
+	assert(data.version == 1 or data.version == 2, "invalid knowledge catalog version")
 	assert(vim.islist(data.collections) and vim.islist(data.spaces), "invalid knowledge catalog lists")
 	data.jobs = data.jobs or {}
 	data.research_scopes = data.research_scopes or {}
@@ -89,6 +82,32 @@ function M.read()
 	return data
 end
 
+local function upgrade(data)
+	prepare(data)
+
+	if data.version == 2 then
+		return data, false
+	end
+
+	for _, collection in ipairs(data.collections) do
+		collection.scene_id = collection.scene_id or "default"
+	end
+
+	data.version = 2
+	return data, true
+end
+
+function M.read(locked)
+	local data, err = require("aero.versioned_file").read(M.directory() .. "/catalog.json", upgrade, locked)
+
+	if not data then
+		assert(not err, err)
+		return { version = 2, collections = {}, spaces = {}, jobs = {}, research_scopes = {} }
+	end
+
+	return data
+end
+
 function M.catalog()
 	local ok, data = pcall(M.read)
 
@@ -105,7 +124,7 @@ end
 
 function M.update(callback)
 	return require("aero.state_lock").with_lock(M.directory() .. "/catalog.json", function()
-		local data = M.read()
+		local data = M.read(true)
 		local result = callback(data)
 		M.atomic(M.directory() .. "/catalog.json", vim.json.encode(data))
 		vim.schedule(function()
