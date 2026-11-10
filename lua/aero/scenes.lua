@@ -182,7 +182,7 @@ function M.contains(s, scene_id)
 		return false
 	end
 
-	local root = require("aero.git").main_root(s.worktree)
+	local root = store.find_workspace(s.worktree) and s.worktree or require("aero.git").main_root(s.worktree)
 	local ws = root and store.find_workspace(root)
 
 	if root and not ws then

@@ -108,13 +108,7 @@ end
 ---@field prunable? boolean
 
 ---@return aero.Worktree[]|nil, string|nil
-function M.list(root)
-	local ok, out, err = run({ "git", "-C", root, "worktree", "list", "--porcelain" })
-
-	if not ok then
-		return nil, err ~= "" and err or "not a git repository"
-	end
-
+local function parse_worktrees(out)
 	local list, cur = {}, nil
 
 	for line in (out .. "\n"):gmatch("([^\n]*)\n") do
@@ -139,6 +133,17 @@ function M.list(root)
 	list = vim.tbl_filter(function(wt)
 		return not wt.bare
 	end, list)
+	return list
+end
+
+function M.list(root)
+	local ok, out, err = run({ "git", "-C", root, "worktree", "list", "--porcelain" })
+
+	if not ok then
+		return nil, err ~= "" and err or "not a git repository"
+	end
+
+	local list = parse_worktrees(out)
 	local first = list[1]
 
 	-- Absorbed submodules can expose their Git directory as the main checkout.
@@ -156,6 +161,45 @@ function M.list(root)
 
 	M.remember_repository(list, root)
 	return list
+end
+
+-- Snapshot polling must not wait for Git on the editor thread.
+function M.list_async(root, callback)
+	local function request(args, done)
+		vim.system(args, { text = true, timeout = 10000 }, function(result)
+			vim.schedule(function()
+				done(result)
+			end)
+		end)
+	end
+
+	request({ "git", "-C", root, "worktree", "list", "--porcelain" }, function(result)
+		if result.code ~= 0 then
+			return callback(
+				nil,
+				vim.trim(result.stderr or "") ~= "" and vim.trim(result.stderr) or "not a git repository"
+			)
+		end
+
+		local list = parse_worktrees(result.stdout or "")
+		local first = list[1]
+		local function finish()
+			M.remember_repository(list, root)
+			callback(list)
+		end
+
+		if first and vim.uv.fs_stat(first.path .. "/HEAD") and vim.uv.fs_stat(first.path .. "/config") then
+			request({ "git", "-C", first.path, "rev-parse", "--show-toplevel" }, function(main)
+				if main.code == 0 then
+					M.correct_main(list, first.path, vim.trim(main.stdout or ""))
+				end
+
+				finish()
+			end)
+		else
+			finish()
+		end
+	end)
 end
 
 --- Resolve any path inside a repository (or one of its worktrees) to the main worktree path.

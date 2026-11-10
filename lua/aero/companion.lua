@@ -10,6 +10,7 @@ local permissions = setmetatable({}, { __mode = "k" })
 local conversation_ids = setmetatable({}, { __mode = "k" })
 local receipts = require("aero.companion.receipts").new()
 local worktree_cache, worktree_cache_at, worktree_roots = {}, -5000, ""
+local worktree_pending = {}
 local epoch = (assert(uv.random(24)):gsub(".", function(c)
 	return ("%02x"):format(c:byte())
 end))
@@ -29,10 +30,18 @@ local function worktrees()
 	local roots = vim.json.encode(workspaces)
 
 	if roots ~= worktree_roots or uv.now() - worktree_cache_at >= 5000 then
-		worktree_cache, worktree_cache_at, worktree_roots = {}, uv.now(), roots
+		worktree_cache_at, worktree_roots = uv.now(), roots
 
 		for _, workspace in ipairs(workspaces) do
-			worktree_cache[workspace.root] = require("aero.git").list(workspace.root) or {}
+			local root = workspace.root
+
+			if not worktree_pending[root] then
+				worktree_pending[root] = true
+				require("aero.git").list_async(root, function(list)
+					worktree_pending[root] = nil
+					worktree_cache[root] = list or worktree_cache[root] or {}
+				end)
+			end
 		end
 	end
 
@@ -40,7 +49,7 @@ local function worktrees()
 
 	for _, repository in
 		ipairs(require("aero.repositories").list(function(ws)
-			return worktree_cache[ws.root]
+			return worktree_cache[ws.root] or { { path = ws.root } }
 		end, true))
 	do
 		for _, tree in ipairs(repository.list) do

@@ -11,6 +11,9 @@ local git = require("aero.git")
 git.list = function()
 	return { { path = main, branch = "main" } }
 end
+git.list_async = function(root, callback)
+	callback(git.list(root))
+end
 local bridge
 
 local function update(arguments)
