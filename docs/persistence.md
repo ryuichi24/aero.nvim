@@ -41,6 +41,29 @@ Sidebar fold choices are saved when changed, including `:Aero collapse`, and res
 when reopening the sidebar or restarting Neovim. They are independent of session and
 buffer persistence. Nodes without a saved choice keep their usual defaults.
 
+## Metadata migrations
+
+The main state file uses schema `version: 1`. Unversioned state is upgraded on
+load: the Default scene is recorded, workspaces without scene memberships receive
+`scene_ids: ["default"]`, and saved sessions without an owner receive
+`scene_id: "default"`. Existing scene assignments and session identities are kept.
+
+The knowledge catalog at `knowledge/catalog.json` uses schema `version: 2`.
+Version 1 catalogs are upgraded on first read, assigning `scene_id: "default"`
+to collections that have no owner. Spaces continue to inherit their collection's
+scene. Sources, notes, jobs, research scopes, and citation paths stay in place.
+
+Each upgrade re-reads the latest file under its writer lock and atomically
+replaces it. Current versions are not rewritten on reads. Failed migrations leave
+the original file intact and can be retried; unsupported versions are rejected
+without overwriting them. Migration preserves saved sessions and buffer metadata
+even when their runtime persistence settings are disabled.
+
+Deleting a scene explicitly saves its knowledge collections with Default ownership
+before removing the scene from the main state. If reassignment fails, the scene is
+retained. If the subsequent state write fails, the collections already belong to
+Default and deletion can be retried safely. No content directories are moved.
+
 ## Exported Markdown logs
 
 Send `/export` in an ACP prompt to archive the current conversation as Markdown.

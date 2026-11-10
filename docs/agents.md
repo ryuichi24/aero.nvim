@@ -279,8 +279,8 @@ See [Prompt snippets](prompt-snippets.md) for file locations and the JSON format
 
 ## General conversations
 
-The sidebar has three collapsible top-level sections: **Workspace**, containing
-registered repositories and their worktrees, and **General**, containing unarchived
+Within the active [scene](scenes.md), the sidebar has three collapsible sections:
+**Workspace**, containing registered repositories and their worktrees, and **General**, containing unarchived
 workspace-independent conversations (pinned first), plus **Knowledge base** for
 [collections, spaces, and scoped research sessions](knowledge.md). Use the normal
 expand/collapse keys on their headings. Under General, Enter on a session opens its transcript,

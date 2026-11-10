@@ -44,11 +44,11 @@ descendants even when they were automatically expanded by existing sessions.
 | `:Aero` / `:Aero toggle` | Toggle the dashboard in the current tab |
 | `:Aero open` / `:Aero close` | Show and focus / explicitly hide the dashboard |
 | `:Aero add [path]` | Register the repository containing the path (default: cwd) |
-| `:Aero pick` | Pick any session using `vim.ui.select` |
-| `:Aero sessions` | Search active sessions across worktrees in a live popup |
+| `:Aero pick [current\|all]` | Pick workspace sessions in the scene, current worktree, or all scenes |
+| `:Aero sessions [all]` | Search active sessions in the scene, or across scenes |
 | `:Aero inbox` | Review ACP permissions, errors, and completed turns across worktrees |
-| `:Aero worktrees` | Search worktrees grouped by workspace and open the selected checkout |
-| `:Aero workspaces` | Search registered workspaces and open the selected root checkout |
+| `:Aero worktrees [all]` | Search scene worktrees, or all scenes, grouped by workspace |
+| `:Aero workspaces [all]` | Search scene workspaces, or all registered workspaces, and open the selected root checkout |
 | `:Aero refresh` | Re-read worktrees |
 | `:Aero collapse` / `:Aero collapse all` | Collapse every sidebar section |
 | `:Aero collapse workspaces` | Collapse all workspace nodes |

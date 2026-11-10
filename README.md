@@ -60,6 +60,14 @@ for `npx`; OpenCode provides its own ACP server.
 
 ## Features
 
+### Scenes
+
+Group workspaces, General conversations, and knowledge collections into named
+contexts such as Work and Personal. Use `:Aero scene` to switch contexts, preserving
+running agents and terminals. Workspaces can belong to several scenes.
+
+[Scene commands, membership, and persistence](docs/scenes.md)
+
 ### Workspace and worktree dashboard
 
 Browse **workspaces → worktrees → agent sessions** in a tree-shaped buffer.
@@ -141,7 +149,8 @@ without opening the sidebar. Map it with
 `vim.keymap.set("n", "<leader>an", function() require("aero").new() end, { desc = "New agent session" })`.
 Use `:Aero pick current` or `require("aero").pick("current")` to select an existing
 session in the current worktree, including stopped sessions that can be resumed.
-With no scope, `:Aero pick` lists sessions across all registered workspaces.
+With no scope, `:Aero pick` lists workspace sessions in the active scene;
+`:Aero pick all` searches across scenes.
 
 [Panels, resizing, and fullscreen](docs/layout.md) · [Search and attention inbox](docs/workspaces.md#commands)
 
