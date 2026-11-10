@@ -70,6 +70,10 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 		agents = {},
 		default_agent = config.default_agent,
 		workspaces = {},
+		scenes = vim.tbl_map(function(scene)
+			return { id = scene.id, name = scene.name }
+		end, require("aero.scenes").list()),
+		active_scene = require("aero.scenes").current(),
 		worktrees = worktrees,
 		submodules = require("aero.submodules").relationships(),
 		sessions = {},
@@ -82,10 +86,13 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 			return {}
 		end, true))
 	do
-		table.insert(result.workspaces, repository.ws)
+		local workspace = vim.deepcopy(repository.ws)
+		workspace.in_scene = require("aero.scenes").contains({ worktree = workspace.root })
+		table.insert(result.workspaces, workspace)
 	end
 
 	for _, tree in ipairs(worktrees) do
+		tree.in_scene = require("aero.scenes").contains({ worktree = tree.path })
 		tree.target = require("aero.companion_lifecycle").target(epoch, tree)
 		local workspace = { root = tree.workspace or require("aero.git").main_root(tree.path) or tree.path }
 		tree.reference_directory = require("aero.reference").directory(tree.path, workspace)
@@ -118,7 +125,9 @@ function M.build(epoch, worktrees, sessions, describe, conversation_identity)
 		local agent = config.agents[session.agent]
 
 		if session.chat or agent and agent.type == "acp" then
-			table.insert(result.sessions, describe(session, boards))
+			local item = describe(session, boards)
+			item.in_scene = require("aero.scenes").contains(session)
+			table.insert(result.sessions, item)
 		end
 	end
 

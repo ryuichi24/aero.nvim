@@ -36,6 +36,7 @@ function M.new()
 			params.path or false,
 			params.items or false,
 			params.transfer_id or false,
+			params.scene_id or false,
 		})
 		local previous = entries[params.operation_id]
 

@@ -64,6 +64,29 @@ assert(vim.tbl_contains(
 
 local generation = snapshot.sessions[1].conversation
 
+assert(snapshot.active_scene == "default" and snapshot.scenes[1].id == "default")
+assert(snapshot.sessions[1].in_scene == true)
+
+local scenes = require("aero.scenes")
+local other = assert(scenes.create("Companion test"))
+local switch = { epoch = snapshot.epoch, scene_id = other.id, operation_id = "scene-switch-test-0001" }
+local stale, stale_error = bridge.dispatch("scene_switch", {
+	epoch = "stale",
+	scene_id = other.id,
+	operation_id = "scene-switch-stale-0001",
+})
+
+assert(not stale and stale_error == "stale host epoch")
+assert(bridge.dispatch("scene_switch", switch).status == "accepted")
+
+local scoped = bridge.dispatch("snapshot")
+
+assert(scoped.active_scene == other.id)
+assert(scoped.sessions[1].in_scene == false and scoped.workspaces[1].in_scene == false)
+assert(scenes.switch("default"))
+assert(bridge.dispatch("scene_switch", switch).status == "accepted")
+assert(scenes.current() == "default", "retry switched scenes twice")
+
 assert(snapshot.sessions[1].activity == nil, "idle session has live activity")
 
 local chat = s.chat

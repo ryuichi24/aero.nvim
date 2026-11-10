@@ -195,7 +195,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	method := map[string]string{"/api/prompt": "prompt", "/api/cancel": "cancel", "/api/permission": "permission"}[r.URL.Path]
 
-	for _, lifecycle := range []string{"reference_update", "reference_cancel", "session_assign_board", "session_create", "session_update", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
+	for _, lifecycle := range []string{"scene_switch", "reference_update", "reference_cancel", "session_assign_board", "session_create", "session_update", "session_resume", "session_rename", "session_delete", "worktree_create", "worktree_rename", "worktree_delete"} {
 		if r.URL.Path == "/api/"+lifecycle {
 			method = lifecycle
 		}
@@ -214,6 +214,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Permission      string  `json:"permission,omitempty"`
 		Option          string  `json:"option,omitempty"`
 		Epoch           string  `json:"epoch,omitempty"`
+		SceneID         string  `json:"scene_id,omitempty"`
 		Target          string  `json:"target,omitempty"`
 		Workspace       string  `json:"workspace,omitempty"`
 		Worktree        string  `json:"worktree,omitempty"`

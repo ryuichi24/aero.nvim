@@ -190,6 +190,7 @@ function M.dispatch(method, params)
 		and method ~= "permission"
 		and method ~= "reference_update"
 		and method ~= "reference_cancel"
+		and method ~= "scene_switch"
 	then
 		return nil, "unknown method"
 	end
@@ -244,6 +245,18 @@ function M.dispatch(method, params)
 		end
 
 		return finish(nil, "stale worktree or host epoch")
+	end
+
+	if method == "scene_switch" then
+		if params.epoch ~= epoch then
+			return finish(nil, "stale host epoch")
+		elseif type(params.scene_id) ~= "string" or not require("aero.scenes").find(params.scene_id) then
+			return finish(nil, "scene no longer exists")
+		end
+
+		finish({ status = "unknown" })
+		local ok, err = require("aero.scenes").switch(params.scene_id)
+		return finish(ok and { status = "accepted" } or nil, err)
 	end
 
 	local selected
