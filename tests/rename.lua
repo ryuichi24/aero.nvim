@@ -93,8 +93,10 @@ assert(api.nvim_get_current_win() == win)
 
 -- Reconstruct runtime as a new Neovim instance would, retaining history identity.
 package.loaded["aero.session"] = nil
+package.loaded["aero.session.registry"] = nil
 local restored = require("aero.session").list(dir)[1]
 
+assert(restored ~= s, "restart simulation reused the old runtime registry")
 assert(restored.name == s.name and restored.key == original_key)
 assert(require("aero.history").load(restored).marker == "saved history")
 

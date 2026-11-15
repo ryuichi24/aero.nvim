@@ -740,13 +740,13 @@ local function start_agent(item, agent)
 		return require("aero.general").new(agent)
 	end
 
-	return require("aero.dashboard.session_actions").start(item, agent, function(s)
+	return require("aero.session.actions").start(item and item.wt, agent, function(s)
 		state.expanded[s.worktree] = true
 	end)
 end
 
 local function choose_agent(item, label)
-	return require("aero.dashboard.session_actions").choose(item, label, function(s)
+	return require("aero.session.actions").choose(item and item.wt, label, function(s)
 		state.expanded[s.worktree] = true
 	end)
 end
@@ -803,66 +803,13 @@ local function new_report(item)
 end
 
 function actions.open(how)
-	local item = current_item()
-
-	if not item then
-		return
-	end
-
-	if item.kind == "scene" then
-		scenes.open()
-	elseif item.kind == "session" and item.knowledge then
-		require("aero.knowledge.agent").show(item.session)
-	elseif item.kind == "knowledge_manage" then
-		require("aero.knowledge").open()
-	elseif item.expanded ~= nil and item.kind:match("^knowledge_") then
-		actions.toggle()
-	elseif item.kind == "knowledge_note" then
-		vim.ui.select({ "Open", "Edit tag" }, { prompt = item.note.name }, function(choice)
-			if choice == "Open" then
-				require("aero.knowledge.notes").edit(item.space.id, item.note.id)
-			elseif choice == "Edit tag" then
-				require("aero.knowledge.metadata").edit_tags(item.space.id, item.note.id, "notes")
-			end
-		end)
-	elseif item.kind == "knowledge_source" then
-		require("aero.knowledge").browse_space(item.space, "Browse sources", item.source and item.source.id)
-	elseif item.kind == "knowledge_section" then
-		require("aero.knowledge").browse_space(
-			item.space,
-			item.section == "Sources" and "Browse sources" or item.section
-		)
-	elseif item.kind == "general_new" then
-		require("aero.general").new()
-	elseif item.kind == "general_history" then
-		require("aero.general").history()
-	elseif item.kind == "session" and item.general then
-		require("aero.general").show(item.session)
-	elseif item.kind == "board" then
-		require("aero.tasks.view").open(item.ws, item.board.path)
-	elseif item.kind == "board_new" then
-		require("aero.tasks.ui").new_board(item.ws)
-	elseif item.kind == "tickets_removed" then
-		require("aero.tasks.ui").removed(item.ws)
-	elseif item.kind == "session" then
-		open_session(item.session, how or "default")
-	elseif item.kind == "report" or item.kind == "export" then
-		open_report(item, how)
-	elseif item.kind == "reference_item" then
-		if item.reference.kind == "directory" then
-			actions.toggle()
-		else
-			open_report(vim.tbl_extend("force", item, { report = item.reference }), how)
-		end
-	elseif item.kind == "reference_new" then
-		require("aero.reference").open(item.wt.path)
-	elseif item.kind == "report_new" then
-		new_report(item)
-	elseif item.kind == "reading_list" or item.kind == "reading_new" then
-		open_reading(item, item.kind == "reading_new")
-	else
-		actions.toggle()
-	end
+	return require("aero.dashboard.router").open(current_item(), how, {
+		toggle = actions.toggle,
+		open_session = open_session,
+		open_report = open_report,
+		new_report = new_report,
+		open_reading = open_reading,
+	})
 end
 
 function actions.toggle()
@@ -1065,60 +1012,13 @@ function actions.collapse()
 end
 
 function actions.add()
-	local item = current_item()
-
-	if not item then
-		return M.add_workspace()
-	end
-
-	if item.kind == "scene" then
-		scenes.command({ "new" })
-	elseif item.general or item.kind == "general_group" then
-		require("aero.general").new()
-	elseif item.kind == "knowledge_group" or item.kind == "knowledge_manage" then
-		require("aero.knowledge").open()
-	elseif item.kind == "knowledge_collection" then
-		require("aero.knowledge").new_space(item.collection.id)
-	elseif item.kind == "knowledge_source" or item.kind == "knowledge_folder" then
-		local directory = item.directory
-		local folder_id = item.folder and item.folder.id or item.source and item.source.folder_id
-
-		if item.source then
-			local relative = item.source.relative_path or item.source.name
-			directory = relative:match("^(.*)/[^/]+$")
-		end
-
-		require("aero.knowledge").add_files(item.space.id, { directory = directory, folder_id = folder_id })
-	elseif item.kind == "knowledge_note" then
-		require("aero.knowledge").browse_space(item.space, "New note")
-	elseif item.kind == "knowledge_section" and item.section ~= "Sessions" then
-		local action = ({ Sources = "Add file", Notes = "New note" })[item.section]
-		require("aero.knowledge").browse_space(item.space, action)
-	elseif item.space or item.collection or item.knowledge then
-		local scope = item.space and { space_id = item.space.id }
-			or item.collection and { collection_id = item.collection.id }
-			or require("aero.knowledge.agent").scope(item.session)
-		require("aero.knowledge.agent").new(scope)
-	elseif item.kind == "workspace_group" then
-		M.add_workspace()
-	elseif
-		item.kind == "boards"
-		or item.kind == "board"
-		or item.kind == "board_new"
-		or item.kind == "tickets_removed"
-	then
-		require("aero.tasks.ui").new_board(item.ws)
-	elseif item.kind == "workspace" or item.kind == "submodule" then
-		add_worktree(item.ws)
-	elseif item.kind == "reports" or item.kind == "report" or item.kind == "report_new" then
-		new_report(item)
-	elseif item.kind == "reading" or item.kind == "reading_list" or item.kind == "reading_new" then
-		open_reading(item, true)
-	elseif item.kind == "reference" or item.kind == "reference_item" or item.kind == "reference_new" then
-		require("aero.reference").open(item.wt.path)
-	else
-		choose_agent(item)
-	end
+	return require("aero.dashboard.router").add(current_item(), {
+		add_workspace = M.add_workspace,
+		add_worktree = add_worktree,
+		new_report = new_report,
+		open_reading = open_reading,
+		choose_agent = choose_agent,
+	})
 end
 
 function actions.add_workspace()
@@ -1145,7 +1045,7 @@ function actions.rename()
 	if item.kind == "scene" then
 		return scenes.command({ "rename" })
 	elseif item.kind == "session" then
-		return require("aero.dashboard.session_actions").rename(item.session, M.render)
+		return require("aero.session.actions").rename(item.session, M.render)
 	end
 
 	local entry = item.reference
@@ -1207,7 +1107,7 @@ function actions.delete()
 	end
 
 	if item.kind == "session" then
-		require("aero.dashboard.session_actions").delete(item.session)
+		require("aero.session.actions").delete(item.session)
 		M.render()
 	else
 		require("aero.dashboard.repository_actions").delete(item, worktrees, function(ws)
@@ -1240,7 +1140,7 @@ function actions.restart()
 			return
 		end
 
-		local win, use_panel = require("aero.dashboard.session_actions").restart(item.session, target_win)
+		local win, use_panel = require("aero.session.actions").restart(item.session, target_win)
 
 		if win and not use_panel then
 			state.target = win
@@ -1513,87 +1413,37 @@ end
 --- Pick any session across all workspaces with vim.ui.select and open it in the panel
 --- (or the current window when the panel is disabled).
 function M.pick(scope)
-	local choices = {}
-
-	if scope == "current" then
-		local path = vim.t.aero_worktree or vim.fn.getcwd()
-
-		for _, s in ipairs(session.list(path)) do
-			table.insert(choices, { session = s })
-		end
-	else
-		for _, repository in
-			ipairs(require("aero.repositories").list(function(ws)
-				local cache = worktrees(ws)
-				return cache.list, cache.err
-			end, scope == "all"))
-		do
-			local ws = repository.ws
-
-			for _, wt in ipairs(repository.list) do
-				for _, s in ipairs(session.list(wt.path)) do
-					table.insert(choices, { ws = ws, wt = wt, session = s })
-				end
-			end
-		end
-	end
-
-	if #choices == 0 then
-		notify("no sessions")
-		return
-	end
-
-	vim.ui.select(choices, {
-		prompt = "Agent session",
-		format_item = function(c)
-			local what = session.activity(c.session)
-
-			if scope == "current" then
-				return ("%s %s [%s]%s"):format(
-					session.icon(c.session),
-					c.session.name,
-					c.session.agent,
-					what and "  " .. what or ""
-				)
-			end
-
-			return ("%s %s / %s / %s%s"):format(
-				session.icon(c.session),
-				c.ws.name,
-				wt_label(c.wt),
-				c.session.name,
-				what and "  " .. what or ""
-			)
+	return require("aero.session.picker").open(scope, {
+		load_worktrees = function(ws)
+			local cache = worktrees(ws)
+			return cache.list, cache.err
 		end,
-	}, function(c)
-		if c then
-			scenes.activate(c.session)
-		end
+		open_session = function(selected)
+			if panel.enabled() then
+				if not enter_worktree(selected.worktree) then
+					return
+				end
 
-		if c and panel.enabled() then
-			if not enter_worktree(c.session.worktree) then
-				return
-			end
+				panel.focus(selected)
+			else
+				local win = api.nvim_get_current_win()
 
-			panel.focus(c.session)
-		elseif c then
-			local win = api.nvim_get_current_win()
+				if win == state.win then
+					win = target_win()
+				end
 
-			if win == state.win then
-				win = target_win()
-			end
+				win = session.show(selected, win)
 
-			win = session.show(c.session, win)
+				if win then
+					api.nvim_set_current_win(win)
 
-			if win then
-				api.nvim_set_current_win(win)
-
-				if config.options.start_insert then
-					session.enter(c.session)
+					if config.options.start_insert then
+						session.enter(selected)
+					end
 				end
 			end
-		end
-	end)
+		end,
+	})
 end
 
 local dispose_subscriptions

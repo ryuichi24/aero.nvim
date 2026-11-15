@@ -4,6 +4,7 @@ local store = require("aero.store")
 local spinner = require("aero.spinner")
 local history = require("aero.history")
 local events = require("aero.events")
+local registry = require("aero.session.registry")
 local M = {}
 
 ---@class aero.Session
@@ -19,14 +20,7 @@ local M = {}
 ---@field chat? aero.acp.Chat  set for ACP sessions
 ---@field fresh? boolean  created in this nvim instance and never started (start without resuming)
 
----@type table<string, aero.Session>
-local runtime = {}
 local changes = require("aero.listeners").new("session change")
-local timer
-
-local function key(worktree, name)
-	return worktree .. "::" .. name
-end
 
 local function emit()
 	changes.emit()
@@ -79,66 +73,36 @@ function M.icon(s)
 	return st == "busy" and spinner.frame() or config.options.icons[st]
 end
 
-local function get(worktree, name)
-	for _, def in ipairs(store.sessions(worktree)) do
-		if def.name == name then
-			local k = def.key or key(worktree, name)
-
-			if not runtime[k] then
-				runtime[k] = { key = k, worktree = worktree, name = name, agent = def.agent }
-			end
-
-			runtime[k].name = name
-			return runtime[k]
-		end
-	end
-end
+local monitor = require("aero.session.monitor").new({
+	sessions = registry.loaded,
+	status = function(s)
+		return M.status(s)
+	end,
+	running = running,
+	changed = emit,
+})
 
 ---@return aero.Session[]
 function M.list(worktree)
-	local out = {}
-
-	for _, def in ipairs(store.sessions(worktree)) do
-		table.insert(out, get(worktree, def.name))
-	end
-
-	return out
+	return registry.list(worktree)
 end
 
 ---@return aero.Session[]
 function M.all()
-	local out = {}
-
-	for worktree in pairs(store.data.sessions) do
-		vim.list_extend(out, M.list(worktree))
-	end
-
-	return out
+	return registry.all()
 end
 
 --- Register a new (not yet started) session of `agent` in `worktree`.
 function M.create(worktree, agent, requested_name)
 	local name, err = store.add_session(worktree, agent, function(n)
-		local k = key(worktree, n)
-
-		if runtime[k] then
-			return true
-		end
-
-		for _, def in ipairs(store.sessions(worktree)) do
-			if def.key == k then
-				return true
-			end
-		end
-
-		return false
+		return registry.identity_taken(worktree, n)
 	end, requested_name)
 
 	if not name then
 		return nil, err
 	end
 
-	local s = get(worktree, name)
+	local s = registry.get(worktree, name)
 	s.fresh = true
 	emit()
 	events.emit("session_created", events.session(s))
@@ -155,114 +119,6 @@ function M.rename(s, name)
 
 	s.name = name
 	emit()
-	return true
-end
-
-local function notify_idle(s)
-	if config.options.notify_idle and s.buf and vim.fn.bufwinid(s.buf) == -1 then
-		vim.notify(("aero: %s in %s is done"):format(s.name, vim.fn.fnamemodify(s.worktree, ":~")), vim.log.levels.INFO)
-	end
-end
-
-local function tick()
-	local changed, any = false, false
-
-	for _, s in pairs(runtime) do
-		local st = M.status(s)
-		any = any or running(s)
-
-		if st ~= s.status then
-			if s.status == "busy" and st == "idle" then
-				notify_idle(s)
-			end
-
-			s.status, changed = st, true
-		end
-
-		if st == "busy" then
-			spinner.ensure()
-		end
-	end
-
-	if changed then
-		emit()
-	end
-
-	if not any and timer then
-		timer:stop()
-		timer:close()
-		timer = nil
-	end
-end
-
-local function ensure_timer()
-	if not timer then
-		timer = vim.uv.new_timer()
-		timer:start(300, 300, vim.schedule_wrap(tick))
-	end
-end
-
-local function resolve_cmd(cmd, s)
-	if type(cmd) == "function" then
-		return cmd(s)
-	end
-
-	return cmd
-end
-
-local function save_terminal(s)
-	local buf = s.buf
-	history.save(s, function()
-		if buf and vim.api.nvim_buf_is_valid(buf) then
-			local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-
-			-- Empty screen rows are not part of the saved scrollback.
-			while #lines > 0 and lines[#lines] == "" do
-				table.remove(lines)
-			end
-			return { type = "terminal", lines = lines }
-		end
-	end)
-end
-
-local function prepare_integrations(s, agent, opts)
-	if agent.type ~= "acp" or opts.history_only then
-		return true
-	end
-
-	if opts.restore_tasks ~= false then
-		local restored, err = require("aero.tasks.agent").restore(s)
-
-		if not restored then
-			vim.notify(
-				"Aero: cannot reconnect task tools: " .. (type(err) == "table" and err.message or tostring(err)),
-				vim.log.levels.ERROR
-			)
-			return false
-		end
-	end
-
-	local attached, err = require("aero.reading_agent").attach(s)
-
-	if not attached then
-		vim.notify("Aero: cannot attach reading tools: " .. tostring(err), vim.log.levels.ERROR)
-		return false
-	end
-
-	local browser_ok, browser_err = require("aero.browser.agent").attach(s)
-
-	if not browser_ok then
-		vim.notify("Aero: cannot attach browser tools: " .. tostring(browser_err), vim.log.levels.ERROR)
-		return false
-	end
-
-	local knowledge_ok, knowledge_err = require("aero.knowledge.agent").attach(s)
-
-	if not knowledge_ok then
-		vim.notify("Aero: cannot attach knowledge tools: " .. tostring(knowledge_err), vim.log.levels.ERROR)
-		return false
-	end
-
 	return true
 end
 
@@ -288,13 +144,12 @@ local function prepare_buffer(s, win, agent)
 			once = true,
 			callback = function()
 				if agent.type ~= "acp" then
-					pcall(vim.api.nvim_del_augroup_by_name, "aero.terminal." .. buf)
+					require("aero.session.backends.terminal").cleanup(buf)
 				end
 
 				if s.buf == buf then
 					if not s.chat then
-						save_terminal(s)
-						history.flush(s)
+						require("aero.session.backends.terminal").flush(s)
 					end
 
 					if s.chat then
@@ -311,163 +166,6 @@ local function prepare_buffer(s, win, agent)
 	end
 
 	return buf, on_wipe, cleanup_old
-end
-
-local function start_acp(s, win, resume, session_id, opts, agent, buf, on_wipe, cleanup_old)
-	s.buf, s.job, s.exit_code, s.fresh = buf, nil, nil, false
-	s.chat = require("aero.acp").start(s, buf, agent, resume, session_id, opts)
-
-	if not s.chat then
-		s.buf = nil
-		vim.api.nvim_buf_delete(buf, { force = true })
-		return false
-	end
-
-	on_wipe()
-	cleanup_old()
-	ensure_timer()
-	s.stop_requested = false
-	emit()
-
-	if not opts.history_only then
-		events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "acp" }))
-	end
-
-	return true
-end
-
-local function start_terminal(s, win, resume, agent, buf, on_wipe, cleanup_old)
-	local cmd = resolve_cmd(resume and agent.resume or agent.cmd, s)
-	s.chat = nil
-	local saved = resume and history.load(s)
-	local term, job
-
-	-- A virtual terminal lets us seed scrollback before connecting the new PTY.
-	term = vim.api.nvim_open_term(buf, {
-		on_input = function(_, _, _, data)
-			if job and job > 0 and s.job == job then
-				vim.fn.chansend(job, data)
-			end
-		end,
-	})
-
-	if saved and saved.type == "terminal" and type(saved.lines) == "table" and #saved.lines > 0 then
-		vim.bo[buf].scrollback = math.min(100000, math.max(vim.bo[buf].scrollback, #saved.lines + 100))
-
-		-- Escape control characters so a snapshot is displayed as text, not terminal commands.
-		local text = table.concat(saved.lines, "\r\n"):gsub("[%z\1-\8\11\12\14-\31\127]", "")
-
-		-- Move all restored lines off the live screen before a TUI clears/redraws it.
-		vim.api.nvim_chan_send(
-			term,
-			text
-				.. "\r\n--- restored scrollback ---"
-				.. string.rep("\r\n", vim.api.nvim_win_get_height(win))
-				.. "\27[H\27[2J"
-		)
-	end
-
-	local ok, result = pcall(vim.api.nvim_win_call, win, function()
-		return vim.fn.jobstart(cmd, {
-			pty = true,
-			width = vim.api.nvim_win_get_width(win),
-			height = vim.api.nvim_win_get_height(win),
-			cwd = s.worktree,
-			env = vim.tbl_extend("force", { TERM = "xterm-256color" }, agent.env or {}, s.runtime_env or {}),
-			on_stdout = function(_, data)
-				if vim.api.nvim_buf_is_valid(buf) then
-					vim.api.nvim_chan_send(term, table.concat(data, "\n"))
-				end
-			end,
-			on_exit = function(id, code)
-				vim.schedule(function()
-					if s.job == id then
-						if vim.api.nvim_buf_is_valid(buf) then
-							vim.api.nvim_chan_send(term, ("\r\n[Process exited %d]\r\n"):format(code))
-						end
-
-						save_terminal(s)
-						history.flush(s)
-						s.job, s.exit_code = nil, code
-
-						-- The virtual terminal outlives the PTY so its scrollback stays readable.
-						-- It does not leave terminal input mode automatically when the job exits.
-						if vim.api.nvim_get_current_buf() == buf then
-							vim.cmd.stopinsert()
-						end
-
-						s.status = M.status(s)
-						emit()
-						events.emit("session_exited", events.session(s, { exit_code = code, type = "terminal" }))
-					end
-				end)
-			end,
-		})
-	end)
-	job = result
-
-	if not ok or job <= 0 then
-		vim.api.nvim_buf_delete(buf, { force = true })
-		vim.notify(
-			("aero: failed to start %s: %s"):format(table.concat(cmd, " "), ok and "not executable" or job),
-			vim.log.levels.ERROR
-		)
-		return false
-	end
-
-	s.buf, s.job, s.exit_code, s.fresh = buf, job, nil, false
-	vim.b[buf].terminal_job_id = job
-	vim.b[buf].terminal_job_pid = vim.fn.jobpid(job)
-	s.last_output = vim.uv.now()
-	s.status = M.status(s)
-	vim.b[buf].aero_session = s.key
-	require("aero.fullscreen").bind(buf)
-	pcall(vim.api.nvim_buf_set_name, buf, ("aero://%s#%s"):format(s.worktree, s.name))
-	vim.api.nvim_buf_attach(buf, false, {
-		on_lines = function()
-			if s.buf ~= buf then
-				return true
-			end
-
-			s.last_output = vim.uv.now()
-			save_terminal(s)
-		end,
-	})
-	local group = vim.api.nvim_create_augroup("aero.terminal." .. buf, { clear = true })
-	vim.api.nvim_create_autocmd("TermEnter", {
-		group = group,
-		buffer = buf,
-		callback = function()
-			if s.buf == buf and not s.job then
-				vim.schedule(function()
-					if s.buf == buf and not s.job and vim.api.nvim_get_current_buf() == buf then
-						vim.cmd.stopinsert()
-					end
-				end)
-			end
-		end,
-	})
-	vim.api.nvim_create_autocmd({ "VimResized", "WinResized", "BufWinEnter" }, {
-		group = group,
-		callback = function()
-			if s.buf ~= buf or s.job ~= job then
-				return
-			end
-
-			local visible = vim.fn.bufwinid(buf)
-
-			if visible ~= -1 then
-				vim.fn.jobresize(job, vim.api.nvim_win_get_width(visible), vim.api.nvim_win_get_height(visible))
-			end
-		end,
-	})
-	on_wipe()
-	cleanup_old()
-	ensure_timer()
-	s.stop_requested = false
-	emit()
-	events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = "terminal" }))
-	return true
 end
 
 --- Start (or restart) the session's agent in a new buffer shown in `win`.
@@ -490,18 +188,47 @@ function M.start(s, win, resume, session_id, opts)
 	end
 
 	M.stop(s)
+	local prepared, integration_err = require("aero.session.integrations").prepare(s, agent, opts)
 
-	if not prepare_integrations(s, agent, opts) then
+	if not prepared then
+		vim.notify("Aero: " .. integration_err, vim.log.levels.ERROR)
 		return false
 	end
 
 	local buf, on_wipe, cleanup_old = prepare_buffer(s, win, agent)
+	local kind = agent.type == "acp" and "acp" or "terminal"
+	local started
 
-	if agent.type == "acp" then
-		return start_acp(s, win, resume, session_id, opts, agent, buf, on_wipe, cleanup_old)
+	if kind == "acp" then
+		started = require("aero.session.backends.acp").start(s, buf, agent, resume, session_id, opts)
+	else
+		started = require("aero.session.backends.terminal").start(s, win, resume, agent, buf, function(code)
+			s.status = M.status(s)
+			emit()
+			events.emit("session_exited", events.session(s, { exit_code = code, type = "terminal" }))
+		end)
+
+		if started then
+			s.status = M.status(s)
+		end
 	end
 
-	return start_terminal(s, win, resume, agent, buf, on_wipe, cleanup_old)
+	if not started then
+		return false
+	end
+
+	-- Commit buffer ownership and publish startup only after the backend accepts it.
+	on_wipe()
+	cleanup_old()
+	monitor.ensure()
+	s.stop_requested = false
+	emit()
+
+	if kind ~= "acp" or not opts.history_only then
+		events.emit("session_started", events.session(s, { win = win, resume = resume == true, type = kind }))
+	end
+
+	return true
 end
 
 local function tab_wins_with(buf)
@@ -515,7 +242,7 @@ end
 --- A window showing an ACP prompt is swapped for its transcript window, and the prompt split
 --- of the session being replaced is closed, so switching sessions doesn't leave stale prompts.
 function M.prepare_win(win)
-	local owner = runtime[vim.b[vim.api.nvim_win_get_buf(win)].aero_chat_key or ""]
+	local owner = registry.find(vim.b[vim.api.nvim_win_get_buf(win)].aero_chat_key or "")
 
 	if owner and owner.buf and #vim.api.nvim_tabpage_list_wins(0) > 1 then
 		local tw = tab_wins_with(owner.buf)[1]
@@ -577,17 +304,10 @@ function M.stop(s)
 		s.stop_requested = true
 	end
 
-	if s.buf and not s.chat then
-		save_terminal(s)
-		history.flush(s)
-	end
-
 	if s.chat then
-		s.chat:stop()
-	end
-
-	if s.job then
-		vim.fn.jobstop(s.job)
+		require("aero.session.backends.acp").stop(s)
+	else
+		require("aero.session.backends.terminal").stop(s)
 	end
 
 	if stopping then
@@ -621,18 +341,12 @@ function M.delete(s)
 		return nil, err
 	end
 
-	if s.task_transport then
-		require("aero.tasks.bridge").unbind(s.task_transport.credential)
-	end
-
-	require("aero.reading_agent").detach(s)
-	require("aero.browser.agent").detach(s)
-	require("aero.knowledge.agent").detach(s)
+	require("aero.session.integrations").detach(s)
 	local data = events.session(s)
 	M.stop(s)
 
 	if is_acp(s) then
-		require("aero.acp").forget(s)
+		require("aero.session.backends.acp").forget(s)
 	end
 
 	if s.buf and vim.api.nvim_buf_is_valid(s.buf) then
@@ -641,7 +355,7 @@ function M.delete(s)
 		vim.api.nvim_buf_delete(buf, { force = true })
 	end
 
-	runtime[s.key] = nil
+	registry.remove(s.key)
 	history.remove(s)
 	emit()
 	events.emit("session_deleted", data)
@@ -656,8 +370,7 @@ end
 
 --- Session for a terminal buffer, if it belongs to aero.
 function M.from_buf(buf)
-	local k = vim.b[buf or 0].aero_session
-	return k and runtime[k]
+	return registry.from_buf(buf)
 end
 
 return M

@@ -26,8 +26,8 @@ function M.show(s)
 end
 
 function M.new(requested_agent)
-	local actions = require("aero.dashboard.session_actions")
-	local item = { wt = { path = M.directory() } }
+	local actions = require("aero.session.actions")
+	local worktree = { path = M.directory() }
 	local function created()
 		vim.fn.mkdir(M.directory(), "p")
 	end
@@ -38,10 +38,10 @@ function M.new(requested_agent)
 	end
 
 	if requested_agent then
-		return actions.start(item, requested_agent, created, open)
+		return actions.start(worktree, requested_agent, created, open)
 	end
 
-	return actions.choose(item, "General", created, open)
+	return actions.choose(worktree, "General", created, open)
 end
 
 local function text(s)

@@ -291,7 +291,7 @@ function M.new(scope, requested_agent)
 	local directory = M.location(scope)
 	vim.fn.mkdir(directory, "p")
 	local title = M.title(scope, data)
-	local actions = require("aero.dashboard.session_actions")
+	local actions = require("aero.session.actions")
 	local config = require("aero.config").options
 	local function eligible(_, definition)
 		return definition and definition.type == "acp"
@@ -308,10 +308,10 @@ function M.new(scope, requested_agent)
 			return
 		end
 
-		return actions.start({ wt = { path = directory } }, requested_agent, function() end, open_session)
+		return actions.start({ path = directory }, requested_agent, nil, open_session)
 	end
 
-	actions.choose({ wt = { path = directory } }, title, function() end, open_session, eligible)
+	actions.choose({ path = directory }, title, nil, open_session, eligible)
 end
 
 function M.sessions(scope)

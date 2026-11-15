@@ -15,10 +15,13 @@ local agent = require("aero.knowledge.agent")
 local sessions = require("aero.session")
 local collection = assert(knowledge.create_collection("Work"))
 local space = assert(knowledge.create_space(collection.id, "Research"))
-local session_actions = require("aero.dashboard.session_actions")
+local session_actions = require("aero.session.actions")
 local original_select, original_start = vim.ui.select, session_actions.start
 local chosen_agent
-session_actions.start = function(_, selected_agent)
+session_actions.start = function(worktree, selected_agent)
+	assert(worktree.path == agent.location({ space_id = space.id }))
+	assert(worktree.wt == nil, "shared session workflows must receive a worktree directly")
+
 	chosen_agent = selected_agent
 end
 vim.ui.select = function(items, opts, callback)
