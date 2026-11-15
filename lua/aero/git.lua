@@ -204,9 +204,14 @@ function M.list_async(root, callback)
 	end)
 end
 
+--- Read previously discovered repository identity without running Git.
+function M.cached_main_root(path)
+	return roots[canonical(path)]
+end
+
 --- Resolve any path inside a repository (or one of its worktrees) to the main worktree path.
 function M.main_root(path)
-	local cached = roots[canonical(path)]
+	local cached = M.cached_main_root(path)
 
 	if cached then
 		return cached

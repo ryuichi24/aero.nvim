@@ -31,9 +31,22 @@ local feature_row = api.nvim_win_get_cursor(0)[1]
 api.nvim_win_set_cursor(0, { 1, 0 })
 local marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
 
-assert(#marks == 1 and marks[1][2] == feature_row - 1, "context followed the cursor")
-assert(marks[1][4].sign_text == "> ", "active worktree lacks a persistent marker")
+assert(#marks == 3 and marks[3][2] == feature_row - 1, "context followed the cursor")
+assert(marks[3][4].sign_text == "> ", "active worktree lacks a persistent marker")
 assert(vim.wo.signcolumn == "yes:1", "context gutter is not reserved")
+
+aero.collapse("workspaces")
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 2, "collapsed workspace lost its context marker")
+assert(api.nvim_buf_get_lines(sidebar, marks[2][2], marks[2][2] + 1, false)[1]:find("repo", 1, true))
+
+api.nvim_win_set_cursor(0, { marks[1][2] + 1, 0 })
+vim.fn.maparg("<CR>", "n", false, true).callback()
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 1, "collapsed Workspace section lost its context marker")
+assert(api.nvim_buf_get_lines(sidebar, marks[1][2], marks[1][2] + 1, false)[1]:find("Workspace", 1, true))
 
 api.nvim_win_set_cursor(0, { 1, 0 })
 aero.toggle()
@@ -101,6 +114,75 @@ view.refresh_context(state)
 marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
 
 assert(#marks == 1 and marks[1][2] == 0, "hidden conversation remained marked as open")
+
+-- General retains its context even when its conversation row is hidden.
+state.items = { { kind = "general_group" } }
+conversation.worktree = require("aero.general").directory()
+panel.win = function()
+	return api.nvim_get_current_win()
+end
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 1 and marks[1][4].sign_text == "> ", "collapsed General lost its displayed conversation context")
+
+panel.win = function()
+	return nil
+end
+vim.t.aero_worktree = conversation.worktree
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 1, "General tab lost its context with the panel hidden")
+
+vim.t.aero_worktree = root
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 0, "General retained a stale context after returning to a workspace")
+
+-- Knowledge keeps its owning headings marked as descendants disappear.
+conversation.worktree = require("aero.knowledge.store").directory() .. "/spaces/abc123"
+vim.t.aero_worktree = conversation.worktree
+state.items = {
+	{ kind = "knowledge_group" },
+	{ kind = "knowledge_collection", collection = { id = "def456" } },
+	{ kind = "knowledge_space", space = { id = "abc123", collection_id = "def456" } },
+}
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 3, "knowledge context did not mark its heading, collection, and space")
+
+state.knowledge_catalog = { spaces = { { id = "abc123", collection_id = "def456" } } }
+state.items[3] = nil
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 2, "collapsed knowledge collection lost its context")
+
+state.items = { { kind = "knowledge_group" } }
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 1 and marks[1][4].sign_text == "> ", "collapsed Knowledge base lost its context")
+
+vim.t.aero_worktree = root
+panel.win = function()
+	return api.nvim_get_current_win()
+end
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 1, "displayed knowledge conversation did not mark Knowledge base")
+
+panel.win = function()
+	return nil
+end
+view.refresh_context(state)
+marks = api.nvim_buf_get_extmarks(sidebar, context_ns, 0, -1, { details = true })
+
+assert(#marks == 0, "Knowledge base retained a stale context")
 
 panel.win, sessions.from_buf = original_win, original_from_buf
 vim.fn.delete(dir, "rf")

@@ -120,6 +120,7 @@ local rendering, render_again = false, false
 
 local function build()
 	local snapshot = require("aero.dashboard.snapshot").prepare(scenes.workspaces(), state, remote_changed)
+	state.knowledge_catalog = snapshot.knowledge
 	animation_snapshot = snapshot
 	return require("aero.dashboard.model").build(snapshot)
 end

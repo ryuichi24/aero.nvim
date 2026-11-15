@@ -8,7 +8,7 @@ Arrange code, agents, prompts, and shells while keeping their buffers and proces
 
 The sidebar reserves a gutter for context and attention markers:
 
-- `>` marks the current tab's worktree and the conversation displayed in its agent panel
+- `>` marks the current tab's workspace, worktree, and the conversation displayed in its agent panel
   (or target window when using sessions without the panel).
 - `?` marks a session waiting for input or permission; `>?` means that conversation
   is both displayed and waiting.
@@ -16,6 +16,16 @@ The sidebar reserves a gutter for context and attention markers:
 
 Context markers remain visible when focus leaves the sidebar. Moving the sidebar
 cursor does not change the active context. Hidden conversations are not marked as displayed.
+Workspace and top-level Workspace heading markers remain visible when their children are collapsed.
+The General heading likewise stays marked while a General conversation is displayed
+or the current tab belongs to General, including when the section is collapsed.
+Knowledge base also retains its heading marker for an active knowledge conversation
+or knowledge tab. Its owning space and collection are marked when visible.
+Opened knowledge notes, source documents, extracted content, extraction details,
+citation previews, and tag editors also mark their item and containing sections.
+Folders, tags, spaces, and collections retain their markers when descendants are
+collapsed. Document markers follow visible buffers and clear when those buffers
+are replaced or closed; they are independent of the displayed agent conversation.
 Customize `AeroSidebarActive`, `AeroSidebarActiveLine`, and `AeroSidebarAttention`
 after loading your colorscheme to change marker and active-row styling.
 
