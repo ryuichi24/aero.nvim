@@ -333,6 +333,31 @@ function M.set_expanded(root, expanded)
 	end)
 end
 
+--- Registered workspaces in persistence order.
+function M.workspaces()
+	return M.data.workspaces
+end
+
+function M.scenes()
+	return M.data.scenes or { { id = "default", name = "Default" } }
+end
+
+function M.active_scene()
+	return M.data.active_scene or "default"
+end
+
+function M.session_worktrees()
+	return vim.tbl_keys(M.data.sessions)
+end
+
+function M.worktree_buffer(worktree)
+	return M.data.worktree_buffers[worktree]
+end
+
+function M.sidebar()
+	return M.data.sidebar or {}
+end
+
 ---@return {name: string, agent: string}[]
 function M.sessions(worktree)
 	return M.data.sessions[worktree] or {}

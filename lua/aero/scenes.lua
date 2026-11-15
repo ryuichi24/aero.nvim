@@ -4,11 +4,11 @@ local store = require("aero.store")
 local tabs = {}
 
 function M.current()
-	return store.data.active_scene or "default"
+	return store.active_scene()
 end
 
 function M.list()
-	return store.data.scenes or { { id = "default", name = "Default" } }
+	return store.scenes()
 end
 
 function M.find(key, data)
@@ -21,12 +21,12 @@ end
 
 function M.workspaces(all)
 	if all then
-		return store.data.workspaces
+		return store.workspaces()
 	end
 
 	local workspaces = vim.tbl_filter(function(ws)
 		return vim.tbl_contains(ws.scene_ids or { "default" }, M.current())
-	end, store.data.workspaces)
+	end, store.workspaces())
 	local scene = M.find(M.current())
 
 	if scene and scene.id ~= "default" then
@@ -186,7 +186,7 @@ function M.contains(s, scene_id)
 	local ws = root and store.find_workspace(root)
 
 	if root and not ws then
-		for _, candidate in ipairs(store.data.workspaces) do
+		for _, candidate in ipairs(store.workspaces()) do
 			if (vim.uv.fs_realpath(candidate.root) or candidate.root) == root then
 				ws = candidate
 				break
@@ -481,7 +481,7 @@ function M.command(args)
 		end
 	elseif action == "add" or action == "remove" then
 		local present = action == "add"
-		return vim.ui.select(store.data.workspaces, {
+		return vim.ui.select(store.workspaces(), {
 			prompt = present and "Add workspace to scene" or "Remove workspace from scene",
 			format_item = function(ws)
 				return ws.name .. "  " .. ws.root

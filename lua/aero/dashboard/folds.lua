@@ -32,7 +32,7 @@ local function snapshot(state)
 end
 
 function M.restore(state)
-	local saved = store.data.sidebar or {}
+	local saved = store.sidebar()
 	local scenes = require("aero.scenes")
 	local scene = scenes.find(scenes.current())
 

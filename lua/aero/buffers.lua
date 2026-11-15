@@ -187,7 +187,7 @@ function M.restore(worktree, win)
 
 	if not record and config.options.persist_buffers then
 		store.load()
-		data = store.data.worktree_buffers[key(worktree)]
+		data = store.worktree_buffer(key(worktree))
 	end
 
 	-- Discard reports saved as Source by older versions or opened directly in it.
@@ -264,7 +264,7 @@ function M.forget(worktree)
 
 	store.load()
 
-	if store.data.worktree_buffers[worktree] then
+	if store.worktree_buffer(worktree) then
 		store.remove_worktree_buffer(worktree)
 	end
 end
