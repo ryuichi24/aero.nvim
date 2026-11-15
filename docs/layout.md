@@ -4,6 +4,21 @@ Arrange code, agents, prompts, and shells while keeping their buffers and proces
 
 [Back to README](../README.md)
 
+## Sidebar orientation
+
+The sidebar reserves a gutter for context and attention markers:
+
+- `>` marks the current tab's worktree and the conversation displayed in its agent panel
+  (or target window when using sessions without the panel).
+- `?` marks a session waiting for input or permission; `>?` means that conversation
+  is both displayed and waiting.
+- The cursor highlight selects a row for navigation independently of these markers.
+
+Context markers remain visible when focus leaves the sidebar. Moving the sidebar
+cursor does not change the active context. Hidden conversations are not marked as displayed.
+Customize `AeroSidebarActive`, `AeroSidebarActiveLine`, and `AeroSidebarAttention`
+after loading your colorscheme to change marker and active-row styling.
+
 ## Reader panel
 
 Within each worktree, the reader panel has independent **Source**, **Exported logs**,

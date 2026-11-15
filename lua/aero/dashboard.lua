@@ -49,6 +49,9 @@ function M.setup_highlights()
 		AeroStopped = "Comment",
 		AeroDim = "Comment",
 		AeroTag = "Type",
+		AeroSidebarActive = "Special",
+		AeroSidebarActiveLine = "CursorLine",
+		AeroSidebarAttention = "DiagnosticWarn",
 	}
 
 	for group, link in pairs(links) do
@@ -333,13 +336,23 @@ api.nvim_create_autocmd("TabLeave", {
 		vim.t.Aero_target = state.target
 	end,
 })
+api.nvim_create_autocmd({ "TabEnter", "BufEnter", "WinEnter", "DirChanged" }, {
+	group = "Aero.dashboard",
+	callback = function()
+		vim.schedule(function()
+			if is_open() then
+				require("aero.dashboard.view").refresh_context(state)
+			end
+		end)
+	end,
+})
 
 local function set_win_options(win)
 	local line_numbers = config.options.dashboard.sidebar.line_numbers
 	local opts = {
 		number = line_numbers.show,
 		relativenumber = line_numbers.show and line_numbers.relative,
-		signcolumn = "no",
+		signcolumn = "yes:1",
 		foldcolumn = "0",
 		wrap = false,
 		cursorline = true,
