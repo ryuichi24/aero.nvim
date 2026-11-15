@@ -1,6 +1,16 @@
--- Apply agent notifications to conversation blocks/settings, preserving replay rules.
+-- Apply notification state changes and describe controller work, preserving replay rules.
+local content = require("aero.acp.content")
+local models = require("aero.acp.models")
+local modes = require("aero.acp.modes")
 local M = {}
 
+---@class aero.acp.UpdateChange
+---@field reveal? {block: table, initial_bytes: integer}
+---@field todos? boolean
+---@field settings? {model?: aero.acp.SelectorChange, mode?: aero.acp.SelectorChange}
+---@field session_changed? boolean publish session metadata changes as well as saving/rendering
+
+---@return aero.acp.UpdateChange? change nil means no controller effects
 function M.apply(chat, update)
 	if chat.task_reloading then
 		return
@@ -25,13 +35,15 @@ function M.apply(chat, update)
 		return
 	end
 
+	local change = { todos = todo_update }
+
 	if kind == "user_message_chunk" then
-		chat:append_content("user", update.content)
+		change.reveal = content.append_content(chat, "user", update.content)
 	elseif kind == "agent_message_chunk" then
-		chat:append_content("agent", update.content)
+		change.reveal = content.append_content(chat, "agent", update.content)
 		chat.doing = { kind = "writing" }
 	elseif kind == "agent_thought_chunk" then
-		chat:append_content("thought", update.content)
+		change.reveal = content.append_content(chat, "thought", update.content)
 		chat.doing = { kind = "thinking" }
 	elseif kind == "tool_call" or kind == "tool_call_update" then
 		if update.status == "completed" or update.status == "failed" then
@@ -72,21 +84,19 @@ function M.apply(chat, update)
 	elseif kind == "available_commands_update" then
 		chat.commands = update.availableCommands
 	elseif kind == "current_mode_update" or kind == "config_option_update" or kind == "current_model_update" then
-		chat:accept_settings(update)
-		return chat:changed()
+		-- Both selectors share config_options; capture mode before model mutation replaces it.
+		local previous_mode = modes.current(chat)
+		local model = models.apply(chat, update)
+		local mode = modes.apply(chat, update, previous_mode)
+		return { settings = { model = model, mode = mode }, session_changed = true }
 	elseif kind == "usage_update" then
 		require("aero.acp.usage").update(chat, update)
-		return chat:changed()
+		return { session_changed = true }
 	else
 		return
 	end
 
-	if todo_update then
-		require("aero.acp.todo_notifications").update(chat)
-	end
-
-	chat:save_history()
-	chat:render()
+	return change
 end
 
 return M

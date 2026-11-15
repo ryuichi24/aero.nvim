@@ -362,4 +362,26 @@ function M.setup(chat)
 	require("aero.acp.todos").attach(chat)
 end
 
+--- Subscribe display-only animation for a conversation registry; return its disposer.
+function M.watch(chats)
+	return require("aero.spinner").on_frame(function()
+		local any = false
+
+		for _, chat in pairs(chats()) do
+			if
+				(chat.busy or chat.model_pending or chat.mode_pending or chat.state == "starting")
+				and api.nvim_buf_is_valid(chat.buf)
+			then
+				any = true
+
+				if vim.fn.bufwinid(chat.buf) ~= -1 then
+					M.spin(chat)
+				end
+			end
+		end
+
+		return any
+	end)
+end
+
 return M

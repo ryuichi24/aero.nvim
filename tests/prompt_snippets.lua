@@ -160,7 +160,11 @@ for _, invalid in ipairs({ {}, { "", "  " }, { "valid", 1 }, { "valid", vim.NIL 
 end
 
 write(dir .. "/.aero/prompts.json", {})
-local chat = { s = { worktree = dir, name = "test", key = "snippet-test" }, buf = api.nvim_create_buf(false, true) }
+local chat = {
+	s = { worktree = dir, name = "test", key = "snippet-test" },
+	buf = api.nvim_create_buf(false, true),
+	blocks = {},
+}
 chat.s.chat = chat
 local draft_saves = 0
 

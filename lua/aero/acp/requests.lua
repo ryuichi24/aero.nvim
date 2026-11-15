@@ -70,74 +70,7 @@ function M.handle(chat, method, params, respond)
 			respond(nil, { code = -32603, message = tostring(err) })
 		end
 	elseif method == "session/request_permission" then
-		local allow
-
-		for _, option in ipairs(params.options or {}) do
-			if option.kind == "allow_once" or option.kind == "allow_always" then
-				allow = allow or option
-
-				if option.kind == "allow_once" then
-					allow = option
-					break
-				end
-			end
-		end
-
-		local tool = params.toolCall or {}
-		local known = chat.tools[tool.toolCallId]
-		local block = {
-			kind = "permission",
-			timestamp = os.time(),
-			title = tool.title or (known and known.title) or "tool call",
-			options = vim.deepcopy(params.options or {}),
-		}
-		table.insert(chat.blocks, block)
-
-		if chat.auto_yes and allow then
-			block.answer = (allow.name or allow.optionId) .. " (auto yes)"
-			respond({ outcome = { outcome = "selected", optionId = allow.optionId } })
-			chat:changed()
-			return
-		end
-
-		if allow then
-			local id = "aero:auto-yes"
-			local used = {}
-
-			for _, option in ipairs(block.options) do
-				used[option.optionId] = true
-			end
-
-			while used[id] do
-				id = id .. ":"
-			end
-			table.insert(block.options, {
-				optionId = id,
-				name = "Auto yes for this conversation",
-				kind = "allow_once",
-				auto_yes = allow.optionId,
-			})
-		end
-
-		chat.permissions = chat.permissions or {}
-		local request = { params = params, respond = respond, block = block }
-		table.insert(chat.permissions, request)
-		chat.permission = chat.permission or request
-		require("aero.inbox").add(chat, "permission", block)
-		chat:set_option_keys(true)
-		chat:advance(true)
-		require("aero.acp.editor_state").get(chat).pending_focus = true
-		chat:changed()
-
-		if api.nvim_get_current_buf() ~= chat.buf then
-			vim.notify(
-				("Aero: %s in %s needs permission: %s (choose in the agent log, or :Aero prompt)"):format(
-					chat.s.name,
-					vim.fn.fnamemodify(chat.s.worktree, ":~"),
-					block.title
-				)
-			)
-		end
+		return chat:request_permission(params, respond)
 	else
 		respond(nil, { code = -32601, message = "method not supported: " .. method })
 	end

@@ -1,5 +1,9 @@
 -- Local session selectors backed by ACP configuration or legacy APIs.
-local events = require("aero.events")
+---@class aero.acp.SelectorChange
+---@field id string
+---@field name string
+---@field previous string
+
 return function(kind, legacy_id)
 	local M = {}
 	local title = kind:sub(1, 1):upper() .. kind:sub(2)
@@ -80,7 +84,9 @@ return function(kind, legacy_id)
 		return options.current, options.current
 	end
 
-	function M.accept(chat, response, previous)
+	--- Mutate selector state without publishing lifecycle events.
+	---@return aero.acp.SelectorChange?
+	function M.apply(chat, response, previous)
 		if type(response) ~= "table" then
 			return
 		end
@@ -107,17 +113,30 @@ return function(kind, legacy_id)
 
 		local current, name = M.current(chat)
 
-		if previous and current and previous ~= current and chat.s.chat == chat and chat.state ~= "exited" then
+		if previous and current and previous ~= current then
+			return { id = current, name = name, previous = previous }
+		end
+	end
+
+	--- Publish a captured transition only while this conversation still owns the session.
+	function M.publish(chat, change)
+		if change and chat.s.chat == chat and chat.state ~= "exited" then
+			local events = require("aero.events")
 			events.emit(
 				"session_" .. kind .. "_changed",
 				events.session(chat.s, {
 					session_id = chat.session_id,
-					[kind .. "_id"] = current,
-					[kind .. "_name"] = name,
-					["previous_" .. kind .. "_id"] = previous,
+					[kind .. "_id"] = change.id,
+					[kind .. "_name"] = change.name,
+					["previous_" .. kind .. "_id"] = change.previous,
 				})
 			)
 		end
+	end
+
+	--- Compatibility entry point for callers that accept and publish in one step.
+	function M.accept(chat, response, previous)
+		M.publish(chat, M.apply(chat, response, previous))
 	end
 
 	local function find(options, argument)
