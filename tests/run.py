@@ -23,11 +23,18 @@ def main():
     parser.add_argument("--timeout", type=int, default=180, help="timeout per script in seconds")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
-    tests = sorted((root / "tests").glob("*.lua"))
+    test_root = root / "tests"
+    tests = sorted(
+        test for test in test_root.rglob("*.lua")
+        if "fixtures" not in test.relative_to(test_root).parts
+    )
     if args.unit and args.real_agent:
         parser.error("--unit cannot be combined with --real-agent")
     if args.unit:
-        tests = [test for test in tests if test.stem in UNIT_TESTS]
+        tests = [
+            test for test in tests
+            if test.stem in UNIT_TESTS or "unit" in test.relative_to(test_root).parts
+        ]
     if args.tests:
         requested = {Path(name).stem for name in args.tests}
         unknown = requested - {test.stem for test in tests}
