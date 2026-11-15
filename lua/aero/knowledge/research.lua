@@ -259,16 +259,16 @@ function M.open(citation)
 		M.read({ space_id = citation.space_id }, citation.source_id, citation.chunk, citation.chunk, citation.version)
 	local source = store.find(store.find(store.read().spaces, citation.space_id).sources, citation.source_id)
 	local location = result.chunks[1].location
+	require("aero.reader").close_knowledge()
+	local win = require("aero.navigation").code_window()
+
+	if win then
+		vim.api.nvim_set_current_win(win)
+	end
 
 	if location.line then
 		local path = source.version == citation.version and store.directory() .. "/" .. source.path
 			or store.directory() .. "/history/" .. source.id .. "/" .. citation.version
-		local win = require("aero.navigation").code_window()
-
-		if win then
-			vim.api.nvim_set_current_win(win)
-		end
-
 		vim.cmd("edit " .. vim.fn.fnameescape(path))
 		vim.bo.filetype = vim.filetype.match({ filename = source.name, buf = 0 }) or ""
 		vim.bo.readonly = true
@@ -287,6 +287,8 @@ function M.open(citation)
 		vim.bo[buf].filetype = "markdown"
 		vim.bo[buf].modifiable = false
 	end
+
+	vim.b.aero_knowledge_context = { space_id = citation.space_id, source_id = citation.source_id, section = "Sources" }
 end
 
 return M

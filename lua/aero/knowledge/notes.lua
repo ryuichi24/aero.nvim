@@ -76,6 +76,7 @@ function M.edit(space_id, note_id, title)
 
 	vim.bo[buf].buftype, vim.bo[buf].filetype = "acwrite", "markdown"
 	vim.api.nvim_buf_set_name(buf, "aero-note://" .. (note_id or "new") .. "/" .. buf)
+	vim.b[buf].aero_knowledge_context = { space_id = space_id, note_id = note_id, section = "Notes" }
 	vim.keymap.set("n", "gt", function()
 		if not note_id then
 			vim.notify("Aero knowledge: save the note before editing tags", vim.log.levels.INFO)
@@ -106,6 +107,7 @@ function M.edit(space_id, note_id, title)
 
 			if saved then
 				note_id = saved.id
+				vim.b[buf].aero_knowledge_context = { space_id = space_id, note_id = saved.id, section = "Notes" }
 				revision = saved.revision
 				vim.bo[buf].modified = false
 			else

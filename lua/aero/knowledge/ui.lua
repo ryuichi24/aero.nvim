@@ -123,7 +123,7 @@ local function search(scope)
 	end)
 end
 
-local function open_document(path)
+local function open_document(path, space_id, source_id)
 	require("aero.reader").close_knowledge()
 	local win = require("aero.navigation").code_window()
 
@@ -139,6 +139,7 @@ local function open_document(path)
 		end
 	else
 		vim.cmd("edit " .. vim.fn.fnameescape(path))
+		vim.b.aero_knowledge_context = { space_id = space_id, source_id = source_id, section = "Sources" }
 		vim.bo.readonly = true
 	end
 end
@@ -202,9 +203,9 @@ function M.browse_space(space, selected_action, source_id, source_action)
 							vim.fn.mkdir(preview, "p")
 							local destination = preview .. "/" .. vim.fs.basename(original.name)
 							assert(vim.uv.fs_copyfile(path, destination))
-							open_document(destination)
+							open_document(destination, space.id, source.id)
 						else
-							open_document(path)
+							open_document(path, space.id, source.id)
 							vim.bo.filetype = vim.filetype.match({ filename = original.name, buf = 0 }) or ""
 							vim.bo.readonly = true
 						end

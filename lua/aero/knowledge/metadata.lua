@@ -30,6 +30,7 @@ local function inspect_buffer(space_id, source_id, kind, name, lines, filetype)
 	end
 
 	require("aero.reader").open_knowledge(space_id, source_id, kind, buf)
+	vim.b[buf].aero_knowledge_context = { space_id = space_id, source_id = source_id, section = "Sources" }
 	return buf
 end
 
@@ -300,6 +301,12 @@ function M.edit_tags(space_id, source_id, kind)
 		})
 	end
 
+	vim.b[buf].aero_knowledge_context = {
+		space_id = space_id,
+		source_id = kind == "sources" and source_id or nil,
+		note_id = kind == "notes" and source_id or nil,
+		section = "Tags",
+	}
 	local win = require("aero.navigation").code_window()
 
 	if win then
