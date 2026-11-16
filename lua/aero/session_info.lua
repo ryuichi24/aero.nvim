@@ -94,7 +94,12 @@ function M.lines(session)
 
 	vim.list_extend(lines, { "", "MCP" })
 	vim.list_extend(lines, require("aero.mcp_info").lines(session))
-	vim.list_extend(lines, { "", "Task", require("aero.tasks.status").label(session) })
+	local assignment = require("aero.tasks.status").label(session)
+
+	if assignment then
+		vim.list_extend(lines, { "", "Task", assignment })
+	end
+
 	local todo_view = require("aero.acp.todos")
 	local todos = chat and todo_view.latest(chat)
 

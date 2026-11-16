@@ -208,7 +208,7 @@ assert(api.nvim_win_get_height(win) == 6, "moving info above the transcript must
 info.close()
 
 assert(not info.win())
-assert(vim.wo[transcript].winbar:find("Board:", 1, true))
+assert(not vim.wo[transcript].winbar:find("Board:", 1, true))
 
 options.info_open_by_default = true
 panel.close()

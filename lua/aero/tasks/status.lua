@@ -56,8 +56,8 @@ end
 function M.label(session)
 	local assignment = M.describe(session)
 
-	if not assignment then
-		return "Board: none · Ticket: none"
+	if not assignment or not assignment.board_id or not assignment.ticket_id then
+		return nil
 	end
 
 	return ("Board: %s [%s] · Ticket: %s%s%s")

@@ -59,7 +59,8 @@ local function scope(session, name)
 		local binding = session.task_binding
 
 		if binding then
-			return "Workspace: " .. binding.workspace.root .. " · " .. require("aero.tasks.status").label(session)
+			local assignment = require("aero.tasks.status").label(session)
+			return "Workspace: " .. binding.workspace.root .. (assignment and (" · " .. assignment) or "")
 		end
 	elseif name == "aero-knowledge" then
 		local ok, knowledge = pcall(require, "aero.knowledge.agent")

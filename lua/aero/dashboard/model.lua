@@ -558,14 +558,17 @@ function M.build(snapshot)
 								wt = wt,
 								session = selected,
 							}, details)
-							add({ { "         " .. entry.assignment, "AeroDim" } }, {
-								kind = "session",
-								id = "assignment:" .. selected.key,
-								parent = sessions_id,
-								ws = ws,
-								wt = wt,
-								session = selected,
-							})
+
+							if entry.assignment then
+								add({ { "         " .. entry.assignment, "AeroDim" } }, {
+									kind = "session",
+									id = "assignment:" .. selected.key,
+									parent = sessions_id,
+									ws = ws,
+									wt = wt,
+									session = selected,
+								})
+							end
 						end
 					end
 
