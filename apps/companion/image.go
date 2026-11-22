@@ -63,9 +63,12 @@ func (b *bridge) mediaLocation(w http.ResponseWriter, r *http.Request) (string, 
 	}
 
 	var sessions []struct {
-		ID       string `json:"id"`
-		Worktree string `json:"worktree"`
-		Blocks   any    `json:"blocks"`
+		ID           string `json:"id"`
+		Worktree     string `json:"worktree"`
+		Blocks       any    `json:"blocks"`
+		Target       string `json:"target"`
+		Conversation string `json:"conversation"`
+		Lazy         bool   `json:"transcript_lazy"`
 	}
 
 	_ = json.Unmarshal(snapshot["sessions"], &sessions)
@@ -110,8 +113,29 @@ func (b *bridge) mediaLocation(w http.ResponseWriter, r *http.Request) (string, 
 				}
 			}
 
-			if !filepath.IsLocal(relative) && imageReferenced(session.Blocks, name) {
-				rootName, relative = filepath.Dir(name), filepath.Base(name)
+			if !filepath.IsLocal(relative) {
+				blocks := session.Blocks
+				if session.Lazy {
+					var epoch string
+
+					_ = json.Unmarshal(snapshot["epoch"], &epoch)
+					response, err := b.state.host.Call(r.Context(), "session_snapshot", map[string]string{
+						"epoch": epoch, "session": session.ID, "target": session.Target, "conversation": session.Conversation,
+					})
+
+					var detail struct {
+						Session struct {
+							Blocks any `json:"blocks"`
+						} `json:"session"`
+					}
+					if err == nil && response.Error == "" && json.Unmarshal(response.Result, &detail) == nil {
+						blocks = detail.Session.Blocks
+					}
+				}
+
+				if imageReferenced(blocks, name) {
+					rootName, relative = filepath.Dir(name), filepath.Base(name)
+				}
 			}
 		}
 

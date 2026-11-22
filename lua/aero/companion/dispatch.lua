@@ -78,8 +78,16 @@ local function identity(object, registry)
 	return registry[object]
 end
 
-local function describe(s, boards)
-	return require("aero.companion.snapshot").describe(s, boards, identity, identities, permissions, conversation_ids)
+local function describe(s, boards, summary)
+	return require("aero.companion.snapshot").describe(
+		s,
+		boards,
+		identity,
+		identities,
+		permissions,
+		conversation_ids,
+		summary
+	)
 end
 
 function M.dispatch(method, params)
@@ -87,9 +95,41 @@ function M.dispatch(method, params)
 	local sessions = require("aero.session").all()
 
 	if method == "snapshot" then
-		return require("aero.companion.snapshot").build(epoch, worktrees(), sessions, describe, function(chat)
+		return require("aero.companion.snapshot").build(epoch, worktrees(), sessions, function(s, boards)
+			return describe(s, boards, params.summary == true)
+		end, function(chat)
 			return identity(chat, identities)
 		end)
+	end
+
+	if method == "session_snapshot" then
+		if params.epoch ~= epoch then
+			return nil, "stale host epoch"
+		end
+
+		for _, session in ipairs(sessions) do
+			if session.key == params.session then
+				local summary = describe(session, nil, true)
+
+				if summary.target ~= params.target or (summary.conversation or "") ~= (params.conversation or "") then
+					return nil, "stale session or conversation"
+				end
+
+				local detail = describe(session)
+				local activity = detail.activity
+				detail.activity = nil
+				local cursor = vim.fn.sha256(vim.json.encode(detail))
+				detail.activity = activity
+
+				if params.cursor == cursor then
+					return { cursor = cursor, unchanged = true }
+				end
+
+				return { cursor = cursor, session = detail }
+			end
+		end
+
+		return nil, "session unavailable"
 	end
 
 	if method == "reference_browse" or method == "submodule_browse" then

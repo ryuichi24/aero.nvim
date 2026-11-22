@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	maxRequest  = 128 * 1024
-	maxResponse = 16 * 1024 * 1024
+	maxRequest = 128 * 1024
+	// Saved transcripts can exceed 16 MiB even with a modest session library.
+	maxResponse = 64 * 1024 * 1024
 )
 
 type hostResponse struct {

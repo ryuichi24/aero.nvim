@@ -166,7 +166,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == "/api/reference_browse" || r.URL.Path == "/api/prompt_snippets" || r.URL.Path == "/api/submodule_browse" {
+	if r.URL.Path == "/api/reference_browse" || r.URL.Path == "/api/prompt_snippets" || r.URL.Path == "/api/submodule_browse" || r.URL.Path == "/api/session_snapshot" {
 		var input struct {
 			Epoch        string `json:"epoch"`
 			Target       string `json:"target"`
@@ -175,6 +175,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Session      string `json:"session"`
 			Conversation string `json:"conversation"`
 			Refresh      bool   `json:"refresh"`
+			Cursor       string `json:"cursor,omitempty"`
 		}
 		if !decodeBody(w, r, &input) {
 			return
@@ -186,6 +187,8 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method = "prompt_snippets"
 		} else if r.URL.Path == "/api/submodule_browse" {
 			method = "submodule_browse"
+		} else if r.URL.Path == "/api/session_snapshot" {
+			method = "session_snapshot"
 		}
 
 		b.forwardHostRead(w, r, method, input)

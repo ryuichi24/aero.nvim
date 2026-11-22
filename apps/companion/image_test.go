@@ -54,3 +54,46 @@ func TestScreenshotImages(t *testing.T) {
 	check("../shot.png", 403)
 	check("escape.png", 404)
 }
+
+func TestLazyScreenshot(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+
+	image := filepath.Join(outside, "shot.png")
+	if err := os.WriteFile(image, []byte("\x89PNG\r\n\x1a\nfixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reads := 0
+	c := newClient(t, hostFunc(func(_ context.Context, method string, params any) (hostResponse, error) {
+		var value any
+
+		if method == "snapshot" {
+			value = map[string]any{"epoch": "epoch", "sessions": []any{map[string]any{
+				"id": "saved", "worktree": root, "target": "target", "transcript_lazy": true,
+			}}}
+		} else if method == "session_snapshot" {
+			reads++
+
+			input := params.(map[string]string)
+			if input["session"] != "saved" || input["target"] != "target" || input["epoch"] != "epoch" {
+				t.Error("media read lost session scope")
+			}
+
+			value = map[string]any{"session": map[string]any{"blocks": []any{map[string]string{"text": "[Screenshot](" + image + ")"}}}}
+		} else {
+			t.Errorf("unexpected host method %s", method)
+		}
+
+		data, err := json.Marshal(value)
+
+		return hostResponse{Result: data}, err
+	}))
+	c.pair()
+
+	response := c.request("GET", "/api/image?"+url.Values{"session": {"saved"}, "path": {image}}.Encode(), nil, "")
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 || reads != 1 {
+		t.Fatalf("lazy media status=%d, transcript reads=%d", response.StatusCode, reads)
+	}
+}

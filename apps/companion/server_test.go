@@ -290,6 +290,17 @@ func firstSession(snapshot map[string]any) map[string]any {
 	return snapshot["sessions"].([]any)[0].(map[string]any)
 }
 
+func (c *testClient) sessionSnapshot(snapshot map[string]any) map[string]any {
+	c.t.Helper()
+
+	session := firstSession(snapshot)
+
+	return c.json("POST", "/api/session_snapshot", map[string]any{
+		"epoch": snapshot["epoch"], "session": session["id"],
+		"target": session["target"], "conversation": session["conversation"],
+	}, 200)["session"].(map[string]any)
+}
+
 func action(session map[string]any, text string) map[string]any {
 	return map[string]any{
 		"operation_id": randomToken(24), "session": session["id"],
@@ -456,7 +467,7 @@ func TestStreamReconnectPromptRetryPermissionAndCancel(t *testing.T) {
 		}
 	}
 
-	encoded, _ := json.Marshal(final)
+	encoded, _ := json.Marshal(c.sessionSnapshot(final))
 	if !bytes.Contains(encoded, []byte("Permission answered: allow")) || !bytes.Contains(encoded, []byte("Streamed response: queued followup")) {
 		t.Fatal("permission choice or queued prompt did not reach the agent")
 	}
@@ -528,7 +539,7 @@ func TestLostReplyRetryAfterBridgeRestart(t *testing.T) {
 
 	copies := 0
 
-	for _, raw := range firstSession(snapshot)["blocks"].([]any) {
+	for _, raw := range c2.sessionSnapshot(snapshot)["blocks"].([]any) {
 		block := raw.(map[string]any)
 		if block["kind"] == "user" && block["text"] == args["text"] {
 			copies++

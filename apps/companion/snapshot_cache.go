@@ -73,7 +73,7 @@ func (s *state) refresh(ctx context.Context) map[string]json.RawMessage {
 
 	snapshot := make(map[string]json.RawMessage)
 
-	response, err := s.host.Call(ctx, "snapshot", nil)
+	response, err := s.host.Call(ctx, "snapshot", map[string]bool{"summary": true})
 	if err == nil && response.Error == "" {
 		err = json.Unmarshal(response.Result, &snapshot)
 	}

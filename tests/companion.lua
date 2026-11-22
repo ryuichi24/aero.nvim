@@ -252,6 +252,26 @@ reported_usage.context.used = 0
 assert(s.chat.usage.context.used == 1200, "companion usage must be an independent snapshot")
 assert(metadata.commands[1].name == "compact")
 
+-- Overview polling must keep todo formats supported by the editor without
+-- serializing unrelated command output that happens to mention TODO.
+local original_blocks = s.chat.blocks
+s.chat.blocks = {
+	{
+		kind = "tool",
+		title = "Update checklist",
+		status = "completed",
+		rawInput = { todos = { { content = "Review lazy loading", status = "in_progress" } } },
+	},
+	{ kind = "tool", title = "Search TODO comments", status = "completed", rawOutput = string.rep("x", 1024 * 1024) },
+}
+local summary = bridge.dispatch("snapshot", { summary = true }).sessions[1]
+
+assert(summary.transcript_lazy and #summary.blocks == 1)
+assert(summary.blocks[1].kind == "plan" and summary.blocks[1].entries[1].content == "Review lazy loading")
+assert(not summary.blocks[1].rawInput and not summary.blocks[1].rawOutput, "overview leaked tool payloads")
+
+s.chat.blocks = original_blocks
+
 local binding = s.task_binding
 s.task_binding = { workspace = { root = s.worktree }, board_id = "fixture" }
 

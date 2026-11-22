@@ -190,24 +190,54 @@ result, err = action("session_update", { session = general.key, target = "stale"
 assert(not result and err == "stale session")
 
 -- Snapshot saved messages even if the transcript has never been opened locally.
-local saved = sessions.create(general.worktree, "fixture", "Saved general")
-require("aero.history").save(saved, function()
-	return { type = "acp", blocks = { { kind = "message", text = "Searchable saved answer" } } }
-end)
-require("aero.history").flush(saved)
-local found
+for _, worktree in ipairs({ general.worktree, root }) do
+	local saved = sessions.create(worktree, "fixture", "Saved history")
+	require("aero.history").save(saved, function()
+		return { type = "acp", blocks = { { kind = "message", text = "Searchable saved answer" } } }
+	end)
+	require("aero.history").flush(saved)
+	local found
 
-for _, item in ipairs(bridge.dispatch("snapshot").sessions) do
-	if item.id == saved.key then
-		found = item
+	for _, item in ipairs(bridge.dispatch("snapshot").sessions) do
+		if item.id == saved.key then
+			found = item
+		end
 	end
+
+	assert(found and found.blocks[1].text == "Searchable saved answer")
+	assert(not saved.chat, "viewing remote history must not start or restore an agent")
+	assert(not found.conversation, "saved history must not acquire a live conversation identity")
+
+	local summary
+
+	for _, item in ipairs(bridge.dispatch("snapshot", { summary = true }).sessions) do
+		if item.id == saved.key then
+			summary = item
+		end
+	end
+
+	assert(summary and summary.transcript_lazy and not summary.blocks, "summary loaded an unopened history")
+
+	local request = { epoch = epoch, session = saved.key, target = summary.target }
+	local detail, detail_err = bridge.dispatch("session_snapshot", request)
+
+	assert(detail and detail.session.blocks[1].text == "Searchable saved answer", detail_err)
+	assert(not saved.chat, "on-demand history started an agent")
+
+	request.cursor = detail.cursor
+	local cached = bridge.dispatch("session_snapshot", request)
+
+	assert(cached.unchanged and not cached.session, "unchanged history was retransmitted")
+
+	request.target = "stale"
+	local stale = bridge.dispatch("session_snapshot", request)
+
+	assert(not stale, "on-demand history accepted a stale session")
+
+	sessions.delete(saved)
 end
 
-assert(found and found.blocks[1].text == "Searchable saved answer")
-assert(not saved.chat, "viewing remote history must not start or restore an agent")
-
 sessions.delete(general)
-sessions.delete(saved)
 
 vim.fn.delete(dir, "rf")
 print("companion lifecycle: ok")

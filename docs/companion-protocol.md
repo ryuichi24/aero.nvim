@@ -101,6 +101,21 @@ Session blocks contain protocol/content fields. Typewriter/cache state is exclud
 live permission callbacks are never serialized. Persisted ACP history additionally
 marks unanswered permission blocks interrupted, without changing live blocks.
 
+The bridge requests `snapshot` with `{ "summary": true }`. Session summaries set
+`transcript_lazy: true`, omit saved histories, and include only the latest live
+todo checklist as a plan block for background notifications. Listing sessions does not read
+their saved transcript files.
+
+`POST /api/session_snapshot` is a read-only request with `epoch`, `session`,
+`target`, and optional `conversation` and `cursor`. It returns `{ "cursor": "…",
+"session": { … } }` for the requested session only, without starting an agent.
+A matching cursor returns `{ "cursor": "…", "unchanged": true }` instead of
+retransmitting the transcript. Stale host/session/conversation identities are
+rejected. The browser caches histories separately by these identities, expires
+unused entries after two minutes, and refreshes only an opened live session.
+History previews load on expansion. General conversation list search operates
+on summary names/agents; reading message text requires opening the history.
+
 `tests/fixtures/companion-snapshot.json` is the common example checked by the Lua
 projection, Go snapshot bridge, and TypeScript parser tests. Browser parsing checks
 required nested identity/list fields before handing a snapshot to screens.
@@ -109,7 +124,7 @@ required nested identity/list fields before handing a snapshot to screens.
 
 Each Go-to-Lua connection sends one newline-delimited
 `{ "method": "snapshot", "params": {} }` or allowlisted action. Responses contain
-`result` and/or `error`. Requests are bounded at 128 KiB and responses at 16 MiB.
+`result` and/or `error`. Requests are bounded at 128 KiB and responses at 64 MiB.
 Dispatch is scheduled onto Neovim's editor thread. This is neither arbitrary
 evaluation nor Neovim RPC.
 

@@ -2,7 +2,7 @@
 -- transcript data is projected explicitly rather than exposing editor caches.
 local M = {}
 
-function M.describe(session, boards, identity, identities, permissions, conversation_ids)
+function M.describe(session, boards, identity, identities, permissions, conversation_ids, summary)
 	local chat = session.chat
 	local general = session.worktree == require("aero.general").directory()
 	local definition = require("aero.store").find_session(session.worktree, session.name) or {}
@@ -17,9 +17,10 @@ function M.describe(session, boards, identity, identities, permissions, conversa
 		scope = general and "general" or "workspace",
 		pinned = general and definition.pinned == true or false,
 		archived = general and definition.archived == true or false,
+		transcript_lazy = summary == true or nil,
 	}
 
-	if not chat and general then
+	if not chat and not summary then
 		local saved = require("aero.history").load(session)
 
 		if saved and saved.type == "acp" then
@@ -39,7 +40,15 @@ function M.describe(session, boards, identity, identities, permissions, conversa
 		result.conversation = identity(chat, identities)
 		result.acp_session_id = chat.session_id or chat.saved_session_id
 		result.activity = chat:activity()
-		result.blocks = require("aero.acp.projection").blocks(chat.blocks, false)
+		local blocks = chat.blocks
+
+		if summary then
+			-- Keep background todo notifications without projecting chat histories.
+			local todos = require("aero.acp.todos").latest(chat)
+			blocks = todos and { { kind = "plan", entries = todos } } or {}
+		end
+
+		result.blocks = require("aero.acp.projection").blocks(blocks, false)
 		result.queue, result.usage = vim.deepcopy(chat.queue), vim.deepcopy(chat.usage)
 		result.commands = vim.deepcopy(chat.commands or {})
 		result.models, result.modes = require("aero.acp.models").options(chat), require("aero.acp.modes").options(chat)
