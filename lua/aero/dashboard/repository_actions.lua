@@ -29,13 +29,14 @@ function M.add_workspace(path, changed)
 
 		notify((added and "added " or "already added ") .. vim.fn.fnamemodify(root, ":~"))
 		changed()
+		return true
 	end
 
 	if path then
 		return add(path)
 	end
 
-	vim.ui.input({ prompt = "Add workspace (git repo): ", default = vim.fn.getcwd(), completion = "dir" }, add)
+	return require("aero.workspace_finder").open(add)
 end
 
 function M.add_worktree(ws, changed)

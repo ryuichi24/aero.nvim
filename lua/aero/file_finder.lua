@@ -2,6 +2,7 @@
 local api = vim.api
 local M = {}
 local active
+local namespace = api.nvim_create_namespace("aero_file_finder")
 
 local function warn(err)
 	vim.notify("Aero: " .. tostring(err), vim.log.levels.WARN)
@@ -10,7 +11,10 @@ end
 -- transfer(items) returns true on success, or nil, error to keep the finder open.
 -- Items contain path/action (copy or cut); callbacks may mark items done for retries.
 function M.open(options)
-	assert(type(options.transfer) == "function", "file finder requires a transfer callback")
+	assert(
+		type(options.transfer) == "function" or type(options.select) == "function",
+		"file finder requires a callback"
+	)
 	local target_key = assert(options.target_key, "file finder requires a target key")
 
 	if active then
@@ -80,7 +84,8 @@ function M.open(options)
 		border = "rounded",
 		title = " " .. (options.stack_title or "Staged files") .. " → " .. target_label .. " ",
 		focusable = false,
-		footer = " :w to stage · q to finish · target: " .. target_path .. " ",
+		footer = options.select and " y: stage · u: unstage · :w: rename · q: finish · n: new Git folder "
+			or " :w to stage · q to finish · target: " .. target_path .. " ",
 	})
 	active = f
 	vim.wo[f.win].cursorline = true
@@ -101,7 +106,9 @@ function M.open(options)
 		end
 
 		if #lines == 0 then
-			lines = { "  No staged items. y: copy · d: cut · u: unmark · Enter/l: enter · -/h: parent" }
+			lines = options.select
+					and { "  Yank Git folders with y, then q to add staged workspaces. Enter/l: enter · -/h: parent" }
+				or { "  No staged items. y: copy · d: cut · u: unmark · Enter/l: enter · -/h: parent" }
 		end
 
 		set_lines(f.stack, lines)
@@ -123,7 +130,15 @@ function M.open(options)
 				break
 			end
 
-			table.insert(f.entries, { name = name, path = vim.fs.joinpath(f.directory, name), kind = kind })
+			local path = vim.fs.joinpath(f.directory, name)
+
+			if kind == "link" and vim.fn.isdirectory(path) == 1 then
+				kind = "directory"
+			end
+
+			if not options.select or kind == "directory" then
+				table.insert(f.entries, { name = name, path = path, kind = kind })
+			end
 		end
 		table.sort(f.entries, function(a, b)
 			if (a.kind == "directory") ~= (b.kind == "directory") then
@@ -145,13 +160,92 @@ function M.open(options)
 		end
 
 		set_lines(f.buf, lines)
-		vim.bo[f.buf].modified = next(f.pending) ~= nil
+		f.rendered = lines
+		vim.bo[f.buf].modifiable = options.rename ~= nil
+		api.nvim_buf_clear_namespace(f.buf, namespace, 0, -1)
+
+		if options.highlight then
+			for row, item in ipairs(f.entries) do
+				local group = options.highlight(item.path)
+
+				if group then
+					api.nvim_buf_set_extmark(f.buf, namespace, row - 1, 2, {
+						end_col = #lines[row],
+						hl_group = group,
+					})
+				end
+			end
+		end
+
+		vim.bo[f.buf].modified = next(f.pending) ~= nil or (options.select ~= nil and #f.staged > 0)
 		api.nvim_win_set_config(f.win, {
 			title = finder_title .. "· browsing: " .. f.directory:gsub("[%c]", " ") .. " ",
 		})
 	end
 
+	local function edited()
+		return options.rename and not vim.deep_equal(api.nvim_buf_get_lines(f.buf, 0, -1, false), f.rendered)
+	end
+
+	local function require_saved()
+		if edited() then
+			warn("write folder name changes with :w before continuing")
+			return false
+		end
+
+		return true
+	end
+
 	local function save()
+		if options.rename and edited() then
+			local lines = api.nvim_buf_get_lines(f.buf, 0, -1, false)
+
+			if #lines ~= #f.rendered then
+				return warn("rename folders in place; do not add or remove lines")
+			end
+
+			local changes, targets = {}, {}
+
+			for row, line in ipairs(lines) do
+				local item = f.entries[row]
+				local name = line:match("^  (.-)/$")
+
+				if not name or name == "" or name == "." or name == ".." or name:find("[/\\%c]") then
+					return warn("each line must contain a single folder name with its original prefix and trailing /")
+				end
+
+				local path = vim.fs.joinpath(f.directory, name)
+
+				if targets[path] or (path ~= item.path and vim.uv.fs_lstat(path)) then
+					return warn("folder already exists: " .. path)
+				end
+
+				targets[path] = true
+
+				if line ~= f.rendered[row] then
+					table.insert(changes, { item = item, path = path, row = row, name = name })
+				end
+			end
+
+			for _, change in ipairs(changes) do
+				local old = change.item.path
+				local ok, err = options.rename(old, change.path)
+
+				if not ok then
+					return warn(err)
+				end
+
+				for _, staged in ipairs(f.staged) do
+					if staged.path == old or vim.startswith(staged.path, old .. "/") then
+						staged.path = change.path .. staged.path:sub(#old + 1)
+					end
+				end
+
+				change.item.path, change.item.name = change.path, change.name
+				f.rendered[change.row] = lines[change.row]
+			end
+		end
+
 		for path, action in pairs(f.pending) do
 			local found
 
@@ -182,10 +276,30 @@ function M.open(options)
 			return
 		end
 
+		if not external and not require_saved() then
+			return
+		end
+
+		if options.select and not external then
+			f.staged = vim.tbl_filter(function(item)
+				return not options.select(item.path)
+			end, f.staged)
+			stack()
+			render()
+
+			if #f.staged > 0 then
+				return
+			end
+		end
+
 		local remaining = vim.tbl_filter(function(item)
 			return not item.done
 		end, f.staged)
-		local ok, result, err = pcall(options.transfer, remaining)
+		local ok, result, err = true, true, nil
+
+		if options.transfer then
+			ok, result, err = pcall(options.transfer, remaining)
+		end
 
 		if not ok or not result then
 			warn(ok and err or result)
@@ -230,6 +344,10 @@ function M.open(options)
 	end
 
 	local function mark(action)
+		if not require_saved() then
+			return
+		end
+
 		local first, last = api.nvim_win_get_cursor(f.win)[1], api.nvim_win_get_cursor(f.win)[1]
 
 		if vim.fn.mode():match("[vV]") then
@@ -256,18 +374,66 @@ function M.open(options)
 			end
 		end
 
+		if options.select then
+			for path, pending_action in pairs(f.pending) do
+				local found = false
+
+				for _, item in ipairs(f.staged) do
+					found = found or item.path == path
+				end
+
+				if not found then
+					table.insert(f.staged, { path = path, action = pending_action })
+				end
+			end
+
+			f.pending = {}
+		end
+
 		stack()
 		render()
+
+		if options.select then
+			vim.bo[f.buf].modified = #f.staged > 0
+		end
 	end
 
-	for key, action in pairs({ y = "copy", d = "cut", u = false }) do
+	for key, action in pairs(options.select and { y = "copy", u = false } or { y = "copy", d = "cut", u = false }) do
 		vim.keymap.set({ "n", "x" }, key, function()
 			mark(action or nil)
 		end, { buffer = f.buf, nowait = true })
 	end
 
+	if options.select then
+		vim.keymap.set("n", "n", function()
+			if not require_saved() then
+				return
+			end
+
+			local directory = f.directory
+			vim.ui.input({ prompt = "New Git folder: " }, function(name)
+				if active ~= f or not name or name == "" then
+					return
+				end
+
+				local path, err = options.create(directory, name)
+
+				if not path then
+					return warn(err)
+				end
+
+				f.directory = path
+				render()
+			end)
+		end, { buffer = f.buf, desc = "Create Git folder" })
+	end
+
 	for _, key in ipairs({ "<CR>", "l" }) do
 		vim.keymap.set("n", key, function()
+			if not require_saved() then
+				return
+			end
+
 			local item = f.entries[api.nvim_win_get_cursor(f.win)[1]]
 
 			if item and vim.fn.isdirectory(item.path) == 1 then
@@ -279,6 +445,10 @@ function M.open(options)
 
 	for _, key in ipairs({ "-", "h" }) do
 		vim.keymap.set("n", key, function()
+			if not require_saved() then
+				return
+			end
+
 			local child = f.directory
 			f.directory = vim.fs.dirname(child) or child
 			render()
