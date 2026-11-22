@@ -81,7 +81,7 @@ tasks.list = original_list
 assert(list_calls == 1, "snapshot reread task boards to describe session assignments")
 assert(assignment.board_id == board.metadata.id and assignment.board_title == "Brainstorm" and not assignment.ticket_id)
 assert(store.find_session(root, s.name).task_assignment.board_id == board.metadata.id)
-assert(require("aero.tasks.status").label(s):find("none (board-only)", 1, true))
+assert(require("aero.tasks.status").label(s) == nil)
 
 local original_prompt, sent = s.chat.prompt, nil
 s.chat.prompt = function(_, text)
