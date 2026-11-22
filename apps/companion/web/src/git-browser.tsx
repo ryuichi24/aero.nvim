@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { Button } from './components/ui/button';
+import { NativeSelect } from './components/ui/native-select';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { Label } from './components/ui/label';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { post } from './api';
 import type { Snapshot } from './types';
 import { groupSessions, type WorktreeGroup } from './sessionGroups';
-import './git-browser.css';
 
 interface GitEntry {
   path: string;
@@ -63,16 +66,16 @@ function ChangeTree({
   path?: string;
 }) {
   return (
-    <ul className="source-entries min-w-0 [&_ul]:ml-2">
+    <ul className="source-entries">
       {[...folder.folders]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([name, child]) => {
           const childPath = path ? `${path}/${name}` : name;
           return (
             <li key={`folder:${name}`}>
-              <details open>
-                <summary
-                  className="min-h-11 cursor-pointer rounded-lg px-2 py-2.5 text-sm wrap-anywhere text-slate-200 focus-visible:outline-2 focus-visible:outline-sky-300"
+              <Collapsible open className="m-0 rounded-none border-0 bg-transparent p-0">
+                <CollapsibleTrigger
+                  className="min-h-11 cursor-pointer rounded-md px-2 py-2.5 text-sm wrap-anywhere text-slate-200 hover:bg-accent focus-visible:outline-2 focus-visible:outline-sky-300"
                   title={childPath}
                 >
                   <span className="font-semibold">{name}/</span>{' '}
@@ -82,7 +85,7 @@ function ChangeTree({
                   >
                     ({child.count})
                   </span>
-                </summary>
+                </CollapsibleTrigger>
                 <ChangeTree
                   folder={child}
                   staged={staged}
@@ -90,7 +93,7 @@ function ChangeTree({
                   onSelect={onSelect}
                   path={childPath}
                 />
-              </details>
+              </Collapsible>
             </li>
           );
         })}
@@ -98,23 +101,26 @@ function ChangeTree({
         .sort((a, b) => a.path.localeCompare(b.path))
         .map((entry) => (
           <li key={`file:${entry.path}`}>
-            <button
-              className="min-h-11 wrap-anywhere"
+            <Button
+              variant="ghost"
+              className="h-auto min-w-0 items-start justify-start whitespace-normal px-2 leading-snug"
               title={entry.original_path ? `${entry.original_path} → ${entry.path}` : entry.path}
               aria-current={selectedPath === entry.path ? 'true' : undefined}
               onClick={() => onSelect(entry)}
             >
               <code
-                className={`font-semibold ${statusColors[staged ? entry.index : entry.worktree] || 'text-slate-400'}`}
+                className={`w-3 shrink-0 font-semibold ${statusColors[staged ? entry.index : entry.worktree] || 'text-slate-400'}`}
               >
                 {staged ? entry.index : entry.worktree}
               </code>{' '}
-              <span className="font-semibold">{entry.path.split('/').at(-1)}</span>
-              {entry.original_path && (
-                <span className="text-xs text-slate-400"> ← {entry.original_path}</span>
-              )}
-              {entry.index === '?' ? ' (untracked)' : ''}
-            </button>
+              <span className="min-w-0 wrap-anywhere">
+                <span className="font-semibold">{entry.path.split('/').at(-1)}</span>
+                {entry.original_path && (
+                  <span className="block text-xs text-slate-400">← {entry.original_path}</span>
+                )}
+                {entry.index === '?' ? ' (untracked)' : ''}
+              </span>
+            </Button>
           </li>
         ))}
     </ul>
@@ -140,9 +146,14 @@ function GitWorktree({
   });
   const entries = status.data?.entries;
   return (
-    <button className="git-worktree" aria-pressed={active} onClick={onSelect}>
+    <Button
+      variant="outline"
+      className="git-worktree min-w-0 flex-col items-start gap-1 whitespace-normal text-left"
+      aria-pressed={active}
+      onClick={onSelect}
+    >
       <strong>{tree.label}</strong>
-      <span className="git-worktree-path">{tree.path}</span>
+      <span className="wrap-anywhere text-xs opacity-70">{tree.path}</span>
       <span>
         {status.error
           ? 'Status unavailable'
@@ -154,7 +165,7 @@ function GitWorktree({
                 ? 'Working tree clean'
                 : `${entries.filter((entry) => ![' ', '?'].includes(entry.index)).length} staged · ${entries.filter((entry) => entry.worktree !== ' ').length} unstaged`}
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -209,9 +220,9 @@ export function GitBrowser({
     <section aria-label="Git browser">
       <h2>Git changes</h2>
       {!contextControlled && (
-        <label>
+        <Label>
           Workspace
-          <select
+          <NativeSelect
             value={workspace?.key || ''}
             onChange={(event) => {
               setChosenWorkspace(event.target.value);
@@ -225,11 +236,14 @@ export function GitBrowser({
                 {group.root ? ` · ${group.root}` : ''}
               </option>
             ))}
-          </select>
-        </label>
+          </NativeSelect>
+        </Label>
       )}
       {!contextControlled && workspace && (
-        <nav className="git-worktrees" aria-label={`${workspace.name} worktrees`}>
+        <nav
+          className="my-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-2"
+          aria-label={`${workspace.name} worktrees`}
+        >
           {trees.map((tree) => (
             <GitWorktree
               key={tree.path}
@@ -246,14 +260,15 @@ export function GitBrowser({
       )}
       {!worktree && <p>No worktrees available.</p>}
       {!snapshot?.connected && <p role="status">Connect to Neovim to browse Git changes.</p>}
-      <button
+      <Button
+        variant="outline"
         disabled={!online || status.isFetching || diff.isFetching}
         onClick={() => {
           for (const tree of trees) void client.invalidateQueries({ queryKey: ['git', tree.path] });
         }}
       >
         Refresh
-      </button>
+      </Button>
       {worktree && (
         <h3>
           {workspace?.name} / {trees.find((tree) => tree.path === worktree)?.label}
@@ -265,9 +280,13 @@ export function GitBrowser({
         <>
           {status.data.entries.length === 0 && <p role="status">Working tree clean.</p>}
           {selected && readerOpen && (
-            <button className="mobile-reader-back" onClick={() => setReaderOpen(false)}>
+            <Button
+              variant="outline"
+              className="mobile-reader-back"
+              onClick={() => setReaderOpen(false)}
+            >
               ← Changed files
-            </button>
+            </Button>
           )}
           <div className="source-layout" data-reading={!!selected && readerOpen}>
             <nav className="source-tree" aria-label="Changed files">
@@ -310,12 +329,15 @@ export function GitBrowser({
               {diff.error && <p role="alert">{diff.error.message}</p>}
               {diff.data &&
                 (diff.data.content ? (
-                  <pre className="git-diff" aria-label="File diff">
+                  <pre
+                    className="max-w-full overflow-x-auto whitespace-pre rounded-xl bg-canvas p-3 text-[0.8rem] leading-relaxed text-slate-200"
+                    aria-label="File diff"
+                  >
                     <code>
                       {diff.data.content.split('\n').map((line, index) => (
                         <span
                           key={index}
-                          className={`block min-h-[1em] ${line.startsWith('+') ? 'bg-green-900/30' : line.startsWith('-') ? 'bg-red-900/30' : ''} ${line.startsWith('@@') ? 'text-sky-300' : ''}`}
+                          className={`block w-max min-w-full min-h-[1em] ${line.startsWith('+') ? 'bg-green-900/30' : line.startsWith('-') ? 'bg-red-900/30' : ''} ${line.startsWith('@@') ? 'text-sky-300' : ''}`}
                         >
                           {line}
                         </span>

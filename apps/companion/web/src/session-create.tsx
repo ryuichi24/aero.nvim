@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { NativeSelect } from './components/ui/native-select';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { Label } from './components/ui/label';
 import { LifecycleForm } from './lifecycle-controls';
 import type { LifecycleAction } from './lifecycle-controls';
 import type { Snapshot } from './types';
@@ -25,18 +28,18 @@ export function SessionCreate({
   const workspace =
     tree?.workspace || snapshot?.workspaces.find((item) => tree?.path === item.root)?.root;
   return (
-    <details ref={details} className="session-create">
-      <summary>New session</summary>
-      <label>
+    <Collapsible ref={details} className="session-create">
+      <CollapsibleTrigger>New session</CollapsibleTrigger>
+      <Label>
         Session worktree
-        <select value={tree?.path || ''} onChange={(event) => setChosen(event.target.value)}>
+        <NativeSelect value={tree?.path || ''} onChange={(event) => setChosen(event.target.value)}>
           {trees.map((item) => (
             <option key={item.path} value={item.path}>
               {worktreeLabel(item)} · {item.workspace || item.path}
             </option>
           ))}
-        </select>
-      </label>
+        </NativeSelect>
+      </Label>
       {tree && workspace ? (
         <LifecycleForm
           key={tree.path}
@@ -52,6 +55,6 @@ export function SessionCreate({
       ) : (
         <p>No worktrees available. Use the grouped workspace view to create a worktree.</p>
       )}
-    </details>
+    </Collapsible>
   );
 }

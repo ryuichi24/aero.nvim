@@ -1,4 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Textarea } from './components/ui/textarea';
+import { Label } from './components/ui/label';
 import { useState } from 'react';
 import { post } from './api';
 import type { Session } from './types';
@@ -53,9 +57,14 @@ export function PromptCommand({
       {query.error && (
         <p role="alert">
           {query.error.message}{' '}
-          <button type="button" disabled={!online} onClick={() => void query.refetch()}>
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!online}
+            onClick={() => void query.refetch()}
+          >
             Retry
-          </button>
+          </Button>
         </p>
       )}
       {query.data?.errors.map((error) => (
@@ -63,10 +72,10 @@ export function PromptCommand({
           {error}
         </p>
       ))}
-      <label>
+      <Label>
         Search prompt snippets
-        <input value={search} onChange={(event) => setSearch(event.target.value)} />
-      </label>
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} />
+      </Label>
       {query.data?.items
         .filter((item) =>
           search
@@ -77,7 +86,9 @@ export function PromptCommand({
             ),
         )
         .map((item) => (
-          <button
+          <Button
+            variant="outline"
+            className="whitespace-normal text-left"
             type="button"
             key={item.key}
             disabled={!online || !!query.error}
@@ -88,7 +99,7 @@ export function PromptCommand({
             }}
           >
             {item.name} [{item.scope}]{item.description ? ` — ${item.description}` : ''}
-          </button>
+          </Button>
         ))}
       {query.data?.items.length === 0 && (
         <p>No prompt snippets yet. Create one with :Aero snippet in Neovim.</p>
@@ -96,16 +107,16 @@ export function PromptCommand({
       {selected && (
         <>
           {inputs.map((name) => (
-            <label key={name}>
+            <Label key={name}>
               {name}
-              <textarea
+              <Textarea
                 rows={4}
                 value={Object.hasOwn(values, name) ? values[name] : ''}
                 onChange={(event) =>
                   setValues((current) => ({ ...current, [name]: event.target.value }))
                 }
               />
-            </label>
+            </Label>
           ))}
           <pre
             aria-label="Prompt preview"
@@ -113,7 +124,7 @@ export function PromptCommand({
           >
             {render(selected.prompt, previewValues)}
           </pre>
-          <button
+          <Button
             type="button"
             disabled={!online || !!query.error || query.isFetching}
             onClick={() =>
@@ -127,8 +138,9 @@ export function PromptCommand({
             }
           >
             Insert prompt
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
             type="button"
             onClick={() => {
               setSelected(null);
@@ -136,7 +148,7 @@ export function PromptCommand({
             }}
           >
             Cancel selection
-          </button>
+          </Button>
         </>
       )}
     </section>

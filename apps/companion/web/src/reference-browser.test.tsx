@@ -68,7 +68,6 @@ function mockFiles(allowCut = true, roots: string[] = []) {
 it('expands folders inline, previews files, renames just the stem and confirms deletion', async () => {
   mockFiles();
   const action = vi.fn(async () => true);
-  vi.spyOn(window, 'confirm').mockReturnValue(false);
   mount(<ReferenceBrowser snapshot={snapshot} worktree="/repo" onAction={action} />);
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: '▸ refs/' }));
@@ -92,8 +91,9 @@ it('expands folders inline, previews files, renames just the stem and confirms d
   await user.click(screen.getByRole('button', { name: '▾ refs/' }));
   await user.click(screen.getByRole('button', { name: 'Delete reference item' }));
   expect(action).toHaveBeenCalledTimes(1);
-  vi.mocked(window.confirm).mockReturnValue(true);
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
   await user.click(screen.getByRole('button', { name: 'Delete reference item' }));
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
   expect(action).toHaveBeenLastCalledWith('reference_update', {
     target: 'tree',
     worktree: '/repo',

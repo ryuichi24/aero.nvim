@@ -1,4 +1,9 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Dialog } from './components/ui/dialog';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { StatusBadge } from './components/ui/status-badge';
 import { createPortal } from 'react-dom';
 import { Markdown } from './markdown';
 import { QuoteSelection } from './quote';
@@ -114,43 +119,41 @@ const Block = memo(function Block({ block }: { block: TranscriptBlock }) {
   useEffect(() => setExpanded(reveal), [reveal]);
   if (block.kind === 'tool')
     return (
-      <details
+      <Collapsible
         className="transcript-card tool-card"
         open={expanded}
         onToggle={(event) => {
           if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
         }}
       >
-        <summary>
+        <CollapsibleTrigger>
           <span className="message-label">
             <span aria-hidden="true">{toolIcons[block.status || 'pending'] || '•'} </span>
             {toolNames[block.tool_kind || ''] || 'Tool call'}
           </span>
           <span className="tool-title">{block.title || block.tool_kind || 'Tool call'}</span>
           {block.status && (
-            <span className={`status-badge status-${block.status}`}>
-              {readableStatus(block.status)}
-            </span>
+            <StatusBadge status={block.status}>{readableStatus(block.status)}</StatusBadge>
           )}
           <Timestamp block={block} />
-        </summary>
+        </CollapsibleTrigger>
         {expanded && <ToolContent block={block} />}
-      </details>
+      </Collapsible>
     );
   if (block.kind === 'thought')
     return (
-      <details
+      <Collapsible
         className="transcript-card thought-card"
         open={expanded}
         onToggle={(event) => {
           if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
         }}
       >
-        <summary>
+        <CollapsibleTrigger>
           Thinking <Timestamp block={block} />
-        </summary>
+        </CollapsibleTrigger>
         {expanded && <Markdown text={block.text || ''} />}
-      </details>
+      </Collapsible>
     );
   if (block.kind === 'plan')
     return (
@@ -219,7 +222,7 @@ const BlockContent = memo(function BlockContent({
   );
 });
 
-function ToolGroup({
+const ToolGroup = memo(function ToolGroup({
   blocks,
   worktree,
   reportsDirectory,
@@ -241,14 +244,14 @@ function ToolGroup({
     counts.set(kind, (counts.get(kind) || 0) + 1);
   }
   return (
-    <details
+    <Collapsible
       className="transcript-card tool-group"
       open={expanded}
       onToggle={(event) => {
         if (event.target === event.currentTarget) setExpanded(event.currentTarget.open);
       }}
     >
-      <summary>
+      <CollapsibleTrigger>
         <span className="tool-title">
           Tools · {blocks.length} {blocks.length === 1 ? 'call' : 'calls'}
         </span>
@@ -256,9 +259,9 @@ function ToolGroup({
           {' · '}
           {[...counts].map(([kind, count]) => `${count} ${kind}`).join(', ')}
         </span>
-        {running > 0 && <span className="status-badge status-in_progress">{running} running</span>}
-        {failed > 0 && <span className="status-badge status-failed">{failed} failed</span>}
-      </summary>
+        {running > 0 && <StatusBadge status="in_progress">{running} running</StatusBadge>}
+        {failed > 0 && <StatusBadge status="failed">{failed} failed</StatusBadge>}
+      </CollapsibleTrigger>
       <div className="tool-group-calls">
         {blocks.map((block, index) => (
           <BlockContent
@@ -270,9 +273,9 @@ function ToolGroup({
           />
         ))}
       </div>
-    </details>
+    </Collapsible>
   );
-}
+});
 
 export const Transcript = memo(
   function Transcript({
@@ -297,9 +300,14 @@ export const Transcript = memo(
     const [promptsVisible, setPromptsVisible] = useState(false);
     const [promptSearch, setPromptSearch] = useState('');
     const promptTargets = useRef(new Map<number, HTMLDivElement>());
-    const prompts = (session?.blocks || []).flatMap((block, index) =>
-      block.kind === 'user' ? [{ text: block.text || '', index }] : [],
+    const prompts = useMemo(
+      () =>
+        (session?.blocks || []).flatMap((block, index) =>
+          block.kind === 'user' ? [{ text: block.text || '', index }] : [],
+        ),
+      [session?.blocks],
     );
+    const entries = useMemo(() => transcriptEntries(session?.blocks || []), [session?.blocks]);
     const [container] = useState(() => {
       const node = document.createElement('div');
       node.className = 'transcript-content';
@@ -331,16 +339,8 @@ export const Transcript = memo(
         return;
       }
       wasFullscreen.current = true;
-      const modal = dialog.current!;
-      const overflow = document.body.style.overflow;
-      modal.showModal();
-      document.body.style.overflow = 'hidden';
       follow.current = true;
       if (element.current) element.current.scrollTop = element.current.scrollHeight;
-      return () => {
-        modal.close();
-        document.body.style.overflow = overflow;
-      };
     }, [container, fullscreen]);
     useLayoutEffect(() => {
       if (!active) setFullscreen(false);
@@ -353,7 +353,10 @@ export const Transcript = memo(
       <FileContext.Provider value={{ worktree: session?.worktree || '', online }}>
         <ImageSession.Provider value={session?.id || ''}>
           <div ref={inline} className="transcript-inline" />
-          <dialog
+          <Dialog
+            open={fullscreen}
+            onOpenChange={setFullscreen}
+            onRestoreFocus={() => button.current?.focus()}
             ref={dialog}
             className="transcript-fullscreen"
             aria-label="Fullscreen agent logs"
@@ -363,14 +366,17 @@ export const Transcript = memo(
             <header className="transcript-toolbar">
               <strong>{session?.name || 'Agent'} · Logs</strong>
               {fullscreen && <FullscreenAttention />}
-              <button onClick={() => setFullscreen(false)}>Exit fullscreen</button>
+              <Button variant="outline" onClick={() => setFullscreen(false)}>
+                Exit fullscreen
+              </Button>
             </header>
-          </dialog>
+          </Dialog>
           {createPortal(
             <>
               <div className="transcript-controls">
                 <strong className="sr-only">Agent logs</strong>
-                <button
+                <Button
+                  variant="outline"
                   aria-controls="transcript"
                   onClick={() => {
                     follow.current = true;
@@ -379,30 +385,33 @@ export const Transcript = memo(
                   }}
                 >
                   Scroll to end
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="outline"
                   aria-expanded={promptsVisible}
                   aria-controls="transcript-prompts"
                   onClick={() => setPromptsVisible((value) => !value)}
                 >
                   Prompts ({prompts.length})
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="outline"
                   hidden={fullscreen}
                   ref={button}
                   aria-label="Fullscreen logs"
                   onClick={() => setFullscreen(true)}
                 >
                   Fullscreen
-                </button>
+                </Button>
                 {composer && (
-                  <button
+                  <Button
+                    variant="outline"
                     aria-expanded={inputVisible}
                     aria-controls="log-composer"
                     onClick={() => setInputVisible((value) => !value)}
                   >
                     {inputVisible ? 'Hide input' : 'Show input'}
-                  </button>
+                  </Button>
                 )}
               </div>
               {session?.activity && (
@@ -411,7 +420,7 @@ export const Transcript = memo(
                   role="status"
                   aria-label="Current agent action"
                 >
-                  <span className="status-badge status-in_progress">Working</span>
+                  <StatusBadge status="in_progress">Working</StatusBadge>
                   <span>{session.activity}</span>
                 </div>
               )}
@@ -421,7 +430,7 @@ export const Transcript = memo(
                   className="transcript-prompts"
                   aria-label="Prompt history"
                 >
-                  <input
+                  <Input
                     aria-label="Search prompts"
                     placeholder="Search prompts…"
                     value={promptSearch}
@@ -431,7 +440,9 @@ export const Transcript = memo(
                     {prompts.map((prompt, number) =>
                       prompt.text.toLowerCase().includes(promptSearch.toLowerCase()) ? (
                         <li key={prompt.index}>
-                          <button
+                          <Button
+                            variant="ghost"
+                            className="whitespace-normal text-left"
                             onClick={() => {
                               const target = promptTargets.current.get(prompt.index);
                               if (!target || !element.current) return;
@@ -445,7 +456,7 @@ export const Transcript = memo(
                           >
                             {number + 1}.{' '}
                             {prompt.text.replace(/\s+/g, ' ').trim() || '(Empty prompt)'}
-                          </button>
+                          </Button>
                         </li>
                       ) : null,
                     )}
@@ -485,7 +496,7 @@ export const Transcript = memo(
                       No logs yet. Send a prompt to start the conversation.
                     </p>
                   )}
-                  {transcriptEntries(session?.blocks || []).map(({ blocks, index }) => {
+                  {entries.map(({ blocks, index }) => {
                     const block = blocks[0];
                     return (
                       <div

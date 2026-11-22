@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { Button } from './components/ui/button';
+import { Dialog } from './components/ui/dialog';
 import { FullscreenAttention } from './fullscreen-attention';
 
 export const ImageSession = createContext('');
@@ -40,16 +41,12 @@ export function ImageLink({
   const [failed, setFailed] = useState(false);
   const trigger = useRef<HTMLAnchorElement>(null);
   const close = useRef<HTMLButtonElement>(null);
-  const dialog = useRef<HTMLElement>(null);
   const label = media === 'video' ? 'Recording' : 'Screenshot';
   useEffect(() => {
     if (!open) return;
     const origin = trigger.current;
     close.current?.focus();
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = overflow;
       origin?.focus();
     };
   }, [open]);
@@ -67,69 +64,45 @@ export function ImageLink({
       >
         {children}
       </a>
-      {open &&
-        createPortal(
-          <div
-            className="image-preview-backdrop"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) setOpen(false);
-            }}
-          >
-            <section
-              className="image-preview"
-              ref={dialog}
-              role="dialog"
-              aria-modal="true"
-              aria-label={`${label} preview`}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') setOpen(false);
-                if (event.key === 'Tab') {
-                  const targets = dialog.current?.querySelectorAll<HTMLElement>('button, video');
-                  const first = targets?.[0];
-                  const last = targets?.[targets.length - 1];
-                  if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last?.focus();
-                  } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first?.focus();
-                  }
-                }
-              }}
-            >
-              <header>
-                <h2>{label} preview</h2>
-                <FullscreenAttention />
-                <button ref={close} type="button" onClick={() => setOpen(false)}>
-                  Close
-                </button>
-              </header>
-              <div className="image-preview-content">
-                {failed ? (
-                  <p role="alert">
-                    Unable to load this{' '}
-                    {media === 'video'
-                      ? 'recording. The file may be unavailable or its video codec unsupported by this browser.'
-                      : 'screenshot. The file may no longer be available.'}
-                  </p>
-                ) : media === 'video' ? (
-                  <video
-                    src={href}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    tabIndex={0}
-                    aria-label="Session recording"
-                    onError={() => setFailed(true)}
-                  />
-                ) : (
-                  <img src={href} alt="Screenshot" onError={() => setFailed(true)} />
-                )}
-              </div>
-            </section>
-          </div>,
-          document.body,
-        )}
+      {open && (
+        <Dialog
+          open={open}
+          onOpenChange={setOpen}
+          onRestoreFocus={() => trigger.current?.focus()}
+          className="image-preview"
+          aria-label={`${label} preview`}
+        >
+          <header>
+            <h2>{label} preview</h2>
+            <FullscreenAttention />
+            <Button variant="outline" ref={close} type="button" onClick={() => setOpen(false)}>
+              Close
+            </Button>
+          </header>
+          <div className="image-preview-content">
+            {failed ? (
+              <p role="alert">
+                Unable to load this{' '}
+                {media === 'video'
+                  ? 'recording. The file may be unavailable or its video codec unsupported by this browser.'
+                  : 'screenshot. The file may no longer be available.'}
+              </p>
+            ) : media === 'video' ? (
+              <video
+                src={href}
+                controls
+                playsInline
+                preload="metadata"
+                tabIndex={0}
+                aria-label="Session recording"
+                onError={() => setFailed(true)}
+              />
+            ) : (
+              <img src={href} alt="Screenshot" onError={() => setFailed(true)} />
+            )}
+          </div>
+        </Dialog>
+      )}
     </>
   );
 }

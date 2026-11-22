@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Button } from './components/ui/button';
 
 const storageKey = 'aero-companion-ui-zoom';
 const minimum = 10;
@@ -49,7 +50,9 @@ export function UIZoom() {
 
   return (
     <div className="ui-zoom" role="group" aria-label="UI zoom">
-      <button
+      <Button
+        variant="outline"
+        size="icon"
         type="button"
         aria-label="Zoom out"
         title="Zoom out (Ctrl/Cmd −)"
@@ -57,16 +60,19 @@ export function UIZoom() {
         onClick={() => setZoom((value) => Math.max(minimum, value - step))}
       >
         −
-      </button>
-      <button
+      </Button>
+      <Button
+        variant="ghost"
         type="button"
         aria-label={`Reset UI zoom (${zoom}%)`}
         title="Reset zoom (Ctrl/Cmd 0)"
         onClick={() => setZoom(100)}
       >
         {zoom}%
-      </button>
-      <button
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
         type="button"
         aria-label="Zoom in"
         title="Zoom in (Ctrl/Cmd +)"
@@ -74,7 +80,7 @@ export function UIZoom() {
         onClick={() => setZoom((value) => Math.min(maximum, value + step))}
       >
         +
-      </button>
+      </Button>
     </div>
   );
 }

@@ -194,9 +194,6 @@ it.each([false, true])(
     ];
     const view = render(<Transcript session={{ ...session, blocks, queue: ['Unsent prompt'] }} />);
     if (fullscreen) {
-      const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
-      dialog.showModal = () => dialog.setAttribute('open', '');
-      dialog.close = () => dialog.removeAttribute('open');
       fireEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
     }
     const region = screen.getByRole('region', { name: 'Conversation transcript' });
@@ -236,9 +233,6 @@ it('keeps log state and live updates in fullscreen and restores focus on exit', 
   const { rerender } = render(
     <Transcript session={{ ...session, blocks: [{ kind: 'tool', title: 'Read file' }] }} />,
   );
-  const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
-  dialog.showModal = () => dialog.setAttribute('open', '');
-  dialog.close = () => dialog.removeAttribute('open');
   const transcript = screen.getByRole('region', { name: 'Conversation transcript' });
   Object.defineProperties(transcript, {
     scrollHeight: { configurable: true, value: 1000 },
@@ -250,10 +244,11 @@ it('keeps log state and live updates in fullscreen and restores focus on exit', 
   fireEvent.scroll(transcript);
   const button = screen.getByRole('button', { name: 'Fullscreen logs' });
   fireEvent.click(button);
+  const dialog = screen.getByRole('dialog', { name: 'Fullscreen agent logs' });
   expect(dialog.contains(transcript)).toBe(true);
   expect(tool.open).toBe(true);
   expect(transcript.scrollTop).toBe(1000);
-  expect(document.body.style.overflow).toBe('hidden');
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(true);
   Object.defineProperty(transcript, 'scrollHeight', { configurable: true, value: 1200 });
   rerender(
     <Transcript
@@ -269,14 +264,14 @@ it('keeps log state and live updates in fullscreen and restores focus on exit', 
   expect(dialog.textContent).toContain('Live update');
   expect(transcript.scrollTop).toBe(1200);
   fireEvent(dialog, new Event('cancel', { bubbles: true }));
-  expect(dialog.hasAttribute('open')).toBe(false);
+  expect(screen.queryByRole('dialog', { name: 'Fullscreen agent logs' })).toBeNull();
   expect(dialog.contains(transcript)).toBe(false);
   expect(tool.open).toBe(true);
   expect(document.body.style.overflow).toBe('');
   expect(document.activeElement).toBe(button);
   fireEvent.click(button);
   fireEvent.click(screen.getByRole('button', { name: 'Exit fullscreen' }));
-  expect(dialog.hasAttribute('open')).toBe(false);
+  expect(screen.queryByRole('dialog', { name: 'Fullscreen agent logs' })).toBeNull();
 });
 it('previews screenshots inside the app and restores focus when closed', () => {
   render(

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -65,10 +65,8 @@ it.each([false, true])(
     await user.click(await screen.findByRole('button', { name: 'Collapse lines 2–4' }));
     expect(screen.getByLabelText('main.ts').textContent).not.toContain('return 42');
     await user.click(screen.getByRole('button', { name: 'Collapse all' }));
-    const dialog = document.querySelector('dialog')!;
-    dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''));
-    dialog.close = vi.fn(() => dialog.removeAttribute('open'));
     await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
+    const dialog = screen.getByRole('dialog', { name: 'Fullscreen source reader' });
     await user.click(within(dialog).getByRole('button', { name: 'Expand lines 1–5' }));
     expect(within(dialog).getByRole('button', { name: 'Expand lines 2–4' })).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Expand all' }));
@@ -217,23 +215,21 @@ it('expands nested folders and keeps the tree while reading a file', async () =>
   await user.click(src);
   expect(tree.queryByRole('button', { name: 'main.ts' })).toBeNull();
   expect(screen.getByLabelText('src/nested/main.ts').textContent).toContain('const answer = 42;');
-  const dialog = document.querySelector('dialog')!;
   // jsdom does not implement the native dialog lifecycle.
-  dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''));
-  dialog.close = vi.fn(() => dialog.removeAttribute('open'));
   await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
+  const dialog = screen.getByRole('dialog', { name: 'Fullscreen source reader' });
   expect(screen.getByRole('dialog', { name: 'Fullscreen source reader' })).toBe(dialog);
   expect(within(dialog).getByLabelText('src/nested/main.ts').textContent).toContain(
     'const answer = 42;',
   );
-  expect(document.body.style.overflow).toBe('hidden');
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(true);
   await user.click(within(dialog).getByRole('button', { name: 'Exit fullscreen' }));
-  expect(dialog.open).toBe(false);
+  expect(screen.queryByRole('dialog', { name: 'Fullscreen source reader' })).toBeNull();
   expect(document.body.style.overflow).toBe('');
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Fullscreen' }));
   await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
-  fireEvent(dialog, new Event('cancel', { cancelable: true }));
-  expect(dialog.open).toBe(false);
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog', { name: 'Fullscreen source reader' })).toBeNull();
   expect(screen.getByLabelText('src/nested/main.ts').textContent).toContain('const answer = 42;');
   client.clear();
 });

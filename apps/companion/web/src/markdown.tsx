@@ -1,4 +1,13 @@
 import { memo, useContext, useState } from 'react';
+import { Checkbox } from './components/ui/checkbox';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from './components/ui/table';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
@@ -101,10 +110,14 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
             ) : (
               <span className="markdown-image">[Image: {alt || 'attachment'}]</span>
             ),
-          table: ({ children }) => (
-            <div className="markdown-table-scroll">
-              <table>{children}</table>
-            </div>
+          table: ({ children }) => <Table>{children}</Table>,
+          thead: ({ children }) => <TableHeader>{children}</TableHeader>,
+          tbody: ({ children }) => <TableBody>{children}</TableBody>,
+          tr: ({ children }) => <TableRow>{children}</TableRow>,
+          th: ({ children, style }) => <TableHead style={style}>{children}</TableHead>,
+          td: ({ children, style }) => <TableCell style={style}>{children}</TableCell>,
+          input: ({ checked }) => (
+            <Checkbox checked={checked} disabled className="mr-2 inline-flex align-middle" />
           ),
         }}
       >

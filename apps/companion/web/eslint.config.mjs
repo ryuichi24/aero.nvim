@@ -23,4 +23,19 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'error',
     },
   },
+  {
+    files: ['src/**/*.tsx'],
+    ignores: ['src/components/ui/**', 'src/**/*.test.tsx', 'src/test/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXOpeningElement[name.type="JSXIdentifier"][name.name=/^(button|input|select|textarea|label|details|summary|dialog|progress|table)$/]',
+          message:
+            'Use the shared shadcn UI component from components/ui instead of a native control.',
+        },
+      ],
+    },
+  },
 );

@@ -35,6 +35,7 @@ export interface TranscriptBlock {
 }
 
 export interface Session {
+  transcript_lazy?: boolean;
   in_scene?: boolean;
   scope?: 'general' | 'workspace';
   pinned?: boolean;

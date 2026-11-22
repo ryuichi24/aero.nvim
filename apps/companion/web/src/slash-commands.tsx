@@ -1,4 +1,5 @@
 import type { Session, Snapshot } from './types';
+import { Button } from './components/ui/button';
 import type { LifecycleAction } from './lifecycle-controls';
 import { BoardAssignment } from './task-assignment';
 
@@ -45,7 +46,9 @@ export function SlashCommands({
         <p>Choose a {kind}, then send the command.</p>
         {!options?.choices.length && <p>This agent does not expose {kind} selection over ACP.</p>}
         {options?.choices.map((choice) => (
-          <button
+          <Button
+            variant="outline"
+            className="whitespace-normal text-left"
             type="button"
             key={choice.id}
             disabled={disabled}
@@ -55,7 +58,7 @@ export function SlashCommands({
             {choice.group ? `${choice.group} / ` : ''}
             {choice.name} ({choice.id}){choice.id === options.current ? ' · current' : ''}
             {choice.description ? ` — ${choice.description}` : ''}
-          </button>
+          </Button>
         ))}
       </section>
     );
@@ -84,9 +87,14 @@ export function SlashCommands({
     return (
       <section aria-label="Export command">
         <p>Send to save the original Markdown log on the host.</p>
-        <button type="button" disabled={disabled} onClick={() => onChoose('/export readable')}>
+        <Button
+          variant="outline"
+          type="button"
+          disabled={disabled}
+          onClick={() => onChoose('/export readable')}
+        >
           Also create an AI-formatted copy
-        </button>
+        </Button>
         <p>An AI-formatted copy uses a separate agent conversation and tokens.</p>
       </section>
     );
@@ -102,14 +110,16 @@ export function SlashCommands({
   return (
     <section aria-label="Slash commands">
       {matches.map((command) => (
-        <button
+        <Button
+          variant="ghost"
+          className="whitespace-normal text-left"
           type="button"
           key={command.name}
           disabled={disabled}
           onClick={() => onChoose(`/${command.name}`)}
         >
           /{command.name} — {command.description}
-        </button>
+        </Button>
       ))}
     </section>
   );

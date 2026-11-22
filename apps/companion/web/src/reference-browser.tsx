@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { NativeSelect } from './components/ui/native-select';
+import { Label } from './components/ui/label';
+import { ConfirmDialog } from './components/ui/alert-dialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { operationID, post, RequestError } from './api';
 import { Markdown } from './markdown';
@@ -49,9 +54,14 @@ export function CancelReferenceTransfer({
   }
   return (
     <section aria-label="Reference transfer cancellation">
-      <button type="button" disabled={disabled || busy || requested} onClick={() => void cancel()}>
+      <Button
+        variant="outline"
+        type="button"
+        disabled={disabled || busy || requested}
+        onClick={() => void cancel()}
+      >
         Cancel reference transfer
-      </button>
+      </Button>
       {message && <p role="status">{message}</p>}
     </section>
   );
@@ -80,9 +90,9 @@ export function ReferenceItems({
       {query.error && (
         <li role="alert">
           {query.error.message}{' '}
-          <button disabled={!online} onClick={() => void query.refetch()}>
+          <Button variant="outline" disabled={!online} onClick={() => void query.refetch()}>
             Retry
-          </button>
+          </Button>
         </li>
       )}
       {query.data?.entries?.map((entry) => {
@@ -90,7 +100,8 @@ export function ReferenceItems({
         const open = !!expanded[relative];
         return (
           <li key={entry.name}>
-            <button
+            <Button
+              variant="ghost"
               type="button"
               disabled={!online}
               aria-expanded={entry.directory ? open : undefined}
@@ -102,7 +113,7 @@ export function ReferenceItems({
               {entry.directory ? (open ? '▾ ' : '▸ ') : '· '}
               {entry.name}
               {entry.directory ? '/' : ''}
-            </button>
+            </Button>
             {entry.directory && open && (
               <ReferenceItems
                 worktree={worktree}
@@ -209,9 +220,9 @@ function ReferenceFinder({
         <code>{query.data?.path || path || 'Configured home directory'}</code>
       </p>
       {!!query.data?.roots?.length && (
-        <label>
+        <Label>
           Allowed source root{' '}
-          <select
+          <NativeSelect
             value={
               query.data.roots.find(
                 (root) => query.data!.path === root || query.data!.path.startsWith(`${root}/`),
@@ -228,10 +239,11 @@ function ReferenceFinder({
                 {root}
               </option>
             ))}
-          </select>
-        </label>
+          </NativeSelect>
+        </Label>
       )}
-      <button
+      <Button
+        variant="outline"
         type="button"
         disabled={disabled || !query.data}
         onClick={() => {
@@ -240,14 +252,14 @@ function ReferenceFinder({
         }}
       >
         Parent folder
-      </button>
+      </Button>
       {query.isFetching && <p role="status">Loading host folder…</p>}
       {query.error && (
         <p role="alert">
           {query.error.message}{' '}
-          <button type="button" onClick={() => void query.refetch()}>
+          <Button variant="outline" type="button" onClick={() => void query.refetch()}>
             Retry
-          </button>
+          </Button>
         </p>
       )}
       <ul className="source-entries reference-finder-files" ref={list}>
@@ -265,7 +277,8 @@ function ReferenceFinder({
               }
             }}
           >
-            <button
+            <Button
+              variant="ghost"
               type="button"
               data-finder-path={entry.path}
               disabled={disabled}
@@ -278,8 +291,9 @@ function ReferenceFinder({
             >
               {entry.name}
               {entry.directory ? '/' : ''}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               type="button"
               disabled={disabled}
               aria-pressed={marks.some(
@@ -288,18 +302,24 @@ function ReferenceFinder({
               onClick={() => mark(entry.path, 'copy')}
             >
               Copy {entry.name}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               type="button"
               disabled={disabled || query.data?.allow_cut === false}
               aria-pressed={marks.some((item) => item.path === entry.path && item.action === 'cut')}
               onClick={() => mark(entry.path, 'cut')}
             >
               Cut {entry.name}
-            </button>
-            <button type="button" disabled={disabled} onClick={() => mark(entry.path)}>
+            </Button>
+            <Button
+              variant="ghost"
+              type="button"
+              disabled={disabled}
+              onClick={() => mark(entry.path)}
+            >
               Unmark {entry.name}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -316,22 +336,27 @@ function ReferenceFinder({
           {staged.map((item) => (
             <li key={item.path}>
               {item.action}: <code>{item.path}</code>{' '}
-              <button type="button" disabled={disabled} onClick={() => mark(item.path)}>
+              <Button
+                variant="ghost"
+                type="button"
+                disabled={disabled}
+                onClick={() => mark(item.path)}
+              >
                 Unstage
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
         {!staged.length && <p>No staged items.</p>}
-        <button type="button" disabled={disabled || !marks.length} onClick={save}>
+        <Button type="button" disabled={disabled || !marks.length} onClick={save}>
           Save selections
-        </button>
-        <button type="button" disabled={disabled} onClick={() => void finish()}>
+        </Button>
+        <Button variant="outline" type="button" disabled={disabled} onClick={() => void finish()}>
           Finish finder
-        </button>
-        <button type="button" disabled={disabled} onClick={onClose}>
+        </Button>
+        <Button variant="outline" type="button" disabled={disabled} onClick={onClose}>
           Discard finder
-        </button>
+        </Button>
       </aside>
     </section>
   );
@@ -352,6 +377,7 @@ export function ReferenceBrowser({
   const [finder, setFinder] = useState(false);
   const [selected, setSelected] = useState<{ path: string; directory: boolean }>();
   const [rename, setRename] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const client = useQueryClient();
   const blocked = disabled || !snapshot.connected || !tree?.target || !snapshot.epoch || !onAction;
   const file = useQuery({
@@ -383,16 +409,17 @@ export function ReferenceBrowser({
       <p>
         Storage: <code>{tree.reference_directory}</code>
       </p>
-      <button type="button" disabled={blocked || finder} onClick={() => setFinder(true)}>
+      <Button type="button" disabled={blocked || finder} onClick={() => setFinder(true)}>
         Add reference
-      </button>
-      <button
+      </Button>
+      <Button
+        variant="outline"
         type="button"
         disabled={!snapshot.connected}
         onClick={() => void client.invalidateQueries({ queryKey: ['reference', worktree] })}
       >
         Refresh references
-      </button>
+      </Button>
       {finder && onAction && (
         <ReferenceFinder
           tree={tree}
@@ -422,9 +449,9 @@ export function ReferenceBrowser({
               void update('rename');
             }}
           >
-            <label>
+            <Label>
               Reference item name{' '}
-              <input
+              <Input
                 value={rename}
                 disabled={blocked}
                 onChange={(event) => setRename(event.target.value)}
@@ -433,23 +460,27 @@ export function ReferenceBrowser({
                   event.target.setSelectionRange(0, dot > 0 ? dot : event.target.value.length);
                 }}
               />
-            </label>
-            <button disabled={blocked || !rename.trim()}>Rename reference item</button>
+            </Label>
+            <Button type="submit" disabled={blocked || !rename.trim()}>
+              Rename reference item
+            </Button>
           </form>
-          <button
+          <Button
+            variant="destructive"
             type="button"
             disabled={blocked}
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Delete ${selected.path}${selected.directory ? ' and all its contents' : ''}?`,
-                )
-              )
-                void update('delete');
-            }}
+            onClick={() => setConfirmDelete(true)}
           >
             Delete reference item
-          </button>
+          </Button>
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title="Delete reference item?"
+            description={`Delete ${selected.path}${selected.directory ? ' and all its contents' : ''}?`}
+            disabled={blocked}
+            onConfirm={() => void update('delete')}
+          />
           {!selected.directory && (
             <>
               {file.isFetching && <p role="status">Loading reference file…</p>}

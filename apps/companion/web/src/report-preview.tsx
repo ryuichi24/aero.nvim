@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Button } from './components/ui/button';
 import { useState } from 'react';
 import { post } from './api';
 import { Markdown } from './markdown';
@@ -62,19 +63,31 @@ export function ReportPreview({
     <section className="transcript-card report-preview" aria-label={`Report preview: ${name}`}>
       <div className="source-reader-toolbar">
         <strong>{name}</strong>
-        <button aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+        <Button
+          variant="outline"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
           {expanded ? 'Hide report' : 'Show report'}
-        </button>
+        </Button>
       </div>
       {expanded && (
         <>
           <div className="source-reader-toolbar">
-            <button aria-pressed={source} onClick={() => setSource((value) => !value)}>
+            <Button
+              variant="outline"
+              aria-pressed={source}
+              onClick={() => setSource((value) => !value)}
+            >
               {source ? 'Show preview' : 'Show source'}
-            </button>
-            <button disabled={!online || query.isFetching} onClick={() => void query.refetch()}>
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!online || query.isFetching}
+              onClick={() => void query.refetch()}
+            >
               Refresh report
-            </button>
+            </Button>
           </div>
           {query.isPending && online && <p role="status">Loading report…</p>}
           {!online && <p role="status">Connect to Neovim to refresh this report.</p>}

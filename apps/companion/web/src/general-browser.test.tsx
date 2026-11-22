@@ -1,10 +1,14 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SessionBrowser } from './session-browser';
 import type { Snapshot } from './types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const snapshot: Snapshot = {
   connected: true,
@@ -119,4 +123,47 @@ it('creates general chats without a workspace and offers the default agent', asy
     agent: 'default',
     name: 'My question',
   });
+});
+
+it('loads a preview on expansion and releases its cache observer when closed', async () => {
+  const user = userEvent.setup();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const saved = { ...snapshot.sessions[0], blocks: undefined, transcript_lazy: true };
+  const onAction = vi.fn();
+  const fetch = vi.fn().mockImplementation(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          cursor: 'saved-revision',
+          session: { ...saved, blocks: [{ kind: 'message', text: 'Lazy saved answer' }] },
+        }),
+      ),
+    ),
+  );
+  vi.stubGlobal('fetch', fetch);
+  render(
+    <QueryClientProvider client={client}>
+      <SessionBrowser
+        snapshot={{ ...snapshot, sessions: [saved] }}
+        selected={null}
+        active
+        onSelect={vi.fn()}
+        onAction={onAction}
+        actionsDisabled={false}
+      />
+    </QueryClientProvider>,
+  );
+  await user.click(screen.getByRole('button', { name: 'General' }));
+  expect(fetch).not.toHaveBeenCalled();
+  await user.click(screen.getByText('Preview history'));
+  await waitFor(() => expect(screen.getByText('Lazy saved answer')).toBeTruthy());
+  const query = client
+    .getQueryCache()
+    .find({ queryKey: ['session-snapshot', 'host', 'general', 'target', undefined] });
+  expect(query?.getObserversCount()).toBe(1);
+  await user.click(screen.getByText('Preview history'));
+  await waitFor(() => expect(query?.getObserversCount()).toBe(0));
+  expect(query?.state.data).toBeTruthy();
+  expect(onAction).not.toHaveBeenCalled();
+  client.clear();
 });

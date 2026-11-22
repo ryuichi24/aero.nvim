@@ -1,8 +1,11 @@
 // Conversation screen composition; server state, routing and action recovery are external.
 import { useMemo, type RefObject } from 'react';
+import { Button } from '../components/ui/button';
+import { Collapsible, CollapsibleTrigger } from '../components/ui/collapsible';
 import { useCompanionState } from '../companion-context';
 import { groupSessions, sessionLocation } from '../sessionGroups';
 import { Transcript } from '../transcript';
+import { useSessionSnapshot } from '../connection/use-session-snapshot';
 import { PromptComposer } from './prompt-composer';
 import { SessionMetadata } from '../session-metadata';
 import { AgentTodos, latestTodos } from '../agent-todos';
@@ -40,9 +43,11 @@ export function ConversationScreen({
 }) {
   const { selected, view, online, pending, notice, retry, submitting, pairing } =
     useCompanionState();
-  const session = snapshot?.sessions.find(
+  const summary = snapshot?.sessions.find(
     (item) => item.id === selected?.id && item.conversation === selected?.conversation,
   );
+  const history = useSessionSnapshot(summary, snapshot?.epoch, view === 'conversation' && online);
+  const session = history.session;
   const location = useMemo(
     () => (snapshot ? sessionLocation(groupSessions(snapshot), selected) : undefined),
     [snapshot, selected],
@@ -56,24 +61,26 @@ export function ConversationScreen({
     !!pending;
   const lifecycleDisabled = !online || !!pending || !session?.target;
   const resume = session && ['stopped', 'exited'].includes(session.status) && (
-    <button
+    <Button
+      className="my-3 mr-3"
       disabled={lifecycleDisabled}
       onClick={() => onAction('session_resume', { session: session.id, target: session.target })}
     >
       Resume session
-    </button>
+    </Button>
   );
   return (
     <section id="conversation" hidden={view !== 'conversation'}>
       <div className="session-heading">
-        <button
+        <Button
+          variant="ghost"
           className="back-to-sessions"
           aria-label="← All sessions"
           title="All sessions"
           onClick={() => navigate('sessions')}
         >
           ←
-        </button>
+        </Button>
         <h2 id="title" ref={titleRef} tabIndex={-1}>
           {session ? `${session.name} · ${session.status}` : 'Session or conversation unavailable'}
         </h2>
@@ -97,7 +104,8 @@ export function ConversationScreen({
       <div className="session-navigation">
         <nav className="local-nav" aria-label="Session views">
           {(['conversation', 'artifacts', 'details'] as const).map((next) => (
-            <button
+            <Button
+              variant="outline"
               key={next}
               aria-current={tab === next ? 'page' : undefined}
               onClick={() => onTab(next)}
@@ -107,12 +115,12 @@ export function ConversationScreen({
                 : next === 'artifacts'
                   ? 'Artifacts'
                   : 'Details'}
-            </button>
+            </Button>
           ))}
         </nav>
         {session && session.scope !== 'general' && (
-          <details ref={reviewMenu} className="session-review-links">
-            <summary aria-label="Review this worktree">Review</summary>
+          <Collapsible ref={reviewMenu} className="session-review-links">
+            <CollapsibleTrigger aria-label="Review this worktree">Review</CollapsibleTrigger>
             <div className="session-review-menu">
               {(
                 [
@@ -122,12 +130,12 @@ export function ConversationScreen({
                   ['source', 'Source'],
                 ] as const
               ).map(([next, label]) => (
-                <button key={next} onClick={() => navigate(next, session.worktree)}>
+                <Button variant="ghost" key={next} onClick={() => navigate(next, session.worktree)}>
                   {label} for this worktree
-                </button>
+                </Button>
               ))}
             </div>
-          </details>
+          </Collapsible>
         )}
       </div>
       <div hidden={tab !== 'details'}>
@@ -185,6 +193,17 @@ export function ConversationScreen({
       </div>
       <div className="session-conversation" hidden={tab !== 'conversation'}>
         {resume}
+        {summary?.transcript_lazy && history.isLoading && (
+          <p role="status">Loading saved conversation…</p>
+        )}
+        {summary?.transcript_lazy && history.isError && (
+          <div role="alert" className="my-3 flex flex-wrap items-center gap-3">
+            <span>Could not load conversation: {history.error.message}</span>
+            <Button variant="outline" onClick={() => void history.refetch()}>
+              Retry loading logs
+            </Button>
+          </div>
+        )}
         <Transcript
           key={`${selected.id}:${selected.conversation}`}
           onQuote={onQuote}
@@ -206,13 +225,14 @@ export function ConversationScreen({
             <>
               {notice && notice !== 'Action accepted' && <p role="status">{notice}</p>}
               {retry && pending && (
-                <button
+                <Button
+                  variant="outline"
                   type="button"
                   disabled={submitting || pairing || !online}
                   onClick={() => void onRetry(pending)}
                 >
                   Retry identical action
-                </button>
+                </Button>
               )}
             </>
           }
@@ -221,7 +241,8 @@ export function ConversationScreen({
           <div id="permission">
             <p>{session.permission.title}</p>
             {session.permission.options.map((option) => (
-              <button
+              <Button
+                variant="outline"
                 key={option.optionId}
                 disabled={disabled}
                 onClick={() =>
@@ -232,7 +253,7 @@ export function ConversationScreen({
                 }
               >
                 {option.name || option.optionId}
-              </button>
+              </Button>
             ))}
           </div>
         )}

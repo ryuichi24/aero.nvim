@@ -10,8 +10,11 @@ export class RequestError extends Error {
   }
 }
 
-export async function post<T>(path: string, data: unknown): Promise<T> {
+export async function post<T>(path: string, data: unknown, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) controller.abort();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     const response = await fetch(`/api/${path}`, {
@@ -43,6 +46,7 @@ export async function post<T>(path: string, data: unknown): Promise<T> {
     throw error;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
   }
 }
 

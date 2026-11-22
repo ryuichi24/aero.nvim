@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
 import { createPortal } from 'react-dom';
 import { AgentTodos, latestTodos } from './agent-todos';
 import type { Todo } from './agent-todos';
@@ -56,9 +57,14 @@ function Notification({
     >
       <header>
         <strong>{card.name}</strong>
-        <button aria-label={`Dismiss ${card.name} todos`} onClick={dismiss}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Dismiss ${card.name} todos`}
+          onClick={dismiss}
+        >
           ×
-        </button>
+        </Button>
       </header>
       <AgentTodos todos={card.todos} />
     </section>
@@ -174,7 +180,8 @@ export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
   return (
     <>
       {createPortal(
-        <button
+        <Button
+          variant="outline"
           ref={trigger}
           className="todo-toolbar-button"
           aria-label="Todos"
@@ -206,7 +213,7 @@ export function TodoNotifications({ snapshot }: { snapshot: Snapshot | null }) {
             <path d="m3 6 2 2 3-4M11 6h10M3 13h5M11 13h10M3 20h5M11 20h10" />
           </svg>
           <span className="sr-only sm:not-sr-only">Todos</span>
-        </button>,
+        </Button>,
         triggerHost,
       )}
       {createPortal(

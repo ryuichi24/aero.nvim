@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Dialog } from './components/ui/dialog';
 import { FullscreenAttention } from './fullscreen-attention';
 
 const loadMermaid = () =>
@@ -18,13 +20,7 @@ export function Mermaid({ source }: { source: string }) {
   useEffect(() => {
     if (!fullscreen) return;
     const origin = trigger.current;
-    const modal = dialog.current!;
-    const overflow = document.body.style.overflow;
-    modal.showModal();
-    document.body.style.overflow = 'hidden';
     return () => {
-      modal.close();
-      document.body.style.overflow = overflow;
       origin?.focus();
     };
   }, [fullscreen]);
@@ -33,7 +29,7 @@ export function Mermaid({ source }: { source: string }) {
     let cancelled = false;
     async function render() {
       const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;left:-100000px;top:0;visibility:hidden';
+      container.className = 'absolute -left-[100000px] top-0 invisible';
       try {
         const mermaid = await loadMermaid();
         if (cancelled) return;
@@ -74,7 +70,9 @@ export function Mermaid({ source }: { source: string }) {
     <div className="mermaid-preview">
       {current?.svg && (
         <div className="mermaid-preview-controls" hidden={fullscreen}>
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             ref={trigger}
             type="button"
             aria-label="Fullscreen diagram"
@@ -98,11 +96,13 @@ export function Mermaid({ source }: { source: string }) {
             >
               <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5" />
             </svg>
-          </button>
+          </Button>
         </div>
       )}
       {!fullscreen && diagram}
-      <dialog
+      <Dialog
+        open={fullscreen}
+        onOpenChange={setFullscreen}
         ref={dialog}
         className="mermaid-fullscreen"
         aria-label="Fullscreen Mermaid diagram"
@@ -113,35 +113,42 @@ export function Mermaid({ source }: { source: string }) {
           <>
             <header className="source-reader-toolbar">
               <strong>Mermaid diagram</strong>
-              <button
+              <Button
+                variant="outline"
                 type="button"
                 disabled={zoom <= 1}
                 onClick={() => setZoom((value) => Math.max(1, value - 0.5))}
               >
                 Zoom out
-              </button>
+              </Button>
               <output aria-label="Diagram zoom">{Math.round(zoom * 100)}%</output>
-              <button
+              <Button
+                variant="outline"
                 type="button"
                 disabled={zoom >= 5}
                 onClick={() => setZoom((value) => Math.min(5, value + 0.5))}
               >
                 Zoom in
-              </button>
-              <button type="button" onClick={() => setZoom(1)}>
+              </Button>
+              <Button variant="outline" type="button" onClick={() => setZoom(1)}>
                 Reset zoom
-              </button>
+              </Button>
               <FullscreenAttention />
-              <button type="button" autoFocus onClick={() => setFullscreen(false)}>
+              <Button
+                variant="outline"
+                type="button"
+                autoFocus
+                onClick={() => setFullscreen(false)}
+              >
                 Exit fullscreen diagram
-              </button>
+              </Button>
             </header>
             <div className="mermaid-fullscreen-content">
               <div style={{ width: `${zoom * 100}%` }}>{diagram}</div>
             </div>
           </>
         )}
-      </dialog>
+      </Dialog>
     </div>
   );
 }

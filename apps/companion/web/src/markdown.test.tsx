@@ -68,26 +68,28 @@ it('opens individual diagrams fullscreen, supports zoom, and restores focus on E
   );
   await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(2));
   const trigger = screen.getAllByRole('button', { name: 'Fullscreen diagram' })[1];
-  const dialog = screen.getAllByRole<HTMLDialogElement>('dialog', { hidden: true })[1];
-  dialog.showModal = () => dialog.setAttribute('open', '');
-  dialog.close = () => dialog.removeAttribute('open');
   fireEvent.click(trigger);
+  const dialog = screen.getByRole('dialog', { name: 'Fullscreen Mermaid diagram' });
   expect(screen.getByRole('dialog', { name: 'Fullscreen Mermaid diagram' })).toBe(dialog);
   expect(within(dialog).getByRole('img').textContent).toContain('C-->D');
-  expect(document.body.style.overflow).toBe('hidden');
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(true);
   fireEvent.click(within(dialog).getByRole('button', { name: 'Zoom in' }));
   expect(within(dialog).getByLabelText('Diagram zoom').textContent).toBe('150%');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Reset zoom' }));
   expect(within(dialog).getByLabelText('Diagram zoom').textContent).toBe('100%');
   fireEvent(dialog, new Event('cancel', { bubbles: true }));
-  expect(dialog.hasAttribute('open')).toBe(false);
+  expect(screen.queryByRole('dialog', { name: 'Fullscreen Mermaid diagram' })).toBeNull();
   expect(document.activeElement).toBe(trigger);
   expect(document.body.style.overflow).toBe('');
   expect(screen.getAllByRole('img')).toHaveLength(2);
   expect(renderDiagram).toHaveBeenCalledTimes(2);
   fireEvent.click(trigger);
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Exit fullscreen diagram' }));
-  expect(dialog.hasAttribute('open')).toBe(false);
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Fullscreen Mermaid diagram' })).getByRole('button', {
+      name: 'Exit fullscreen diagram',
+    }),
+  );
+  expect(screen.queryByRole('dialog', { name: 'Fullscreen Mermaid diagram' })).toBeNull();
 });
 
 it('keeps invalid diagram source readable and removes temporary rendering DOM', async () => {

@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { NativeSelect } from './components/ui/native-select';
+import { Dialog } from './components/ui/dialog';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { Label } from './components/ui/label';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SourceCode } from './source-code';
 import { QuoteSelection, type Quote } from './quote';
@@ -44,9 +50,9 @@ function SourceFolder({
       {query.error && (
         <li role="alert">
           {query.error.message}{' '}
-          <button disabled={!online} onClick={() => void query.refetch()}>
+          <Button variant="outline" disabled={!online} onClick={() => void query.refetch()}>
             Retry
-          </button>
+          </Button>
         </li>
       )}
       {query.data?.entries
@@ -59,7 +65,9 @@ function SourceFolder({
           const open = expanded[entryPath] ?? selected.startsWith(`${entryPath}/`);
           return (
             <li key={entry.name}>
-              <button
+              <Button
+                variant="ghost"
+                className="h-auto min-w-0 items-start justify-start whitespace-normal leading-snug"
                 aria-expanded={entry.directory ? open : undefined}
                 aria-current={!entry.directory && selected === entryPath ? 'true' : undefined}
                 onClick={() =>
@@ -68,10 +76,14 @@ function SourceFolder({
                     : onSelect(entryPath)
                 }
               >
-                <span aria-hidden="true">{entry.directory ? (open ? '▾ ' : '▸ ') : '· '}</span>
-                {entry.name}
-                {entry.directory ? '/' : ''}
-              </button>
+                <span className="w-3 shrink-0" aria-hidden="true">
+                  {entry.directory ? (open ? '▾' : '▸') : '·'}
+                </span>
+                <span className="min-w-0 wrap-anywhere">
+                  {entry.name}
+                  {entry.directory ? '/' : ''}
+                </span>
+              </Button>
               {entry.directory && open && (
                 <SourceFolder
                   worktree={worktree}
@@ -125,13 +137,7 @@ export function SourceBrowser({
   const fullscreenButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!fullscreen) return;
-    const dialog = fullscreenDialog.current!;
-    const overflow = document.body.style.overflow;
-    dialog.showModal();
-    document.body.style.overflow = 'hidden';
     return () => {
-      dialog.close();
-      document.body.style.overflow = overflow;
       // The toolbar remounts when fullscreen closes; focus its current button.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       fullscreenButton.current?.focus();
@@ -195,26 +201,38 @@ export function SourceBrowser({
       <div className="source-reader-toolbar">
         {!(markdown && preview) && ranges.length > 0 && (
           <>
-            <button onClick={() => setCollapsed(new Set(ranges.map((range) => range.start)))}>
+            <Button
+              variant="outline"
+              onClick={() => setCollapsed(new Set(ranges.map((range) => range.start)))}
+            >
               Collapse all
-            </button>
-            <button disabled={!collapsed.size} onClick={() => setCollapsed(new Set())}>
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!collapsed.size}
+              onClick={() => setCollapsed(new Set())}
+            >
               Expand all
-            </button>
+            </Button>
           </>
         )}
         {fullscreen && <strong className="source-reader-path">{path}</strong>}
         {markdown && (
-          <button aria-pressed={preview} onClick={() => setPreview((value) => !value)}>
+          <Button
+            variant="outline"
+            aria-pressed={preview}
+            onClick={() => setPreview((value) => !value)}
+          >
             {preview ? 'Show source' : 'Show preview'}
-          </button>
+          </Button>
         )}
-        <button
+        <Button
+          variant="outline"
           ref={!fullscreen ? fullscreenButton : undefined}
           onClick={() => setFullscreen((value) => !value)}
         >
           {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
+        </Button>
         {fullscreen && <FullscreenAttention />}
       </div>
       <QuoteSelection
@@ -274,9 +292,9 @@ export function SourceBrowser({
     >
       <h2>{mode === 'reports' ? 'Reports' : 'Source code'}</h2>
       {mode === 'reports' && (
-        <label>
+        <Label>
           Search report names
-          <input
+          <Input
             type="search"
             value={reportSearch}
             onChange={(event) => {
@@ -285,11 +303,11 @@ export function SourceBrowser({
             }}
             placeholder="Find a report in this worktree"
           />
-        </label>
+        </Label>
       )}
       {!contextControlled && mode === 'reports' && trees.length > 0 ? (
-        <details className="report-worktree-picker" open={!chosen && trees.length > 1}>
-          <summary>
+        <Collapsible className="report-worktree-picker" open={!chosen && trees.length > 1}>
+          <CollapsibleTrigger>
             <span className="report-worktree-summary">
               <span className="report-worktree-hint">Reports from</span>
               <strong>
@@ -301,16 +319,16 @@ export function SourceBrowser({
               </span>
             </span>
             <span className="report-worktree-change">Change</span>
-          </summary>
-          <label>
+          </CollapsibleTrigger>
+          <Label>
             Find a worktree
-            <input
+            <Input
               type="search"
               value={worktreeSearch}
               placeholder="Search branch or folder…"
               onChange={(event) => setWorktreeSearch(event.target.value)}
             />
-          </label>
+          </Label>
           <div className="report-worktree-options" role="group" aria-label="Report worktrees">
             {trees
               .filter((tree) =>
@@ -320,7 +338,8 @@ export function SourceBrowser({
               )
               .map((tree) => (
                 <div className="report-worktree-card" key={tree.path}>
-                  <button
+                  <Button
+                    variant="ghost"
                     aria-pressed={tree.path === worktree}
                     onClick={(event) => {
                       setChosen(tree.path);
@@ -340,11 +359,11 @@ export function SourceBrowser({
                     {tree.path === worktree && (
                       <span className="report-worktree-selected">Selected</span>
                     )}
-                  </button>
-                  <details className="report-worktree-path">
-                    <summary>Full path</summary>
+                  </Button>
+                  <Collapsible className="report-worktree-path">
+                    <CollapsibleTrigger>Full path</CollapsibleTrigger>
                     <code>{tree.path}</code>
-                  </details>
+                  </Collapsible>
                 </div>
               ))}
             {!trees.some((tree) =>
@@ -353,11 +372,11 @@ export function SourceBrowser({
                 .includes(worktreeSearch.trim().toLowerCase()),
             ) && <p role="status">No matching worktrees.</p>}
           </div>
-        </details>
+        </Collapsible>
       ) : !contextControlled && mode === 'source' ? (
-        <label>
+        <Label>
           Worktree
-          <select
+          <NativeSelect
             value={worktree || ''}
             onChange={(event) => {
               setChosen(event.target.value);
@@ -369,38 +388,53 @@ export function SourceBrowser({
                 {worktreeLabel(tree)} · {tree.path}
               </option>
             ))}
-          </select>
-        </label>
+          </NativeSelect>
+        </Label>
       ) : null}
       {!worktree && <p className="navigation-empty">No worktrees available.</p>}
       {worktree && (
         <>
           <nav className="session-breadcrumb" aria-label="Source path">
-            <button onClick={() => setPath('')}>Root</button>
+            <Button variant="ghost" onClick={() => setPath('')}>
+              Root
+            </Button>
             {parts.map((part, index) => (
-              <button key={index} onClick={() => setPath(parts.slice(0, index + 1).join('/'))}>
+              <Button
+                variant="ghost"
+                key={index}
+                onClick={() => setPath(parts.slice(0, index + 1).join('/'))}
+              >
                 {part}
-              </button>
+              </Button>
             ))}
           </nav>
           <div className="flex gap-2 my-3">
-            <button disabled={!path} onClick={() => setPath(parts.slice(0, -1).join('/'))}>
+            <Button
+              variant="outline"
+              disabled={!path}
+              onClick={() => setPath(parts.slice(0, -1).join('/'))}
+            >
               ← Parent
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               disabled={query.isFetching || !snapshot?.connected}
               onClick={() => void client.invalidateQueries({ queryKey: [mode, worktree] })}
             >
               Refresh
-            </button>
+            </Button>
           </div>
           {query.isFetching && <p role="status">Loading {mode}…</p>}
           {query.error && <p role="alert">{query.error.message}</p>}
           {!snapshot?.connected && <p role="status">Connect to Neovim to browse {mode}.</p>}
           {content !== undefined && readerOpen && (
-            <button className="mobile-reader-back" onClick={() => setReaderOpen(false)}>
+            <Button
+              variant="outline"
+              className="mobile-reader-back"
+              onClick={() => setReaderOpen(false)}
+            >
               ← {mode === 'reports' ? 'All reports' : 'File tree'}
-            </button>
+            </Button>
           )}
           <div className="source-layout" data-reading={content !== undefined && readerOpen}>
             <nav className="source-tree" aria-label="File tree">
@@ -427,7 +461,9 @@ export function SourceBrowser({
                 </p>
               )}
               {!fullscreen && reader}
-              <dialog
+              <Dialog
+                open={fullscreen}
+                onOpenChange={setFullscreen}
                 ref={fullscreenDialog}
                 className="source-fullscreen"
                 aria-label="Fullscreen source reader"
@@ -435,7 +471,7 @@ export function SourceBrowser({
                 onClose={() => setFullscreen(false)}
               >
                 {fullscreen && reader}
-              </dialog>
+              </Dialog>
             </div>
           </div>
         </>

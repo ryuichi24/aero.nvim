@@ -1,5 +1,8 @@
 // Draft editing and local command pickers; submission delegates to the action owner.
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { Dialog } from '../components/ui/dialog';
+import { Collapsible, CollapsibleTrigger } from '../components/ui/collapsible';
+import { Label } from '../components/ui/label';
 import { createPortal } from 'react-dom';
 import { useCompanionDispatch, useCompanionState } from '../companion-context';
 import { draftKey } from '../companion-state';
@@ -8,6 +11,8 @@ import { PromptCommand } from '../prompt-command';
 import { ReferenceCommand } from '../reference-browser';
 import { SlashCommands, slashPickerOpen } from '../slash-commands';
 import type { ActionData, ActionPath, Session, Snapshot } from '../types';
+import { Button } from '../components/ui/button';
+import { Textarea } from '../components/ui/textarea';
 
 export function PromptComposer({
   session,
@@ -35,15 +40,7 @@ export function PromptComposer({
       return;
     }
     wasFullscreen.current = true;
-    const modal = dialog.current!;
-    const overflow = document.body.style.overflow;
-    modal.showModal();
-    document.body.style.overflow = 'hidden';
     promptRef.current?.focus();
-    return () => {
-      modal.close();
-      document.body.style.overflow = overflow;
-    };
   }, [container, fullscreen, promptRef]);
   const prompt = drafts[draftKey(selected)] || '';
   const disabled =
@@ -80,7 +77,11 @@ export function PromptComposer({
   return (
     <>
       <div ref={inline} />
-      <dialog
+      <Dialog
+        open={fullscreen}
+        onOpenChange={setFullscreen}
+        onInitialFocus={() => promptRef.current?.focus()}
+        onRestoreFocus={() => promptRef.current?.focus()}
         ref={dialog}
         className="prompt-fullscreen"
         aria-label="Fullscreen prompt editor"
@@ -95,9 +96,9 @@ export function PromptComposer({
             if (!sendBlockReason) onAction('prompt', { text: prompt });
           }}
         >
-          <label>
+          <Label>
             <span className="sr-only">Follow-up prompt</span>
-            <textarea
+            <Textarea
               ref={promptRef}
               rows={5}
               placeholder="What should the agent do next? Type / for commands."
@@ -105,7 +106,7 @@ export function PromptComposer({
               value={prompt}
               onChange={(event) => choose(event.target.value)}
             />
-          </label>
+          </Label>
           {session && snapshot && (
             <SlashCommands
               prompt={prompt}
@@ -141,18 +142,21 @@ export function PromptComposer({
             />
           )}
           <div className="composer-toolbar">
-            <button
+            <Button
+              variant="outline"
               type="button"
               aria-label={fullscreen ? 'Exit fullscreen prompt' : 'Fullscreen prompt'}
               onClick={() => setFullscreen((value) => !value)}
             >
               {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            </button>
-            <details className="composer-actions">
-              <summary aria-label="Prompt actions">Actions</summary>
-              <div className="quick-actions">
+            </Button>
+            <Collapsible className="composer-actions">
+              <CollapsibleTrigger aria-label="Prompt actions">Actions</CollapsibleTrigger>
+              <div className="my-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {['report', 'reference', 'model', 'mode', 'export'].map((command) => (
-                  <button
+                  <Button
+                    variant="secondary"
+                    className="min-h-14 whitespace-normal"
                     key={command}
                     type="button"
                     disabled={!!prompt.trim()}
@@ -169,7 +173,7 @@ export function PromptComposer({
                         : command === 'export'
                           ? 'Export transcript'
                           : `Change ${command}`}
-                  </button>
+                  </Button>
                 ))}
               </div>
               {!!prompt.trim() && (
@@ -177,17 +181,18 @@ export function PromptComposer({
                   Your draft is kept. Clear it before choosing a different prompt action.
                 </p>
               )}
-            </details>
-            <button
-              className="primary-action"
+            </Collapsible>
+            <Button
+              type="submit"
               id="send"
               aria-label="Send prompt"
               disabled={!!sendBlockReason}
               aria-describedby={sendBlockReason ? 'send-block-reason' : undefined}
             >
               Send
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               id="cancel"
               type="button"
               aria-label="Cancel turn & queue"
@@ -203,7 +208,7 @@ export function PromptComposer({
               onClick={() => onAction('cancel')}
             >
               Cancel
-            </button>
+            </Button>
           </div>
           {sendBlockReason && (
             <p id="send-block-reason" role="status" className="mt-2 text-sm text-amber-300">

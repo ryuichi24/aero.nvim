@@ -1,4 +1,5 @@
 import type { Session, SessionChoices } from './types';
+import { Progress } from './components/ui/progress';
 
 function choiceName(options?: SessionChoices) {
   return options?.choices.find((choice) => choice.id === options.current)?.name || options?.current;
@@ -75,7 +76,7 @@ export function SessionMetadata({ session }: { session: Session }) {
           </span>
         </p>
         {percentage !== undefined && (
-          <progress
+          <Progress
             aria-label="Context window usage"
             className="mt-2 h-2 w-full accent-sky-400"
             max={100}

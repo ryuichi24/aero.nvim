@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Button } from './components/ui/button';
 
 export interface Quote {
   text: string;
@@ -71,7 +72,8 @@ export function QuoteSelection({
     <div ref={root} className="quote-selection">
       {onQuote && (
         <div className="quote-toolbar">
-          <button
+          <Button
+            variant="outline"
             type="button"
             disabled={!quote}
             onPointerDown={(event) => event.preventDefault()}
@@ -83,9 +85,10 @@ export function QuoteSelection({
             }}
           >
             Quote to prompt
-          </button>
+          </Button>
           {quote && (
-            <button
+            <Button
+              variant="ghost"
               type="button"
               onClick={() => {
                 setQuote(undefined);
@@ -93,7 +96,7 @@ export function QuoteSelection({
               }}
             >
               Clear selection
-            </button>
+            </Button>
           )}
         </div>
       )}

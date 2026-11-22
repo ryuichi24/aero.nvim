@@ -1,4 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from 'react';
+import { Button } from './components/ui/button';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
 import { Mermaid } from './mermaid';
@@ -41,7 +42,8 @@ export function MarkdownMermaidPreview({
   if (!diagrams.length) return <pre>{children}</pre>;
   return (
     <div className="markdown-mermaid-example">
-      <button
+      <Button
+        variant="outline"
         type="button"
         aria-expanded={preview}
         aria-controls={id}
@@ -54,7 +56,7 @@ export function MarkdownMermaidPreview({
           : diagrams.length === 1
             ? 'Preview diagram'
             : 'Preview diagrams'}
-      </button>
+      </Button>
       {(!automatic || !preview) && <pre>{children}</pre>}
       <div id={id} hidden={!preview}>
         {preview && diagrams.map((diagram, index) => <Mermaid key={index} source={diagram} />)}

@@ -20,6 +20,8 @@ export function parseSnapshot(text: string): Snapshot {
       return false;
     if (!['conversation', 'target', 'activity'].every((key) => optionalString(session, key)))
       return false;
+    if (session.transcript_lazy !== undefined && typeof session.transcript_lazy !== 'boolean')
+      return false;
     if (session.blocks !== undefined && !list(session.blocks, (block) => strings(block, ['kind'])))
       return false;
     if (session.queue !== undefined && !list(session.queue, (entry) => typeof entry === 'string'))

@@ -591,10 +591,8 @@ describe('mobile companion', () => {
       ],
     });
     await open();
-    const dialog = document.querySelector<HTMLDialogElement>('.transcript-fullscreen')!;
-    dialog.showModal = () => dialog.setAttribute('open', '');
-    dialog.close = () => dialog.removeAttribute('open');
     await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    const dialog = screen.getByRole('dialog', { name: 'Fullscreen agent logs' });
     const trigger = within(dialog).getByRole('button', { name: 'Attention (1)' });
     await userEvent.click(trigger);
     expect(dialog.contains(screen.getByRole('region', { name: 'Attention inbox' }))).toBe(true);
@@ -610,7 +608,7 @@ describe('mobile companion', () => {
     });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Hide attention' }));
     expect(document.activeElement).toBe(trigger);
-    expect(dialog.open).toBe(true);
+    expect(dialog.hasAttribute('open')).toBe(true);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Exit fullscreen' }));
     await userEvent.click(screen.getByText('Device', { selector: 'summary' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Show Attention in fullscreen' }));
@@ -619,10 +617,8 @@ describe('mobile companion', () => {
     render(<App />);
     connect();
     await open();
-    const nextDialog = document.querySelector<HTMLDialogElement>('.transcript-fullscreen')!;
-    nextDialog.showModal = () => nextDialog.setAttribute('open', '');
-    nextDialog.close = () => nextDialog.removeAttribute('open');
     await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    const nextDialog = screen.getByRole('dialog', { name: 'Fullscreen agent logs' });
     expect(within(nextDialog).queryByRole('button', { name: /^Attention/ })).toBeNull();
   });
 
@@ -732,10 +728,8 @@ describe('mobile companion', () => {
     connect();
     await open();
     draft('Fullscreen request');
-    const dialog = document.querySelector<HTMLDialogElement>('.transcript-fullscreen')!;
-    dialog.showModal = () => dialog.setAttribute('open', '');
-    dialog.close = () => dialog.removeAttribute('open');
     await userEvent.click(screen.getByRole('button', { name: 'Fullscreen logs' }));
+    const dialog = screen.getByRole('dialog', { name: 'Fullscreen agent logs' });
     const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Follow-up prompt' });
     expect(dialog.contains(input)).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: 'Hide input' }));

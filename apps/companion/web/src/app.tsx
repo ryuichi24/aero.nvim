@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { NativeSelect } from './components/ui/native-select';
+import { Checkbox } from './components/ui/checkbox';
+import { Label } from './components/ui/label';
+import { Dialog } from './components/ui/dialog';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
 import {
   QueryClient,
   QueryClientProvider,
@@ -170,12 +177,6 @@ function Companion() {
     deviceMenu.current?.querySelector('summary')?.focus();
   }
 
-  useEffect(() => {
-    if (!confirmUnpair || !unpairDialog.current) return;
-    const dialog = unpairDialog.current;
-    if (dialog.showModal) dialog.showModal();
-    else dialog.setAttribute('open', '');
-  }, [confirmUnpair]);
   const attentionButton = useRef<HTMLButtonElement>(null);
   const attentionClose = useRef<HTMLButtonElement>(null);
   const attentionPanel = useRef<HTMLElement>(null);
@@ -262,7 +263,8 @@ function Companion() {
         <>
           <span data-todo-trigger className="todo-control-slot" />
           {fullscreenAttention && (
-            <button
+            <Button
+              variant="outline"
               aria-expanded={attentionOpen}
               aria-controls="attention-inbox"
               onClick={(event) => {
@@ -275,7 +277,7 @@ function Companion() {
               }}
             >
               Attention{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
-            </button>
+            </Button>
           )}
         </>
       }
@@ -297,9 +299,11 @@ function Companion() {
           </span>
           <div className="header-actions">
             {!!snapshot?.scenes?.length && (
-              <label>
+              <Label className="scene-picker">
                 Scene
-                <select
+                <NativeSelect
+                  wrapperClassName="m-0 min-w-0 flex-1 sm:w-36 sm:flex-none"
+                  className="h-11 truncate py-0 text-sm"
                   aria-label="Scene"
                   value={snapshot.active_scene || ''}
                   disabled={!online || submitting || !!pending}
@@ -310,10 +314,11 @@ function Companion() {
                       {scene.name}
                     </option>
                   ))}
-                </select>
-              </label>
+                </NativeSelect>
+              </Label>
             )}
-            <button
+            <Button
+              variant="outline"
               ref={attentionButton}
               className="attention-trigger"
               aria-expanded={attentionOpen}
@@ -327,9 +332,9 @@ function Companion() {
               }}
             >
               Attention{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
-            </button>
+            </Button>
             <span id="todo-controls" className="todo-control-slot" />
-            <details
+            <Collapsible
               ref={deviceMenu}
               className="device-menu"
               onToggle={(event) => {
@@ -342,30 +347,29 @@ function Companion() {
                 }
               }}
             >
-              <summary>
+              <CollapsibleTrigger>
                 Device <span aria-hidden="true">⌄</span>
-              </summary>
+              </CollapsibleTrigger>
               <div className="device-menu-panel">
                 <p className="device-menu-label">Display zoom</p>
                 <UIZoom />
-                <label className="fullscreen-attention-setting">
-                  <input
-                    type="checkbox"
+                <Label className="fullscreen-attention-setting">
+                  <Checkbox
                     checked={lightTheme}
-                    onChange={(event) => setLightTheme(event.target.checked)}
+                    onCheckedChange={(checked) => setLightTheme(checked === true)}
                   />
                   Light appearance
-                </label>
-                <label className="fullscreen-attention-setting">
-                  <input
-                    type="checkbox"
+                </Label>
+                <Label className="fullscreen-attention-setting">
+                  <Checkbox
                     checked={fullscreenAttention}
-                    onChange={(event) => setFullscreenAttention(event.target.checked)}
+                    onCheckedChange={(checked) => setFullscreenAttention(checked === true)}
                   />
                   Show Attention in fullscreen
-                </label>
+                </Label>
                 <div className="device-unpair">
-                  <button
+                  <Button
+                    variant="outline"
                     disabled={pairing || submitting || revokeMutation.isPending}
                     onClick={() => {
                       if (deviceMenu.current) deviceMenu.current.open = false;
@@ -373,15 +377,19 @@ function Companion() {
                     }}
                   >
                     Unpair
-                  </button>
+                  </Button>
                 </div>
               </div>
-            </details>
+            </Collapsible>
           </div>
         </div>
       </header>
       {confirmUnpair && (
-        <dialog
+        <Dialog
+          open={confirmUnpair}
+          onOpenChange={(open) => {
+            if (!open && !revokeMutation.isPending) dismissUnpair();
+          }}
           ref={unpairDialog}
           className="unpair-dialog"
           aria-labelledby="unpair-title"
@@ -397,11 +405,16 @@ function Companion() {
           </p>
           {revokeMutation.isError && <p role="alert">{revokeMutation.error.message}</p>}
           <div className="mt-5 flex justify-end gap-3">
-            <button autoFocus onClick={dismissUnpair} disabled={revokeMutation.isPending}>
+            <Button
+              variant="outline"
+              autoFocus
+              onClick={dismissUnpair}
+              disabled={revokeMutation.isPending}
+            >
               Cancel
-            </button>
-            <button
-              className="unpair-confirm"
+            </Button>
+            <Button
+              variant="destructive"
               disabled={pairing || submitting || revokeMutation.isPending}
               onClick={async () => {
                 try {
@@ -424,19 +437,21 @@ function Companion() {
               }}
             >
               {revokeMutation.isPending ? 'Unpairing…' : 'Unpair'}
-            </button>
+            </Button>
           </div>
-        </dialog>
+        </Dialog>
       )}
       <nav className="primary-nav" aria-label="Companion navigation">
-        <button
+        <Button
+          variant="ghost"
           aria-current={view === 'home' ? 'page' : undefined}
           onClick={() => navigate('home')}
         >
           <NavigationIcon name="home" />
           Home
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           aria-current={view === 'sessions' || view === 'conversation' ? 'page' : undefined}
           onClick={() =>
             navigate(view === 'conversation' || !selected ? 'sessions' : lastSessionsView.current)
@@ -444,21 +459,23 @@ function Companion() {
         >
           <NavigationIcon name="sessions" />
           Sessions
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           aria-current={view === 'inbox' ? 'page' : undefined}
           onClick={() => navigate('inbox')}
         >
           <NavigationIcon name="inbox" />
           Inbox{attentionEntries.length ? ` (${attentionEntries.length})` : ''}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           aria-current={workspaceView ? 'page' : undefined}
           onClick={() => navigate(lastWorkspaceView)}
         >
           <NavigationIcon name="workspace" />
           Workspace
-        </button>
+        </Button>
       </nav>
       <main className="mx-auto w-full max-w-4xl px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6">
         {pairing && (
@@ -485,9 +502,9 @@ function Companion() {
             <p className="text-sm leading-relaxed text-slate-400">
               Enter the pairing code from Neovim to follow your agents and respond on the go.
             </p>
-            <label>
+            <Label>
               Pairing code
-              <input
+              <Input
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -499,18 +516,18 @@ function Companion() {
                 value={pairCode}
                 onChange={(event) => dispatch({ type: 'pair-code', value: event.target.value })}
               />
-            </label>
-            <label>
+            </Label>
+            <Label>
               Device name
-              <input
+              <Input
                 maxLength={80}
                 value={deviceName}
                 onChange={(event) => dispatch({ type: 'device-name', value: event.target.value })}
               />
-            </label>
-            <button className="primary-action w-full sm:w-auto" disabled={pairMutation.isPending}>
+            </Label>
+            <Button type="submit" className="w-full sm:w-auto" disabled={pairMutation.isPending}>
               {pairMutation.isPending ? 'Pairing…' : 'Pair device'}
-            </button>
+            </Button>
           </form>
         )}
         <p
@@ -527,9 +544,9 @@ function Companion() {
           </p>
         )}
         {!pairing && view !== 'conversation' && (
-          <label className="workspace-scope">
+          <Label className="workspace-scope">
             Workspace scope
-            <select
+            <NativeSelect
               value={workspaceScope}
               onChange={(event) => setWorkspaceScope(event.target.value)}
             >
@@ -539,8 +556,8 @@ function Companion() {
                   {workspace.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
         )}
         {!pairing && view === 'home' && (
           <CompanionHome
@@ -557,23 +574,24 @@ function Companion() {
         {!pairing && workspaceView && (
           <section className="workspace-context" aria-label="Workspace review context">
             <h2>Workspace</h2>
-            <details open={!reviewTree}>
-              <summary>
+            <Collapsible open={!reviewTree}>
+              <CollapsibleTrigger>
                 {reviewTree?.branch || reviewTree?.path || 'Choose a worktree'} · Change context
-              </summary>
-              <label>
+              </CollapsibleTrigger>
+              <Label>
                 Find a worktree
-                <input
+                <Input
                   type="search"
                   value={contextSearch}
                   onChange={(event) => setContextSearch(event.target.value)}
                   placeholder="Workspace, branch, or path"
                 />
-              </label>
+              </Label>
               <div className="context-options">
                 {reviewGroups.map((workspace) => {
                   const worktrees = workspace.worktrees.map((tree) => (
-                    <button
+                    <Button
+                      variant="ghost"
                       key={tree.path}
                       aria-pressed={tree.path === reviewWorktree}
                       onClick={(event) => {
@@ -588,23 +606,23 @@ function Companion() {
                     >
                       {tree.label}
                       <span>{tree.path}</span>
-                    </button>
+                    </Button>
                   ));
                   return workspaceScope && reviewGroups.length === 1 ? (
                     <div key={workspace.key}>{worktrees}</div>
                   ) : (
-                    <details key={workspace.key} open={contextSearch.trim() ? true : undefined}>
-                      <summary>{workspace.name}</summary>
+                    <Collapsible key={workspace.key} open={contextSearch.trim() ? true : undefined}>
+                      <CollapsibleTrigger>{workspace.name}</CollapsibleTrigger>
                       {worktrees}
-                    </details>
+                    </Collapsible>
                   );
                 })}
                 {snapshot && reviewGroups.length === 0 && <p>No matching worktrees.</p>}
               </div>
-            </details>
+            </Collapsible>
             {reviewTree && (
-              <details className="worktree-management">
-                <summary>Manage worktree</summary>
+              <Collapsible className="worktree-management">
+                <CollapsibleTrigger>Manage worktree</CollapsibleTrigger>
                 {reviewTree.workspace && (
                   <LifecycleForm
                     title="New worktree"
@@ -645,7 +663,7 @@ function Companion() {
                     onAction={act}
                   />
                 )}
-              </details>
+              </Collapsible>
             )}
             {reviewTree && snapshot && (
               <SubmoduleBrowser
@@ -666,25 +684,27 @@ function Companion() {
                   ['source', 'Source'],
                 ] as const
               ).map(([next, label]) => (
-                <button
+                <Button
+                  variant="outline"
                   key={next}
                   aria-current={view === next ? 'page' : undefined}
                   onClick={() => navigate(next)}
                 >
                   {label}
-                </button>
+                </Button>
               ))}
             </nav>
             {view === 'reports' && reviewTree && (
-              <details className="report-create">
-                <summary>Create report with an agent</summary>
+              <Collapsible className="report-create">
+                <CollapsibleTrigger>Create report with an agent</CollapsibleTrigger>
                 <p>
                   Select a session in this worktree to choose or create a report in its composer.
                 </p>
                 {snapshot?.sessions
                   .filter((item) => item.worktree === reviewTree.path)
                   .map((item) => (
-                    <button
+                    <Button
+                      variant="outline"
                       key={item.id}
                       onClick={() => {
                         const selection = { id: item.id, conversation: item.conversation };
@@ -700,12 +720,12 @@ function Companion() {
                       }}
                     >
                       Use {item.name}
-                    </button>
+                    </Button>
                   ))}
                 {!snapshot?.sessions.some((item) => item.worktree === reviewTree.path) && (
-                  <button onClick={() => navigate('sessions')}>Create a session first</button>
+                  <Button onClick={() => navigate('sessions')}>Create a session first</Button>
                 )}
-              </details>
+              </Collapsible>
             )}
             {!reviewTree && (
               <p>Choose a worktree to review its reports, references, changes, and source.</p>
@@ -720,13 +740,14 @@ function Companion() {
           />
         )}
         {retry && pending && (
-          <button
+          <Button
+            variant="outline"
             id="retry"
             disabled={submitting || pairing || !online}
             onClick={() => void submitPending(pending)}
           >
             Retry identical action
-          </button>
+          </Button>
         )}
         <AttentionPanel
           snapshot={snapshot}
@@ -766,7 +787,8 @@ function Companion() {
             {(snapshot?.sessions || [])
               .filter((item) => item.worktree === quoteRequest.worktree)
               .map((item) => (
-                <button
+                <Button
+                  variant="outline"
                   key={`${item.id}:${item.conversation}`}
                   onClick={() =>
                     appendQuote(quoteRequest.quote, {
@@ -776,12 +798,14 @@ function Companion() {
                   }
                 >
                   {item.name} · {item.agent}
-                </button>
+                </Button>
               ))}
             {!snapshot?.sessions.some((item) => item.worktree === quoteRequest.worktree) && (
               <p>Start an agent session in this worktree before quoting text.</p>
             )}
-            <button onClick={() => setQuoteRequest(undefined)}>Cancel quote</button>
+            <Button variant="outline" onClick={() => setQuoteRequest(undefined)}>
+              Cancel quote
+            </Button>
           </section>
         )}
         {selected && (

@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { Button } from '../components/ui/button';
 import { AttentionSurface } from '../fullscreen-attention';
 import { useCompanionState } from '../companion-context';
 import type {
@@ -53,21 +54,22 @@ export function AttentionPanel({
         <div className="flex items-center justify-between gap-3">
           <h2 id="attention-title">Attention inbox</h2>
           {open && (
-            <button ref={closeRef} onClick={onClose}>
+            <Button variant="outline" ref={closeRef} onClick={onClose}>
               Hide attention
-            </button>
+            </Button>
           )}
         </div>
         {open && (
           <>
             <p role="status">{notice || connection}</p>
             {retry && pending && (
-              <button
+              <Button
+                variant="outline"
                 disabled={submitting || pairing || !online}
                 onClick={() => void onRetry(pending)}
               >
                 Retry identical action
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -83,16 +85,19 @@ export function AttentionPanel({
                   {owner?.name || entry.session}
                   {owner?.worktree ? ` · ${owner.worktree}` : ''}
                 </p>
-                <button
+                <Button
+                  variant="ghost"
+                  className="whitespace-normal text-left"
                   onClick={() => onSelect({ id: entry.session, conversation: entry.conversation })}
                 >
                   {entry.kind}: {entry.text}
-                </button>
+                </Button>
                 {permission && (
                   <div className="inbox-permission" role="group" aria-label={permission.title}>
                     <p>{permission.title}</p>
                     {permission.options.map((option) => (
-                      <button
+                      <Button
+                        variant="outline"
                         key={option.optionId}
                         disabled={
                           !online ||
@@ -110,7 +115,7 @@ export function AttentionPanel({
                         }
                       >
                         {option.name || option.optionId}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}

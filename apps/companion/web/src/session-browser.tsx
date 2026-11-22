@@ -1,4 +1,8 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
+import { StatusBadge } from './components/ui/status-badge';
 import { filterGroups, groupSessions, pathName, sessionLocation } from './sessionGroups';
 import { browserReducer, initialBrowserState } from './session-browser-state';
 import type { Selection, Session, Snapshot } from './types';
@@ -101,15 +105,24 @@ export function SessionBrowser({
     <section id="sessions" hidden={!active} aria-labelledby="sessions-title">
       <h2 id="sessions-title">Agent sessions</h2>
       <nav className="local-nav" aria-label="Conversation scope">
-        <button aria-pressed={scope === 'workspace'} onClick={() => setScope('workspace')}>
+        <Button
+          variant="outline"
+          aria-pressed={scope === 'workspace'}
+          onClick={() => setScope('workspace')}
+        >
           Workspace chats
-        </button>
-        <button aria-pressed={scope === 'general'} onClick={() => setScope('general')}>
+        </Button>
+        <Button
+          variant="outline"
+          aria-pressed={scope === 'general'}
+          onClick={() => setScope('general')}
+        >
           General
-        </button>
+        </Button>
       </nav>
       <div hidden={scope !== 'general'}>
         <GeneralBrowser
+          active={active && scope === 'general'}
           snapshot={snapshot}
           onSelect={onSelect}
           onAction={onAction}
@@ -133,27 +146,36 @@ export function SessionBrowser({
             ['attention', 'Needs attention'],
             ['stopped', 'Stopped'],
           ].map(([value, label]) => (
-            <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+            <Button
+              variant="outline"
+              key={value}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
-        <button aria-pressed={grouped} onClick={() => setGrouped(!grouped)}>
+        <Button variant="outline" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}>
           {grouped ? 'Show flat session list' : 'Group by workspace/worktree'}
-        </button>
-        <label className="session-search">
+        </Button>
+        <Label className="session-search">
           Search sessions, worktrees, or workspaces
-          <input
+          <Input
             type="search"
             value={query}
             placeholder="Name, branch, agent, or status"
             onChange={(event) => dispatch({ type: 'search', query: event.target.value })}
           />
-        </label>
+        </Label>
         {query && (
-          <button className="clear-search" onClick={() => dispatch({ type: 'search', query: '' })}>
+          <Button
+            variant="ghost"
+            className="clear-search"
+            onClick={() => dispatch({ type: 'search', query: '' })}
+          >
             Clear search
-          </button>
+          </Button>
         )}
         {!snapshot && <p className="navigation-empty">Pair your device to browse sessions.</p>}
         {snapshot && !snapshot.connected && (
@@ -181,7 +203,8 @@ export function SessionBrowser({
                       (filter === 'stopped' && ['stopped', 'exited'].includes(session.status)),
                   )
                   .map((session) => (
-                    <button
+                    <Button
+                      variant="ghost"
                       key={session.id}
                       ref={
                         selected?.id === session.id &&
@@ -203,9 +226,7 @@ export function SessionBrowser({
                     >
                       <span className="session-line">
                         <strong>{session.name}</strong>
-                        <span className={`status-badge status-${session.status}`}>
-                          {session.status}
-                        </span>
+                        <StatusBadge status={session.status} />
                       </span>
                       <span className="session-agent">
                         {workspace.name} · {tree.label} · {session.activity || session.agent}
@@ -215,7 +236,7 @@ export function SessionBrowser({
                           {session.assignment.ticket_title || session.assignment.board_title}
                         </span>
                       )}
-                    </button>
+                    </Button>
                   )),
               ),
             )}
@@ -238,7 +259,8 @@ export function SessionBrowser({
                   aria-label={`Workspace ${workspace.name}`}
                 >
                   <h3>
-                    <button
+                    <Button
+                      variant="ghost"
                       className="workspace-toggle"
                       aria-expanded={expanded}
                       aria-controls={panelID}
@@ -265,7 +287,7 @@ export function SessionBrowser({
                         </span>
                       </span>
                       <AttentionCount sessions={allSessions} />
-                    </button>
+                    </Button>
                   </h3>
                   <div className="workspace-worktrees" id={panelID} hidden={!expanded}>
                     {onAction && workspace.root && (
@@ -297,7 +319,8 @@ export function SessionBrowser({
                           aria-label={`Worktree ${worktree.label}`}
                         >
                           <h4>
-                            <button
+                            <Button
+                              variant="ghost"
                               className="worktree-toggle"
                               aria-expanded={worktreeExpanded}
                               aria-controls={worktreeID}
@@ -328,7 +351,7 @@ export function SessionBrowser({
                                 </span>
                               </span>
                               <AttentionCount sessions={worktree.sessions} />
-                            </button>
+                            </Button>
                           </h4>
                           <div
                             className="worktree-sessions"
@@ -396,7 +419,8 @@ export function SessionBrowser({
                                 selected?.id === session.id &&
                                 selected.conversation === session.conversation;
                               return (
-                                <button
+                                <Button
+                                  variant="ghost"
                                   className="session-button"
                                   key={session.id}
                                   ref={current ? currentButton : undefined}
@@ -408,9 +432,7 @@ export function SessionBrowser({
                                 >
                                   <span className="session-line">
                                     <span className="session-name">{session.name}</span>
-                                    <span className={`status-badge status-${session.status}`}>
-                                      {session.status}
-                                    </span>
+                                    <StatusBadge status={session.status} />
                                   </span>
                                   <span className="navigation-path">
                                     Board:{' '}
@@ -428,7 +450,7 @@ export function SessionBrowser({
                                     {session.agent}
                                     {current ? ' · Selected' : ''}
                                   </span>
-                                </button>
+                                </Button>
                               );
                             })}
                           </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Button } from './components/ui/button';
 import type { Quote } from './quote';
 import hljs from 'highlight.js/lib/common';
 import { splitHighlightedLines, visibleSourceLines, type FoldRange } from './source-folds';
@@ -38,7 +39,8 @@ export function SourceCode({
               ? `Lines ${Math.min(selection.start, selection.end ?? selection.start) + 1}–${Math.max(selection.start, selection.end ?? selection.start) + 1}. Tap another line to ${selection.end === undefined ? 'extend' : 'start a new selection'}.`
               : 'Tap line numbers to select a code range.'}
           </span>
-          <button
+          <Button
+            variant="outline"
             type="button"
             disabled={!selection}
             onClick={() => {
@@ -56,11 +58,11 @@ export function SourceCode({
             }}
           >
             Quote selected lines
-          </button>
+          </Button>
           {selection && (
-            <button type="button" onClick={() => setSelection(undefined)}>
+            <Button variant="ghost" type="button" onClick={() => setSelection(undefined)}>
               Clear line range
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -80,7 +82,8 @@ export function SourceCode({
           >
             <span className="source-gutter">
               {onQuote ? (
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
                   className="source-line-select"
                   aria-label={`Select line ${line + 1}`}
@@ -93,18 +96,19 @@ export function SourceCode({
                   }
                 >
                   {line + 1}
-                </button>
+                </Button>
               ) : (
                 <span aria-hidden="true">{line + 1}</span>
               )}
               {fold ? (
-                <button
+                <Button
+                  variant="ghost"
                   aria-label={`${hidden ? 'Expand' : 'Collapse'} lines ${line + 1}–${fold.end + 1}`}
                   aria-expanded={!hidden}
                   onClick={() => onToggle(line)}
                 >
                   {hidden ? '▸' : '▾'}
-                </button>
+                </Button>
               ) : (
                 <span className="source-fold-spacer" />
               )}
@@ -116,9 +120,13 @@ export function SourceCode({
                 : { children: plain[line] || ' ' })}
             />
             {!!hidden && (
-              <button className="source-fold-placeholder" onClick={() => onToggle(line)}>
+              <Button
+                variant="ghost"
+                className="source-fold-placeholder"
+                onClick={() => onToggle(line)}
+              >
                 … {hidden} {hidden === 1 ? 'line' : 'lines'}
-              </button>
+              </Button>
             )}
           </div>
         ))}

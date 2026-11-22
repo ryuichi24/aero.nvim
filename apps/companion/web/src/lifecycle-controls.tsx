@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
+import { NativeSelect } from './components/ui/native-select';
+import { Checkbox } from './components/ui/checkbox';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { Label } from './components/ui/label';
 import type { ActionData, ActionPath } from './types';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
 
 export type LifecycleAction = (path: ActionPath, data: Partial<ActionData>) => Promise<boolean>;
 
@@ -37,12 +43,12 @@ export function LifecycleForm({
   const [forceRemoval, setForceRemoval] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   return (
-    <details
+    <Collapsible
       ref={detailsRef}
       open={initiallyOpen || undefined}
       className="my-2 rounded-lg border border-slate-700 p-2"
     >
-      <summary className="cursor-pointer p-2">{title}</summary>
+      <CollapsibleTrigger className="p-2">{title}</CollapsibleTrigger>
       <form
         onSubmit={async (event) => {
           event.preventDefault();
@@ -68,9 +74,9 @@ export function LifecycleForm({
           </p>
         )}
         {agents && (
-          <label>
+          <Label>
             Agent
-            <select value={agent} onChange={(event) => setAgent(event.target.value)} required>
+            <NativeSelect value={agent} onChange={(event) => setAgent(event.target.value)} required>
               {defaultAgent && agents.includes(defaultAgent) && (
                 <option value="default">default ({defaultAgent})</option>
               )}
@@ -79,34 +85,37 @@ export function LifecycleForm({
                   {id}
                 </option>
               ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
         )}
         {field && (
-          <label>
+          <Label>
             {field === 'branch' ? 'Branch' : agents ? 'Session name (optional)' : 'New name'}
-            <input
+            <Input
               value={value}
               maxLength={256}
               required={!agents}
               onChange={(event) => setValue(event.target.value)}
             />
-          </label>
+          </Label>
         )}
         {force && (
-          <label>
-            <input
-              type="checkbox"
+          <Label>
+            <Checkbox
               checked={forceRemoval}
-              onChange={(event) => setForceRemoval(event.target.checked)}
+              onCheckedChange={(checked) => setForceRemoval(checked === true)}
             />{' '}
             Force removal (discard uncommitted files)
-          </label>
+          </Label>
         )}
-        <button disabled={disabled || (agents !== undefined && !agent)}>
+        <Button
+          type="submit"
+          variant={destructive ? 'destructive' : 'default'}
+          disabled={disabled || (agents !== undefined && !agent)}
+        >
           {destructive ? 'Confirm delete' : title}
-        </button>
+        </Button>
       </form>
-    </details>
+    </Collapsible>
   );
 }

@@ -1,8 +1,22 @@
 import type { Selection, Snapshot } from './types';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { StatusBadge } from './components/ui/status-badge';
 import type { View } from './companion-state';
 import { useState } from 'react';
 import { readStored, store } from './browser-storage';
 import { actionableAttention } from './attention';
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import {
+  ArrowRightIcon,
+  BookOpenIcon,
+  FileTextIcon,
+  FolderCodeIcon,
+  GitBranchIcon,
+  InboxIcon,
+  PlusIcon,
+  RadioIcon,
+} from 'lucide-react';
 
 export function CompanionHome({
   snapshot,
@@ -33,70 +47,116 @@ export function CompanionHome({
   const permissions = actionableAttention(snapshot).length;
   return (
     <section className="companion-home border-0 bg-transparent p-0" aria-labelledby="home-title">
-      <h2 id="home-title" className="mb-6 text-3xl font-semibold tracking-tight">
+      <p className="mb-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">
+        Overview
+      </p>
+      <h2 id="home-title" className="mb-2 text-2xl font-semibold tracking-tight sm:text-3xl">
         Your workspace, at a glance
       </h2>
-      <div className="my-5 rounded-3xl bg-raised/70 p-6">
-        <p className="text-sm font-medium text-slate-300">Needs attention</p>
-        <strong className="my-2 block text-6xl font-semibold tracking-tight">{permissions}</strong>
-        <p className="text-slate-300">
-          {permissions
-            ? `${permissions} permission${permissions === 1 ? ' requires' : 's require'} a response`
-            : snapshot?.connected
-              ? 'You’re all caught up'
-              : 'Connect to see your agents’ latest updates'}
-        </p>
-        <button onClick={() => onNavigate('inbox')}>Review inbox →</button>
+      <p className="text-sm text-muted-foreground">
+        Review requests, follow your agents, and pick up where you left off.
+      </p>
+      <div className="my-6 grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <CardTitle>Needs attention</CardTitle>
+            <InboxIcon aria-hidden="true" className="size-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <strong className="my-2 block text-5xl font-semibold tracking-tight tabular-nums">
+              {permissions}
+            </strong>
+            <p className="text-sm text-muted-foreground">
+              {permissions
+                ? `${permissions} permission${permissions === 1 ? ' requires' : 's require'} a response`
+                : snapshot?.connected
+                  ? 'You’re all caught up'
+                  : 'Connect to see your agents’ latest updates'}
+            </p>
+            <Button
+              variant={permissions ? 'default' : 'outline'}
+              className="mt-4"
+              onClick={() => onNavigate('inbox')}
+            >
+              Review inbox <ArrowRightIcon aria-hidden="true" />
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <CardTitle>Running sessions</CardTitle>
+            <RadioIcon aria-hidden="true" className="size-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <strong className="my-2 block text-5xl font-semibold tracking-tight tabular-nums">
+              {running}
+            </strong>
+            <p className="text-sm text-muted-foreground">
+              {running} {running === 1 ? 'agent' : 'agents'} working
+            </p>
+            <Button variant="outline" className="mt-4" onClick={() => onNavigate('sessions')}>
+              Browse sessions <ArrowRightIcon aria-hidden="true" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
-      <div className="quick-actions" aria-label="Quick actions">
+      <div
+        className="my-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5"
+        aria-label="Quick actions"
+      >
         {(
           [
-            ['sessions', 'New session'],
-            ['reports', 'Reports'],
-            ['reference', 'References'],
-            ['git', 'Changes'],
-            ['source', 'Source'],
+            ['sessions', 'New session', PlusIcon],
+            ['reports', 'Reports', FileTextIcon],
+            ['reference', 'References', BookOpenIcon],
+            ['git', 'Changes', GitBranchIcon],
+            ['source', 'Source', FolderCodeIcon],
           ] as const
-        ).map(([view, label]) => (
-          <button key={view} onClick={() => (view === 'sessions' ? onCreate() : onNavigate(view))}>
-            {label}
-          </button>
+        ).map(([view, label, Icon]) => (
+          <Button
+            variant={view === 'sessions' ? 'default' : 'outline'}
+            className="min-h-14"
+            key={view}
+            onClick={() => (view === 'sessions' ? onCreate() : onNavigate(view))}
+          >
+            <Icon aria-hidden="true" /> {label}
+          </Button>
         ))}
       </div>
       <div className="mt-7 mb-3 flex items-center justify-between gap-3">
-        <h3 className="m-0 text-xl">Continue working</h3>
-        <button
-          className="m-0 border-0 bg-transparent text-sky-300"
-          onClick={() => onNavigate('sessions')}
-        >
+        <h3 className="m-0 text-lg font-semibold">Continue working</h3>
+        <Button variant="ghost" onClick={() => onNavigate('sessions')}>
           See all sessions
-        </button>
+        </Button>
       </div>
-      <div className="home-session-list">
+      <div className="my-4 grid gap-3">
         {ordered.slice(0, 5).map((session) => (
-          <button
+          <Button
+            variant="outline"
             key={session.id}
-            className="session-button"
+            className="h-auto min-w-0 flex-col items-stretch gap-2 whitespace-normal rounded-xl p-4 text-left"
             aria-label={`${session.name} · ${session.status} · ${session.agent}`}
             onClick={() => onSelect({ id: session.id, conversation: session.conversation })}
           >
-            <span className="session-line">
-              <strong>{session.name}</strong>
-              <span className={`status-badge status-${session.status}`}>{session.status}</span>
+            <span className="flex min-w-0 items-center justify-between gap-3">
+              <strong className="min-w-0 wrap-anywhere">{session.name}</strong>
+              <StatusBadge status={session.status} />
             </span>
-            <span className="session-agent">
+            <span className="break-all text-sm font-normal text-muted-foreground">
               {session.activity || session.agent} ·{' '}
               {session.worktree.split('/').filter(Boolean).at(-1)}
             </span>
             {pins.includes(session.id) && <span className="text-xs text-sky-300">Pinned</span>}
-          </button>
+          </Button>
         ))}
       </div>
       {sessions.length > 0 && (
-        <details className="my-3 rounded-2xl bg-raised p-3">
-          <summary className="min-h-11 cursor-pointer py-2">Customize pinned sessions</summary>
+        <Collapsible className="my-3 rounded-2xl bg-raised p-3">
+          <CollapsibleTrigger>Customize pinned sessions</CollapsibleTrigger>
           {sessions.map((session) => (
-            <button
+            <Button
+              variant={pins.includes(session.id) ? 'secondary' : 'outline'}
+              className="m-1"
               key={session.id}
               aria-pressed={pins.includes(session.id)}
               onClick={() => {
@@ -108,22 +168,24 @@ export function CompanionHome({
               }}
             >
               {pins.includes(session.id) ? 'Unpin' : 'Pin'} {session.name}
-            </button>
+            </Button>
           ))}
-        </details>
+        </Collapsible>
       )}
       {!sessions.length && (
-        <p className="navigation-empty">
-          No sessions yet. Open Sessions to create your first agent session.
-        </p>
+        <Card className="border-dashed text-center">
+          <CardContent className="flex flex-col items-center gap-3 py-8">
+            <FolderCodeIcon aria-hidden="true" className="size-8 text-muted-foreground" />
+            <h3 className="font-semibold">Start your first session</h3>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Choose an agent to start working. Your recent and pinned sessions will appear here.
+            </p>
+            <Button onClick={onCreate}>
+              <PlusIcon aria-hidden="true" /> Create your first session
+            </Button>
+          </CardContent>
+        </Card>
       )}
-      <div className="my-5 rounded-3xl bg-raised/70 p-6">
-        <h3>Running sessions</h3>
-        <p className="text-slate-300">
-          {running} {running === 1 ? 'agent' : 'agents'} working
-        </p>
-        <button onClick={() => onNavigate('sessions')}>Browse sessions →</button>
-      </div>
     </section>
   );
 }

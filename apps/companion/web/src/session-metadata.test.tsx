@@ -28,7 +28,7 @@ it('shows the selected model and distinguishes cumulative tokens from live conte
   expect(screen.getByText('My model')).toBeTruthy();
   expect(screen.getByText('300,000')).toBeTruthy();
   expect(screen.getByText('25,000 / 100,000 tokens (25.0%)')).toBeTruthy();
-  expect((screen.getByRole('progressbar') as HTMLProgressElement).value).toBe(25);
+  expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('25');
   rerender(
     <SessionMetadata session={{ ...session, usage: { context: { used: 0, size: 100000 } } }} />,
   );

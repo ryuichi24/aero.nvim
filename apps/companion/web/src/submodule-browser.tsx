@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Button } from './components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { post } from './api';
 import { LifecycleForm, type LifecycleAction } from './lifecycle-controls';
@@ -64,7 +65,8 @@ function Discovery({
   };
   return (
     <div className="workspace-worktrees">
-      <button
+      <Button
+        variant="outline"
         disabled={!online || query.isFetching || listing?.loading}
         onClick={() => {
           refresh.current = true;
@@ -72,7 +74,7 @@ function Discovery({
         }}
       >
         Refresh submodules
-      </button>
+      </Button>
       {(query.isPending || listing?.loading) && <p role="status">Loading submodules…</p>}
       {(query.error || listing?.error) && (
         <p role="alert">{query.error?.message || listing?.error} </p>
@@ -119,9 +121,9 @@ function Discovery({
               </p>
               <p className="navigation-path">{child.path}</p>
               {onOpen && (
-                <button disabled={!online} onClick={() => onOpen(child.path)}>
+                <Button variant="outline" disabled={!online} onClick={() => onOpen(child.path)}>
                   Browse checkout
-                </button>
+                </Button>
               )}
               {onAction && (
                 <LifecycleForm
@@ -187,14 +189,15 @@ function Submodule({ entry, ...props }: Props & { entry: Entry }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div role="group" aria-label={`Submodule ${entry.name}`}>
-      <button
+      <Button
+        variant="ghost"
         disabled={!entry.initialized || !props.online}
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
       >
         <span aria-hidden="true">{expanded ? '▾' : '▸'}</span> {entry.name}
         {!entry.initialized && ' · not initialized'}
-      </button>
+      </Button>
       <span className="navigation-path">{entry.path}</span>
       {expanded && <Discovery {...props} path={entry.path} />}
     </div>
@@ -206,13 +209,14 @@ export function SubmoduleBrowser(props: Props) {
   if (!props.snapshot.epoch || !props.tree.target) return null;
   return (
     <div className="submodule-browser">
-      <button
+      <Button
+        variant="ghost"
         aria-expanded={expanded}
         disabled={!props.online}
         onClick={() => setExpanded(!expanded)}
       >
         <span aria-hidden="true">{expanded ? '▾' : '▸'}</span> Submodules
-      </button>
+      </Button>
       {expanded && (
         <Discovery {...props} ancestors={[...(props.ancestors || []), props.tree.path]} />
       )}

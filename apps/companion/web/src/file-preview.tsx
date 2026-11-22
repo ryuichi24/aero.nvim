@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from 'react';
+import { Button } from './components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { post } from './api';
-import './file-preview.css';
 
 export const FileContext = createContext({ worktree: '', online: false });
 
@@ -100,24 +100,32 @@ export function FilePreview({
   const start = all || !reference.line ? 0 : Math.max(0, reference.line - 7);
   const end = all || !reference.line ? lines?.length : (reference.end || reference.line) + 6;
   return (
-    <section className="file-inline-preview" aria-label={`Code preview: ${reference.path}`}>
-      <header>
-        <strong>
+    <section
+      className="file-inline-preview my-3 min-w-0 rounded-lg border border-border p-3"
+      aria-label={`Code preview: ${reference.path}`}
+    >
+      <header className="flex items-center justify-between gap-2">
+        <strong className="wrap-anywhere">
           {reference.path}
           {reference.line ? `:${reference.line}` : ''}
         </strong>
-        <button onClick={onClose}>Close preview</button>
+        <Button variant="outline" onClick={onClose}>
+          Close preview
+        </Button>
       </header>
       {!online && <p role="status">Connect to the host to preview this file.</p>}
       {query.isFetching && <p role="status">Loading code…</p>}
       {query.error && (
         <p role="alert">
-          {query.error.message} <button onClick={() => void query.refetch()}>Retry</button>
+          {query.error.message}{' '}
+          <Button variant="outline" onClick={() => void query.refetch()}>
+            Retry
+          </Button>
         </p>
       )}
       {query.data && !lines && <p role="status">This path is a directory, not a source file.</p>}
       {lines && (
-        <pre>
+        <pre className="max-h-112 overflow-auto">
           <code>
             {lines.slice(start, end).map((text, index) => {
               const number = start + index + 1;
@@ -126,12 +134,14 @@ export function FilePreview({
                   className={
                     number >= (reference.line || Infinity) &&
                     number <= (reference.end || reference.line || 0)
-                      ? 'file-preview-line referenced'
-                      : 'file-preview-line'
+                      ? 'file-preview-line referenced block bg-accent'
+                      : 'file-preview-line block'
                   }
                   key={number}
                 >
-                  <span className="file-preview-number">{number}</span>
+                  <span className="file-preview-number inline-block w-16 pr-4 text-right text-muted-foreground select-none">
+                    {number}
+                  </span>
                   {text || ' '}
                   {'\n'}
                 </span>
@@ -141,9 +151,9 @@ export function FilePreview({
         </pre>
       )}
       {lines && reference.line && (
-        <button onClick={() => setAll((value) => !value)}>
+        <Button variant="outline" onClick={() => setAll((value) => !value)}>
           {all ? 'Show surrounding lines' : 'Show full file'}
-        </button>
+        </Button>
       )}
     </section>
   );

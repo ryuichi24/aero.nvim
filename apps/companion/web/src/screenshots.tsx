@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
 import { ImageLink, imageURL, videoURL } from './image-link';
@@ -110,8 +111,8 @@ export function Screenshots({ session }: { session: Session }) {
   const screenshots = useMemo(() => sessionScreenshots(session), [session]);
   if (!screenshots.length) return null;
   return (
-    <details className="session-screenshots">
-      <summary>Screenshots ({screenshots.length})</summary>
+    <Collapsible className="session-screenshots">
+      <CollapsibleTrigger>Screenshots ({screenshots.length})</CollapsibleTrigger>
       <ul className="screenshot-list" aria-label="Session screenshots">
         {screenshots.map((screenshot) => (
           <li key={screenshot.href}>
@@ -122,6 +123,6 @@ export function Screenshots({ session }: { session: Session }) {
           </li>
         ))}
       </ul>
-    </details>
+    </Collapsible>
   );
 }

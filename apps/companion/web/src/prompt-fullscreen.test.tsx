@@ -11,9 +11,6 @@ it('keeps slash commands and the same draft editor available in fullscreen and o
   connect();
   await open();
   draft('/');
-  const dialog = document.querySelector<HTMLDialogElement>('.prompt-fullscreen')!;
-  dialog.showModal = () => dialog.setAttribute('open', '');
-  dialog.close = () => dialog.removeAttribute('open');
   const input = screen.getByRole('textbox', { name: 'Follow-up prompt' });
   await userEvent.click(screen.getByRole('button', { name: 'Fullscreen prompt' }));
   const modal = screen.getByRole('dialog', { name: 'Fullscreen prompt editor' });

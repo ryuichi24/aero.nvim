@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
 import { ImageLink } from './image-link';
 import { sessionRecordings } from './screenshots';
 import type { Session } from './types';
@@ -34,8 +35,8 @@ export function Recordings({ session }: { session: Session }) {
   }, [paths]);
   if (!recordings.length) return null;
   return (
-    <details className="session-screenshots">
-      <summary>Recordings ({recordings.length})</summary>
+    <Collapsible className="session-screenshots">
+      <CollapsibleTrigger>Recordings ({recordings.length})</CollapsibleTrigger>
       <ul className="screenshot-list" aria-label="Session recordings">
         {recordings.map((recording) => (
           <li key={recording.href}>
@@ -47,6 +48,6 @@ export function Recordings({ session }: { session: Session }) {
           </li>
         ))}
       </ul>
-    </details>
+    </Collapsible>
   );
 }

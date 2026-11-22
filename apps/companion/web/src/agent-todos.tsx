@@ -1,4 +1,6 @@
 import type { TranscriptBlock } from './types';
+import { Collapsible, CollapsibleTrigger } from './components/ui/collapsible';
+import { Progress } from './components/ui/progress';
 
 export interface Todo {
   content: string;
@@ -93,15 +95,15 @@ export function AgentTodos({ todos }: { todos?: Todo[] }) {
   const completed = todos.filter((todo) => todo.status === 'completed').length;
   const active = todos.filter((todo) => todo.status === 'in_progress');
   return (
-    <details className="agent-todos" open>
-      <summary>
+    <Collapsible className="agent-todos" open>
+      <CollapsibleTrigger>
         <strong>Agent todos</strong>
         <span role="status">
           {completed}/{todos.length} completed
         </span>
-      </summary>
+      </CollapsibleTrigger>
       {!!todos.length && (
-        <progress aria-label="Todo completion" value={completed} max={todos.length} />
+        <Progress aria-label="Todo completion" value={completed} max={todos.length} />
       )}
       {active.length > 0 && (
         <p className="agent-todo-current">
@@ -113,6 +115,6 @@ export function AgentTodos({ todos }: { todos?: Todo[] }) {
       ) : (
         <p className="agent-todo-current">No current todos.</p>
       )}
-    </details>
+    </Collapsible>
   );
 }

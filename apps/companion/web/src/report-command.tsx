@@ -1,4 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
 import { useState } from 'react';
 import { post } from './api';
 
@@ -25,35 +28,41 @@ export function ReportCommand({
       {query.error && (
         <p role="alert">
           {query.error.message}{' '}
-          <button type="button" disabled={!online} onClick={() => void query.refetch()}>
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!online}
+            onClick={() => void query.refetch()}
+          >
             Retry
-          </button>
+          </Button>
         </p>
       )}
       {query.data?.entries
         .filter((entry) => !entry.directory)
         .map((entry) => (
-          <button
+          <Button
+            variant="outline"
             key={entry.name}
             type="button"
             disabled={!online}
             onClick={() => onChoose(`/report select ${entry.name}`)}
           >
             {entry.name}
-          </button>
+          </Button>
         ))}
       {query.data?.entries.length === 0 && <p>No reports created yet.</p>}
-      <label>
+      <Label>
         New report name
-        <input value={name} onChange={(event) => setName(event.target.value)} />
-      </label>
-      <button
+        <Input value={name} onChange={(event) => setName(event.target.value)} />
+      </Label>
+      <Button
         type="button"
         disabled={!online || !name.trim() || /[/\\\r\n]/.test(name)}
         onClick={() => onChoose(`/report new ${name.trim()}`)}
       >
         Use new report
-      </button>
+      </Button>
     </section>
   );
 }
