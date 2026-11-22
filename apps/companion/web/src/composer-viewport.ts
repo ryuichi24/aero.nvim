@@ -80,7 +80,9 @@ export function useComposerViewport({
             window.innerWidth < 1100 && nav?.height
               ? Math.min(height + offset, nav.top)
               : height + offset;
-          const top = Math.max(host.getBoundingClientRect().top, offset);
+          // Use the document position so scrolling cannot grow the panel, resize
+          // main, and feed back into another ResizeObserver notification.
+          const top = Math.max(host.getBoundingClientRect().top + window.scrollY, offset);
           host.style.setProperty('--transcript-height', `${Math.max(180, bottom - top - 12)}px`);
         }
       }
@@ -103,6 +105,10 @@ export function useComposerViewport({
         `${composer?.getBoundingClientRect().height || 0}px`,
       );
     }
+    function viewportScroll() {
+      // Viewport panning matters for the keyboard dock, not ordinary log reading.
+      if (keyboard.current || fullscreen) resize();
+    }
     resize();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
     observer?.observe(document.querySelector('main') || host);
@@ -111,17 +117,15 @@ export function useComposerViewport({
     document.addEventListener('pointerdown', captureFocus, true);
     document.addEventListener('focusin', captureFocus);
     window.addEventListener('resize', resize);
-    window.addEventListener('scroll', resize, { passive: true });
     viewport?.addEventListener('resize', resize);
-    viewport?.addEventListener('scroll', resize);
+    viewport?.addEventListener('scroll', viewportScroll);
     return () => {
       observer?.disconnect();
       document.removeEventListener('pointerdown', captureFocus, true);
       document.removeEventListener('focusin', captureFocus);
       window.removeEventListener('resize', resize);
-      window.removeEventListener('scroll', resize);
       viewport?.removeEventListener('resize', resize);
-      viewport?.removeEventListener('scroll', resize);
+      viewport?.removeEventListener('scroll', viewportScroll);
       document.documentElement.style.removeProperty('--companion-composer-height');
       delete document.documentElement.dataset.composerKeyboard;
       delete host.dataset.keyboard;

@@ -83,3 +83,24 @@ it('restores the page position after the browser auto-scrolls during keyboard fo
   expect(scroll).toHaveBeenCalledWith({ left: 0, top: 0 });
   expect(document.body.style.overflow).toBe('');
 });
+
+it('keeps the log panel height stable when the page scrolls and layout is measured again', () => {
+  vi.stubGlobal('scrollY', 0);
+  const { viewport, host } = setup();
+  const rect = vi.spyOn(host, 'getBoundingClientRect');
+  rect.mockReturnValue({ top: 200 } as DOMRect);
+  act(() => window.dispatchEvent(new Event('resize')));
+  const height = host.style.getPropertyValue('--transcript-height');
+  expect(height).toBe('588px');
+
+  rect.mockReturnValue({ top: 100 } as DOMRect);
+  vi.stubGlobal('scrollY', 100);
+  act(() => {
+    window.dispatchEvent(new Event('scroll'));
+    viewport.dispatchEvent(new Event('scroll'));
+  });
+  expect(host.style.getPropertyValue('--transcript-height')).toBe(height);
+
+  act(() => window.dispatchEvent(new Event('resize')));
+  expect(host.style.getPropertyValue('--transcript-height')).toBe(height);
+});
