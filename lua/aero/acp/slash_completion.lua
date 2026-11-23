@@ -5,6 +5,8 @@ local commands = {
 	{ "/model", "Choose the session's AI model" },
 	{ "/mode", "Choose the session mode" },
 	{ "/report", "Attach a worktree report to the draft" },
+	{ "/to-article", "Write and save an article; optionally specify md or mdx" },
+	{ "/article", "Select an active article for review and revision, or open its folder" },
 	{ "/reading", "Draft a named source-code walkthrough request" },
 	{ "/reading-update", "Select an existing reading list to update" },
 	{ "/prompt", "Insert a custom prompt snippet into the draft" },
@@ -18,7 +20,8 @@ local commands = {
 
 function M.complete(chat, findstart, base)
 	local line = vim.api.nvim_get_current_line():sub(1, vim.api.nvim_win_get_cursor(0)[2])
-	local prefix = line:match("^(%s*/model%s+)") or line:match("^(%s*/mode%s+)")
+	local article_prefix = line:match("^(%s*/to%-article%s+)")
+	local prefix = article_prefix or line:match("^(%s*/model%s+)") or line:match("^(%s*/mode%s+)")
 
 	if findstart == 1 then
 		if prefix then
@@ -30,6 +33,16 @@ function M.complete(chat, findstart, base)
 	end
 
 	local out, reserved = {}, {}
+
+	if article_prefix then
+		for _, format in ipairs({ "md", "mdx" }) do
+			if format:sub(1, #base) == base then
+				table.insert(out, { word = format, menu = format == "md" and "Markdown article" or "MDX article" })
+			end
+		end
+
+		return out
+	end
 
 	if prefix then
 		local selector = require("aero.acp." .. (prefix:match("/model%s") and "models" or "modes"))

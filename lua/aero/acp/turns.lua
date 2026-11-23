@@ -55,7 +55,14 @@ function M.prompt(chat, text)
 		return
 	end
 
-	local ok, wire_text = pcall(require("aero.knowledge.agent").context, chat.s, text)
+	local article_text, article_err = require("aero.articles").context(chat.s, text)
+
+	if not article_text then
+		vim.notify("Aero: " .. article_err, vim.log.levels.WARN)
+		return
+	end
+
+	local ok, wire_text = pcall(require("aero.knowledge.agent").context, chat.s, article_text)
 
 	if not ok then
 		vim.notify("Aero: cannot prepare knowledge context: " .. tostring(wire_text), vim.log.levels.ERROR)

@@ -4,6 +4,9 @@ end
 
 vim.g.loaded_Aero = true
 local subcommands = {
+	article = function(args)
+		require("aero").article(args)
+	end,
 	scene = function(args)
 		require("aero").scene(args)
 	end,
@@ -217,6 +220,10 @@ end, {
 	range = true,
 	complete = function(arglead, cmdline)
 		local words = vim.split(cmdline, "%s+", { trimempty = true })
+
+		if words[2] == "article" and (#words > 2 or cmdline:match("%s$")) then
+			return #words <= 3 and vim.startswith("export", arglead) and { "export" } or {}
+		end
 
 		if words[2] == "scene" and (#words > 2 or cmdline:match("%s$")) then
 			local values = { "new", "switch", "rename", "delete", "add", "remove" }

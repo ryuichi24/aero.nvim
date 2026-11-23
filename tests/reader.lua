@@ -82,16 +82,16 @@ local reading = api.nvim_get_current_buf()
 assert(reader.active() == "reading")
 assert(vim.wo.winbar:find("Reading", 1, true))
 
-_G.AeroReaderClick(7)
+_G.AeroReaderClick(8)
 
 assert(#api.nvim_tabpage_list_wins(0) == 6)
 
-_G.AeroReaderClick(7)
+_G.AeroReaderClick(8)
 _G.AeroReaderClick(1)
 
 assert(api.nvim_get_current_buf() == source)
 
-_G.AeroReaderClick(5)
+_G.AeroReaderClick(6)
 
 assert(api.nvim_get_current_buf() == reading)
 

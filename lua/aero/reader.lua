@@ -3,13 +3,14 @@ local api = vim.api
 local M = {}
 local states = {}
 local returns = {}
-local workspace_kinds = { "source", "exports", "references", "reports", "reading", "browser" }
+local workspace_kinds = { "source", "exports", "references", "reports", "articles", "reading", "browser" }
 local knowledge_kinds = { "content", "metadata" }
 local labels = {
 	source = "Source",
 	exports = "Exported logs",
 	references = "References",
 	reports = "Reports",
+	articles = "Articles",
 	reading = "Reading",
 	browser = "Browser",
 	content = "Extracted content",
@@ -250,6 +251,10 @@ function M.close_knowledge()
 end
 
 function M.select(kind)
+	if kind == "articles" then
+		return require("aero.articles").pick(require("aero.panel").current_session())
+	end
+
 	if not labels[kind] then
 		return
 	end

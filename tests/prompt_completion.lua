@@ -92,6 +92,15 @@ for _, width in ipairs({ 20, 30, 45 }) do
 	assert(longest + menu + 4 <= width, "full slash menu exceeds shared width budget")
 end
 
+local article_start, article_items = suggestions("/to-article m")
+
+assert(article_start == #"/to-article " + 1)
+assert(#article_items == 2 and article_items[1].word == "md" and article_items[2].word == "mdx")
+
+article_start, article_items = suggestions("/to-article mdx")
+
+assert(#article_items == 1 and article_items[1].word == "mdx")
+
 start, items = suggestions("  /rep")
 
 assert(start == 3 and #items == 1 and items[1].word == "/report")

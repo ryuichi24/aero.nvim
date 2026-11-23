@@ -54,6 +54,7 @@ function M.candidates()
 		not before:match("^%s*/[%w_-]*$")
 		and not before:match("^%s*/model%s+[^%s]*$")
 		and not before:match("^%s*/mode%s+[^%s]*$")
+		and not before:match("^%s*/to%-article%s+[^%s]*$")
 	then
 		return
 	end

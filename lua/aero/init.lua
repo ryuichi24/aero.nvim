@@ -161,7 +161,7 @@ function M.reader(action)
 
 	if
 		vim.tbl_contains(
-			{ "source", "exports", "references", "reports", "reading", "browser", "content", "metadata" },
+			{ "source", "exports", "references", "reports", "articles", "reading", "browser", "content", "metadata" },
 			action
 		)
 	then
@@ -180,6 +180,11 @@ end
 function M.reading(action)
 	ensure_setup()
 	return require("aero.reading").command(action)
+end
+
+function M.article(args)
+	ensure_setup()
+	return require("aero.article_export").command(args or {})
 end
 
 --- Toggle fullscreen for the focused pane, including the code window.

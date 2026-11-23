@@ -2,6 +2,12 @@
 -- Model/mode commands remain in the conversation's ready-turn path.
 local M = {}
 local commands = {
+	["/article"] = {
+		while_stopped = true,
+		run = function(chat)
+			return require("aero.articles").pick(chat.s)
+		end,
+	},
 	["/resume"] = {
 		while_stopped = true,
 		run = function(chat)

@@ -57,6 +57,8 @@ end
 local function enter_command(text)
 	local selector = not text:find("[\r\n]") and text:match("^/(%S+)")
 	return text == "/prompt"
+		or selector == "to-article"
+		or text == "/article"
 		or text == "/report"
 		or reference_command(text)
 		or text == "/cancel"

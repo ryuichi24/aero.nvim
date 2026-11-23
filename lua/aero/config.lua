@@ -141,6 +141,14 @@ local defaults = {
 		-- Text appended to agent drafts; {path} becomes the JSON-quoted absolute report path.
 		prompt = "Report file: {path}\nRead this Markdown report for context and write or update the report at this path with your findings.",
 	},
+	articles = {
+		format = "md", -- "md" or "mdx"; used for new articles
+		export = { directory = nil }, -- destination content root; exports <slug>/<lang>.md
+		-- Generate one Markdown version for every language; the first becomes active.
+		languages = { "en" },
+		-- /to-article instructions; file paths, frontmatter, and taxonomy context are appended automatically.
+		prompt = "Write a standalone, publication-ready article based on our discussion in this session. Save it immediately to the active article path below and report its path. Do not merely summarize the transcript.",
+	},
 	reading = {
 		explanation = { auto_open = true, position = "right", unfold = true }, -- position: "below" or "right"
 		-- {title} becomes the JSON-quoted list title in the /reading draft.
