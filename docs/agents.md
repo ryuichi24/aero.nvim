@@ -270,6 +270,103 @@ end, {
 
 The same action is available as `require("aero").file()`.
 
+## Articles
+
+Send `/to-article` in an ACP session to ask the current agent to turn the discussion
+into a standalone article and save it immediately. Articles live in
+`stdpath("data")/Aero/articles`, shared across projects. Each Markdown article uses
+YAML frontmatter with `title`, `tags` (a list), and `category` (one string).
+The agent receives the path to the shared `taxonomy.json` registry and instructions
+to reuse existing tags/categories before adding genuinely new entries.
+
+The session remembers its active article across restarts. Follow-up requests such
+as “revise the introduction” include that article's path and instruct the agent to
+read and update it in place. `/to-article` creates a new article target each time.
+Files and metadata are written by the agent using its normal file tools.
+
+Customize the writing instructions used by `/to-article` in `setup()`:
+
+```lua
+require("aero").setup({
+  articles = {
+    format = "mdx", -- "md" (default) or "mdx"
+    languages = { "en", "ja" }, -- generate every language; the first becomes active
+    prompt = "Write a practical blog tutorial based on our discussion. Include code examples, explain tradeoffs, and finish with key takeaways. Save the article immediately and report its path.",
+  },
+})
+```
+
+`articles.prompt` replaces the default article-writing prompt. Aero automatically
+appends the active article path, frontmatter requirements, and shared taxonomy
+instructions. This setting applies to article generation; follow-up revision
+requests keep the user's own wording.
+
+Set `articles.format = "mdx"` to generate MDX instead of Markdown. New targets and
+slug-based filenames use `.mdx`, and the agent receives MDX syntax instructions.
+The article picker and rename recovery support both formats. Exports preserve each
+source file's extension, producing `<slug>/<lang>.mdx` for MDX articles. Your blog
+must support MDX and provide any components used by the article. Existing articles
+keep their format during revisions, regardless of this setting.
+
+Override the configured format for a single generation with `/to-article md` or
+`/to-article mdx`. Plain `/to-article` uses `articles.format`. The override applies
+to every configured language for that article and does not change your config.
+
+`articles.languages` defaults to `{ "en" }`. With `{ "en", "ja" }`, `/to-article`
+asks the current agent to save **both** English and Japanese posts in the same turn,
+using `<articleId>.en.md` and `<articleId>.ja.md`. Duplicate language codes are ignored.
+These are initial writing paths. After writing, the agent renames each new post to
+`<slug>.<lang>.md`, choosing a distinct slug if the destination already exists.
+Aero tracks the shared `articleId` and language to recover the active path after
+a rename. Keep those frontmatter fields intact; ordinary revisions retain the
+existing filename. Legacy session pointers to generated ID-based filenames are
+also recovered after renaming. Recovery requires the existing `yq` prerequisite
+to read YAML frontmatter and an unambiguous matching article.
+An empty list or invalid language code is rejected before changing the active article.
+Generated versions share `articleId`, `pubDate`, canonical tags, and category;
+each has its own `lang`, URL-safe `slug`, localized `title` and `description`, and
+`draft: true`. This metadata supports the Astro blog's content schema. Configure
+languages supported by your blog (currently `en` and `ja` in the starter).
+The first configured language becomes the session's active article. Use `/article`
+to select another version for revision; ordinary revisions target only the active
+file unless you ask for changes across languages. Generation and file writes are
+performed by the agent's normal tools, so check its reported saved paths.
+
+Use `/article` or click the middle pane's **Articles** tab to select a saved article
+for review and make it active for the current session. Articles open as normal
+Markdown buffers, supporting the existing visual-selection quoting workflow.
+The picker's **Open articles folder** entry opens the local directory in Neovim.
+You can also run `:Aero reader articles` to open the picker.
+
+### Export articles to a blog
+
+Configure a content destination, then run `:Aero article export`:
+
+```lua
+require("aero").setup({
+  articles = {
+    languages = { "en", "ja" },
+    export = { directory = "/Users/ryu/dev/personal/projects/blog/src/content/posts" },
+  },
+})
+```
+
+The export finder uses the References marking/staging UI. Each row is an article
+grouped by `articleId`, with its title, available languages, and identity shown.
+Use `y` to mark an article, visual selection plus `y` to mark several, and `u` to
+unmark or unstage. Use `:w` to stage marked articles, then `q` or Escape to export
+the staged selection. Unsaved marks are discarded on exit. Cutting is disabled.
+
+All available translations are copied to `<directory>/<slug>/<lang>.md`, using
+each translation's frontmatter slug. Localized slugs may use separate folders;
+translations with the same slug share a folder. Slugs must be URL-safe lowercase
+ASCII segments, and conflicting destinations within a selection are rejected.
+Originals remain in Aero's library, and frontmatter (including `draft`) is preserved.
+Identical destination files are skipped; replacing differing files requires explicit
+confirmation. Cancelled or failed transfers retain the staged selection for retry.
+Save modified destination buffers before exporting. Older articles missing
+`articleId` or `lang` must have their metadata updated before using the exporter.
+
 ## Prompt snippets
 
 Type `/prompt` in the ACP composer to choose a custom prompt from a searchable
