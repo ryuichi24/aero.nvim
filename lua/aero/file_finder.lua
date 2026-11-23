@@ -102,12 +102,17 @@ function M.open(options)
 		local lines = {}
 
 		for _, item in ipairs(f.staged) do
-			table.insert(lines, "  " .. item.action .. "  " .. item.path)
+			table.insert(
+				lines,
+				"  " .. item.action .. "  " .. (options.label and options.label(item.path) or item.path)
+			)
 		end
 
 		if #lines == 0 then
-			lines = options.select
-					and { "  Yank Git folders with y, then q to add staged workspaces. Enter/l: enter · -/h: parent" }
+			lines = options.empty_hint and { options.empty_hint }
+				or options.select and {
+					"  Yank Git folders with y, then q to add staged workspaces. Enter/l: enter · -/h: parent",
+				}
 				or { "  No staged items. y: copy · d: cut · u: unmark · Enter/l: enter · -/h: parent" }
 		end
 
@@ -116,37 +121,42 @@ function M.open(options)
 	end
 
 	local function render()
-		local scan, err = vim.uv.fs_scandir(f.directory)
+		if options.entries then
+			f.entries = options.entries
+		else
+			local scan, err = vim.uv.fs_scandir(f.directory)
 
-		if not scan then
-			return warn(err)
+			if not scan then
+				return warn(err)
+			end
+
+			f.entries = {}
+			while true do
+				local name, kind = vim.uv.fs_scandir_next(scan)
+
+				if not name then
+					break
+				end
+
+				local path = vim.fs.joinpath(f.directory, name)
+
+				if kind == "link" and vim.fn.isdirectory(path) == 1 then
+					kind = "directory"
+				end
+
+				if not options.select or kind == "directory" then
+					table.insert(f.entries, { name = name, path = path, kind = kind })
+				end
+			end
+			table.sort(f.entries, function(a, b)
+				if (a.kind == "directory") ~= (b.kind == "directory") then
+					return a.kind == "directory"
+				end
+
+				return a.name < b.name
+			end)
 		end
 
-		f.entries = {}
-		while true do
-			local name, kind = vim.uv.fs_scandir_next(scan)
-
-			if not name then
-				break
-			end
-
-			local path = vim.fs.joinpath(f.directory, name)
-
-			if kind == "link" and vim.fn.isdirectory(path) == 1 then
-				kind = "directory"
-			end
-
-			if not options.select or kind == "directory" then
-				table.insert(f.entries, { name = name, path = path, kind = kind })
-			end
-		end
-		table.sort(f.entries, function(a, b)
-			if (a.kind == "directory") ~= (b.kind == "directory") then
-				return a.kind == "directory"
-			end
-
-			return a.name < b.name
-		end)
 		local lines = {}
 
 		for _, item in ipairs(f.entries) do
@@ -179,7 +189,7 @@ function M.open(options)
 
 		vim.bo[f.buf].modified = next(f.pending) ~= nil or (options.select ~= nil and #f.staged > 0)
 		api.nvim_win_set_config(f.win, {
-			title = finder_title .. "· browsing: " .. f.directory:gsub("[%c]", " ") .. " ",
+			title = finder_title .. (options.entries and "" or "· browsing: " .. f.directory:gsub("[%c]", " ") .. " "),
 		})
 	end
 
@@ -398,7 +408,11 @@ function M.open(options)
 		end
 	end
 
-	for key, action in pairs(options.select and { y = "copy", u = false } or { y = "copy", d = "cut", u = false }) do
+	for key, action in
+		pairs(
+			(options.select or options.copy_only) and { y = "copy", u = false } or { y = "copy", d = "cut", u = false }
+		)
+	do
 		vim.keymap.set({ "n", "x" }, key, function()
 			mark(action or nil)
 		end, { buffer = f.buf, nowait = true })
@@ -430,6 +444,10 @@ function M.open(options)
 
 	for _, key in ipairs({ "<CR>", "l" }) do
 		vim.keymap.set("n", key, function()
+			if options.entries then
+				return
+			end
+
 			if not require_saved() then
 				return
 			end
@@ -445,6 +463,10 @@ function M.open(options)
 
 	for _, key in ipairs({ "-", "h" }) do
 		vim.keymap.set("n", key, function()
+			if options.entries then
+				return
+			end
+
 			if not require_saved() then
 				return
 			end
