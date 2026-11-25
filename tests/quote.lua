@@ -221,6 +221,37 @@ assert(api.nvim_win_get_buf(code) == code_buf, "panel=false quoting replaced the
 assert(draft(first):find(original[1], 1, true))
 assert(#first.chat.blocks == 0 and #second.chat.blocks == 0, "quoting submitted a message")
 
+-- General conversations already own a transcript window and must not open a panel copy.
+opts.panel = nil
+aero.setup(vim.deepcopy(opts))
+local general = require("aero.general")
+local conversation = sessions.create(general.directory(), "fixture")
+local general_win = general.show(conversation)
+
+assert(vim.wait(5000, function()
+	return conversation.chat.state == "ready"
+end, 10))
+
+vim.bo[conversation.buf].modifiable = true
+api.nvim_buf_set_lines(conversation.buf, 0, -1, false, { "general answer" })
+vim.bo[conversation.buf].modifiable = false
+select(general_win, "V", { 1, 0 }, { 1, 0 })
+aero.quote()
+local transcript_windows = 0
+
+for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+	if api.nvim_win_get_buf(win) == conversation.buf then
+		transcript_windows = transcript_windows + 1
+	end
+end
+
+assert(transcript_windows == 1, "general quote opened a duplicate transcript")
+assert(api.nvim_win_get_buf(general_win) == conversation.buf, "general quote replaced its transcript")
+assert(api.nvim_get_current_buf() == conversation.chat.prompt_buf, "general quote did not focus the prompt")
+assert(draft(conversation):find("\ngeneral answer\n", 1, true), "general quote lost selected text")
+assert(not panel.current_session(), "general quote opened the agent panel")
+
+sessions.delete(conversation)
 sessions.delete(second)
 sessions.delete(first)
 api.nvim_create_autocmd("VimLeavePre", {

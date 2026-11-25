@@ -93,6 +93,12 @@ local function format_quote(source, target)
 end
 
 local function show(target, source)
+	local general = require("aero.general")
+
+	if target.worktree == general.directory() then
+		return general.show(target)
+	end
+
 	if panel.enabled() then
 		return panel.show(target)
 	end
