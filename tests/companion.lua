@@ -91,6 +91,69 @@ assert(snapshot.sessions[1].activity == nil, "idle session has live activity")
 
 local chat = s.chat
 
+-- Article review reads only regular Markdown/MDX files in the shared library.
+local articles = require("aero.articles")
+local original_directory = articles.directory
+articles.directory = function()
+	return dir .. "/articles"
+end
+local article_scope = { epoch = snapshot.epoch, session = s.key, conversation = generation }
+local empty_library = assert(bridge.dispatch("articles", article_scope))
+
+assert(#empty_library.entries == 0)
+
+vim.fn.mkdir(articles.directory(), "p")
+vim.fn.writefile({ "# Article", "", "Saved text" }, articles.directory() .. "/review.en.md")
+vim.fn.writefile({ "# Translation", "<Component />" }, articles.directory() .. "/review.ja.mdx")
+vim.fn.writefile({ "{}" }, articles.directory() .. "/taxonomy.json")
+vim.fn.writefile({ "hidden" }, articles.directory() .. "/.hidden.md")
+vim.fn.writefile({ "outside" }, dir .. "/outside.md")
+
+assert(vim.uv.fs_symlink(dir .. "/outside.md", articles.directory() .. "/linked.md"))
+
+articles.activate(s, articles.directory() .. "/review.en.md")
+local library = assert(bridge.dispatch("articles", article_scope))
+
+assert(#library.entries == 2 and library.entries[1].name == "review.en.md")
+assert(library.active == "review.en.md")
+
+local function read_article(path)
+	return bridge.dispatch("articles", vim.tbl_extend("force", article_scope, { path = path }))
+end
+
+assert(read_article("review.en.md").content == "# Article\n\nSaved text")
+assert(read_article("review.ja.mdx").content:find("<Component />", 1, true))
+
+for _, path in ipairs({
+	"../outside.md",
+	dir .. "/outside.md",
+	"linked.md",
+	"taxonomy.json",
+	".hidden.md",
+	"missing.md",
+}) do
+	local result, err = read_article(path)
+
+	assert(not result and err == "article unavailable", path)
+end
+
+vim.fn.writefile({ string.rep("x", 1024 * 1024 + 1) }, articles.directory() .. "/large.md")
+local large, large_err = read_article("large.md")
+
+assert(not large and large_err:find("1 MiB"))
+
+local stale_article, stale_article_err =
+	bridge.dispatch("articles", vim.tbl_extend("force", article_scope, { epoch = "stale" }))
+
+assert(not stale_article and stale_article_err == "stale host epoch")
+
+stale_article, stale_article_err =
+	bridge.dispatch("articles", vim.tbl_extend("force", article_scope, { conversation = "stale" }))
+
+assert(not stale_article and stale_article_err == "stale conversation")
+
+articles.directory = original_directory
+
 -- Snippet browsing is read-only, conversation-scoped, and uses shared merging/context.
 local snippets = require("aero.prompt_snippets")
 local original_paths = snippets.paths
@@ -281,6 +344,18 @@ assert(bridge.dispatch("prompt", params("command-00000002", { text = "/mode buil
 assert(sent == "/mode build")
 assert(bridge.dispatch("prompt", params("command-00000003", { text = "/compact keep notes" })))
 assert(sent == "/compact keep notes", "provider command was rewritten")
+
+-- Article commands must reach the shared turn preparation unchanged, including assigned sessions.
+for index, text in ipairs({ "/to-article", "/to-article md", "/to-article mdx" }) do
+	assert(bridge.dispatch("prompt", params("article-command-000" .. index, { text = text })))
+	assert(sent == text, "assignment prefix broke article generation")
+end
+
+for index, text in ipairs({ "/to-article html", "/to-article mdx\nextra instructions" }) do
+	result, err = bridge.dispatch("prompt", params("article-invalid-000" .. index, { text = text }))
+
+	assert(not result and err == "use /to-article [md|mdx]")
+end
 
 result, err = bridge.dispatch("prompt", params("command-00000004", { text = "/model" }))
 

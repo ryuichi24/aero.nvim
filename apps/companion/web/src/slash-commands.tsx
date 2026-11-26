@@ -6,6 +6,8 @@ import { BoardAssignment } from './task-assignment';
 const builtins = [
   { name: 'prompt', description: 'Insert a custom prompt snippet into the draft' },
   { name: 'report', description: 'Create or select a worktree report' },
+  { name: 'to-article', description: 'Write and save an article from this conversation' },
+  { name: 'article', description: 'Review saved articles from the shared library' },
   { name: 'reference', description: 'Select a worktree reference file or folder' },
   { name: 'model', description: 'Choose the session model' },
   { name: 'mode', description: 'Choose the session mode' },
@@ -16,7 +18,7 @@ const builtins = [
 ];
 
 export function slashPickerOpen(prompt: string) {
-  return ['/prompt', '/report', '/reference', '/context', '/model', '/mode'].includes(
+  return ['/article', '/prompt', '/report', '/reference', '/context', '/model', '/mode'].includes(
     prompt.trim(),
   );
 }
@@ -63,6 +65,26 @@ export function SlashCommands({
       </section>
     );
   }
+  if (/^\/to-article(?:\s|$)/.test(text))
+    return (
+      <section aria-label="New article command">
+        <p>
+          Send to write and save a new article on the host in all configured languages. Uses your
+          configured format unless you choose an override below.
+        </p>
+        {(['md', 'mdx'] as const).map((format) => (
+          <Button
+            variant="outline"
+            type="button"
+            key={format}
+            disabled={disabled}
+            onClick={() => onChoose(`/to-article ${format}`)}
+          >
+            {format === 'md' ? 'Use Markdown' : 'Use MDX'}
+          </Button>
+        ))}
+      </section>
+    );
   if (/^\/new-ticket(?:\s|$)/.test(text))
     return (
       <section aria-label="New ticket command">
@@ -98,7 +120,10 @@ export function SlashCommands({
         <p>An AI-formatted copy uses a separate agent conversation and tokens.</p>
       </section>
     );
-  if (/\s/.test(text) || ['/prompt', '/report', '/reference', '/context'].includes(text))
+  if (
+    /\s/.test(text) ||
+    ['/article', '/prompt', '/report', '/reference', '/context'].includes(text)
+  )
     return null;
   const commands = [
     ...builtins,

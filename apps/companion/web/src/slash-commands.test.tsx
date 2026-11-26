@@ -55,7 +55,7 @@ function menu(prompt: string, disabled = false) {
 
 it('offers built-in and advertised commands and selects drafts', async () => {
   const choose = menu('/');
-  expect(screen.getAllByRole('button')).toHaveLength(10);
+  expect(screen.getAllByRole('button')).toHaveLength(12);
   await userEvent.click(screen.getByRole('button', { name: '/compact — Compact context' }));
   expect(choose).toHaveBeenCalledWith('/compact');
 });
@@ -67,6 +67,28 @@ it('selects the local prompt picker command without submitting', async () => {
   );
   expect(choose).toHaveBeenCalledWith('/prompt');
   expect(slashPickerOpen('/prompt')).toBe(true);
+});
+
+it('offers article generation in the command menu', async () => {
+  const choose = menu('/to');
+  await userEvent.click(screen.getByRole('button', { name: /\/to-article —/ }));
+  expect(choose).toHaveBeenCalledWith('/to-article');
+  expect(slashPickerOpen('/to-article')).toBe(false);
+});
+
+it.each([
+  ['Use Markdown', 'md'],
+  ['Use MDX', 'mdx'],
+])('selects the article format with %s before sending', async (name, format) => {
+  const choose = menu('/to-article');
+  await userEvent.click(screen.getByRole('button', { name }));
+  expect(choose).toHaveBeenCalledWith(`/to-article ${format}`);
+});
+
+it('disables article format controls offline', async () => {
+  const choose = menu('/to-article', true);
+  await userEvent.click(screen.getByRole('button', { name: 'Use MDX' }));
+  expect(choose).not.toHaveBeenCalled();
 });
 
 it.each([

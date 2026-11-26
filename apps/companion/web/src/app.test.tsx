@@ -543,6 +543,33 @@ describe('mobile companion', () => {
     });
   });
 
+  it('reviews articles from the composer and Artifacts without submitting a prompt', async () => {
+    const fetch = vi
+      .fn()
+      .mockImplementation((_url, options) =>
+        Promise.resolve(
+          response(
+            JSON.parse(options.body).path
+              ? { content: '# Review from the web' }
+              : { entries: [{ name: 'review.md' }], active: 'review.md' },
+          ),
+        ),
+      );
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    connect({ ...initial, epoch: 'article-host' });
+    await open();
+    draft('/article');
+    expect(await screen.findByRole('heading', { name: 'Review from the web' })).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send prompt' }).disabled).toBe(
+      true,
+    );
+    draft('');
+    await userEvent.click(screen.getByRole('button', { name: 'Artifacts' }));
+    expect(await screen.findByRole('heading', { name: 'Review from the web' })).toBeTruthy();
+    expect(fetch.mock.calls.every(([url]) => url === '/api/articles')).toBe(true);
+  });
+
   it('exports an exited session and displays the saved host path', async () => {
     const fetch = vi
       .fn()

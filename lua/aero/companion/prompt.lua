@@ -39,6 +39,13 @@ function M.send(chat, selected, text, worktrees, finish)
 			end
 
 			text, control = "/" .. name .. " " .. choice.id, true
+		elseif name == "to-article" then
+			if argument ~= "" and argument ~= "md" and argument ~= "mdx" then
+				return finish(nil, "use /to-article [md|mdx]")
+			end
+
+			-- Preserve the command for the shared turn-time article expansion, even with an assignment.
+			text, control = "/to-article" .. (argument ~= "" and " " .. argument or ""), true
 		elseif name == "new-ticket" then
 			local expanded, err = require("aero.tasks.agent").expand_new_ticket(selected, text)
 

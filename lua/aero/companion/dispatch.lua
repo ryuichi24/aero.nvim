@@ -195,7 +195,7 @@ function M.dispatch(method, params)
 		return nil, "stale worktree or host epoch"
 	end
 
-	if method == "prompt_snippets" then
+	if method == "prompt_snippets" or method == "articles" then
 		if params.epoch ~= epoch then
 			return nil, "stale host epoch"
 		end
@@ -206,6 +206,10 @@ function M.dispatch(method, params)
 
 				if identity(s.chat, identities) ~= params.conversation then
 					return nil, "stale conversation"
+				end
+
+				if method == "articles" then
+					return require("aero.companion.articles").read(s, params.path)
 				end
 
 				local snippets = require("aero.prompt_snippets")

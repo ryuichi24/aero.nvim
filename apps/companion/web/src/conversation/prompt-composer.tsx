@@ -9,6 +9,7 @@ import { draftKey } from '../companion-state';
 import { ReportCommand } from '../report-command';
 import { PromptCommand } from '../prompt-command';
 import { ReferenceCommand } from '../reference-browser';
+import { ArticleBrowser } from '../article-browser';
 import { SlashCommands, slashPickerOpen } from '../slash-commands';
 import type { ActionData, ActionPath, Session, Snapshot } from '../types';
 import { Button } from '../components/ui/button';
@@ -19,11 +20,13 @@ export function PromptComposer({
   snapshot,
   promptRef,
   onAction,
+  active = true,
 }: {
   session: Session | undefined;
   snapshot: Snapshot | null;
   promptRef: RefObject<HTMLTextAreaElement | null>;
   onAction: (path: ActionPath, extra?: Partial<ActionData>) => Promise<boolean>;
+  active?: boolean;
 }) {
   const { selected, drafts, online, connection, pending, retry } = useCompanionState();
   const dispatch = useCompanionDispatch();
@@ -134,6 +137,15 @@ export function PromptComposer({
               onChoose={choose}
             />
           )}
+          {session && prompt.trim() === '/article' && (
+            <ArticleBrowser
+              key={`${snapshot?.epoch}:${session.id}:${session.conversation}`}
+              session={session}
+              epoch={snapshot?.epoch}
+              online={online}
+              active={active}
+            />
+          )}
           {session && ['/reference', '/context'].includes(prompt.trim()) && (
             <ReferenceCommand
               worktree={session.worktree}
@@ -153,7 +165,7 @@ export function PromptComposer({
             <Collapsible className="composer-actions">
               <CollapsibleTrigger aria-label="Prompt actions">Actions</CollapsibleTrigger>
               <div className="my-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {['report', 'reference', 'model', 'mode', 'export'].map((command) => (
+                {['article', 'report', 'reference', 'model', 'mode', 'export'].map((command) => (
                   <Button
                     variant="secondary"
                     className="min-h-14 whitespace-normal"
@@ -166,13 +178,15 @@ export function PromptComposer({
                       if (details) details.open = false;
                     }}
                   >
-                    {command === 'report'
-                      ? 'Select or create report'
-                      : command === 'reference'
-                        ? 'Select reference'
-                        : command === 'export'
-                          ? 'Export transcript'
-                          : `Change ${command}`}
+                    {command === 'article'
+                      ? 'Review articles'
+                      : command === 'report'
+                        ? 'Select or create report'
+                        : command === 'reference'
+                          ? 'Select reference'
+                          : command === 'export'
+                            ? 'Export transcript'
+                            : `Change ${command}`}
                   </Button>
                 ))}
               </div>

@@ -15,7 +15,7 @@ func TestHostReadRoutes(t *testing.T) {
 		"path": "/sources", "session": "session", "conversation": "conversation", "refresh": true,
 	}
 
-	for _, method := range []string{"reference_browse", "prompt_snippets", "submodule_browse", "session_snapshot"} {
+	for _, method := range []string{"reference_browse", "prompt_snippets", "submodule_browse", "session_snapshot", "articles"} {
 		t.Run(method, func(t *testing.T) {
 			for _, outcome := range []struct {
 				name     string

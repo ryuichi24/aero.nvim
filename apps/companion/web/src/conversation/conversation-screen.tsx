@@ -13,6 +13,7 @@ import { AssignmentStatus, BoardAssignment } from '../task-assignment';
 import { LifecycleForm } from '../lifecycle-controls';
 import { Screenshots } from '../screenshots';
 import { Recordings } from '../recordings';
+import { ArticleBrowser } from '../article-browser';
 import type { Quote } from '../quote';
 import type { View } from '../companion-state';
 import type { SessionTab } from '../navigation/use-companion-route';
@@ -180,6 +181,13 @@ export function ConversationScreen({
       <div hidden={tab !== 'artifacts'}>
         {session && (
           <>
+            <ArticleBrowser
+              key={`articles:${snapshot?.epoch}:${session.id}:${session.conversation}`}
+              session={session}
+              epoch={snapshot?.epoch}
+              online={online}
+              active={view === 'conversation' && tab === 'artifacts'}
+            />
             <Screenshots
               key={`screenshots:${session.id}:${session.conversation}`}
               session={session}
@@ -219,6 +227,7 @@ export function ConversationScreen({
               snapshot={snapshot}
               promptRef={promptRef}
               onAction={onAction}
+              active={view === 'conversation' && tab === 'conversation'}
             />
           }
           feedback={
