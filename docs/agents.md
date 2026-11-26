@@ -284,6 +284,23 @@ as “revise the introduction” include that article's path and instruct the ag
 read and update it in place. `/to-article` creates a new article target each time.
 Files and metadata are written by the agent using its normal file tools.
 
+In the companion web app, use `/to-article` in an ACP conversation's composer
+and send it to create a new article from the discussion. The slash-command menu
+includes this command and offers **Use Markdown** and **Use MDX** format overrides
+(`/to-article md` and `/to-article mdx`). Generation uses the same configured
+prompt, languages, taxonomy, and host-side article library as Neovim. Follow-up
+messages revise the session's active article through the same shared flow.
+
+To review the saved files in the companion, open the session's **Artifacts** view
+and its **Articles** section, or type `/article` in the composer (also available
+as **Actions → Review articles**). The browser lists the shared host library,
+opens the session's active article by default, and lets you review other language
+versions. Switch between rendered Markdown and full source, including frontmatter.
+MDX previews render Markdown only; custom components are not executed. The browser
+refreshes every five seconds while visible, with **Refresh articles** for manual
+updates. Files appear after the agent saves them; previews support files up to
+1 MiB. Viewing another file does not change the session's active revision target.
+
 Customize the writing instructions used by `/to-article` in `setup()`:
 
 ```lua

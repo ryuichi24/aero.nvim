@@ -51,6 +51,15 @@ while the section is open. Optional `refresh: true` invalidates discovery caches
 before reading. Errors and uninitialized entries do not initialize or clone Git
 repositories, and paths not declared in the selected checkout are rejected.
 
+`POST /api/articles` is a read-only request with `epoch`, `session`, and
+`conversation`. Without `path`, it returns `{ "entries": [{ "name": "post.en.md" }],
+"active": "post.en.md" }` for the shared article library; `active` is optional.
+With `path` set to a listed filename, it returns `{ "name": "post.en.md",
+"content": "…" }`. Reads accept only regular, non-hidden `.md`/`.mdx` files
+directly in the article directory, reject symlinks and traversal, and limit file
+previews to 1 MiB. Reading does not change the session's active article or resume
+its agent. The browser's `/article` command opens this reader locally.
+
 ```json
 {
   "operation_id": "example-operation-0001",
