@@ -97,6 +97,43 @@ assert(chat.chat and not chat.chat:alive())
 local saved_chat = chat.chat
 require("aero.inbox").add(saved_chat, "completed", { text = "Client research finished" })
 dashboard.open()
+local sidebar = api.nvim_get_current_buf()
+
+local function sidebar_row(text)
+	for row, line in ipairs(api.nvim_buf_get_lines(sidebar, 0, -1, false)) do
+		if line:find(text, 1, true) then
+			return row
+		end
+	end
+end
+
+local function sidebar_action(text, key)
+	api.nvim_win_set_cursor(0, { assert(sidebar_row(text), text), 0 })
+	vim.fn.maparg(key, "n", false, true).callback()
+end
+
+assert(sidebar_row("▾ Scene"))
+assert(sidebar_row("▸ Default"))
+assert(sidebar_row("▾ Client work"))
+assert(sidebar_row("Workspace") > sidebar_row("Client work"))
+
+sidebar_action("Client work", "h")
+
+assert(not sidebar_row("Workspace"), "collapsing a scene must hide its workspace items")
+assert(sidebar_row("Default"), "collapsing one scene must retain sibling scenes")
+
+sidebar_action("Client work", "l")
+
+assert(sidebar_row("Workspace"))
+
+sidebar_action("▾ Scene", "h")
+
+assert(not sidebar_row("Client work") and not sidebar_row("Default"))
+
+sidebar_action("▸ Scene", "l")
+
+assert(sidebar_row("Client work") and sidebar_row("Default"))
+
 local folds = require("aero.dashboard.folds")
 local state = {}
 folds.restore(state)
@@ -203,7 +240,7 @@ assert(not scenes.delete("default"))
 
 local lines = api.nvim_buf_get_lines(api.nvim_get_current_buf(), 0, -1, false)
 
-assert(lines[1]:find("Scene: Default", 1, true))
+assert(table.concat(lines, "\n"):find("▾ Default", 1, true))
 
 -- A real terminal process and its buffer survive switching away and back.
 require("aero.config").options.agents.fixture = { cmd = { "sh", "-c", "sleep 60" } }

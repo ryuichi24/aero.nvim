@@ -835,6 +835,21 @@ function actions.toggle()
 
 	if item.expanded ~= nil and item.kind:match("^knowledge_") then
 		state.knowledge_expanded[item.id] = not item.expanded
+	elseif item.kind == "scene" then
+		if item.scene.id ~= scenes.current() then
+			local switched, err = scenes.switch(item.scene.id)
+
+			if not switched then
+				vim.notify("aero: " .. tostring(err), vim.log.levels.ERROR)
+				return
+			end
+
+			state.scene_expanded[item.scene.id] = true
+		else
+			state.scene_expanded[item.scene.id] = not item.expanded
+		end
+	elseif item.kind == "scene_group" then
+		state.scene_open = state.scene_open == false
 	elseif item.kind == "workspace_group" then
 		state.workspace_open = state.workspace_open == false
 	elseif item.kind == "general_group" then
@@ -906,6 +921,10 @@ function actions.expand()
 
 	if item.expanded ~= nil and item.kind:match("^knowledge_") then
 		expanded = item.expanded
+	elseif item.kind == "scene" then
+		expanded = item.expanded
+	elseif item.kind == "scene_group" then
+		expanded = state.scene_open ~= false
 	elseif item.kind == "workspace_group" then
 		expanded = state.workspace_open ~= false
 	elseif item.kind == "general_group" then
@@ -940,6 +959,17 @@ function actions.expand()
 		-- already open: step into the first child
 		local lnum = api.nvim_win_get_cursor(0)[1]
 
+		if item.kind == "scene" or item.kind == "scene_group" then
+			for row = lnum + 1, api.nvim_buf_line_count(state.buf) do
+				if state.items[row] and state.items[row].parent == item.id then
+					api.nvim_win_set_cursor(0, { row, 0 })
+					break
+				end
+			end
+
+			return
+		end
+
 		if state.items[lnum + 1] and (item.expanded == nil or state.items[lnum + 1].parent == item.id) then
 			api.nvim_win_set_cursor(0, { lnum + 1, 0 })
 		end
@@ -957,8 +987,16 @@ function actions.collapse()
 
 	local lnum = api.nvim_win_get_cursor(0)[1]
 
-	if item.kind == "workspace_group" or item.kind == "general_group" or item.kind == "knowledge_group" then
-		local open = item.kind == "workspace_group" and state.workspace_open ~= false
+	if
+		item.kind == "scene_group"
+		or item.kind == "scene"
+		or item.kind == "workspace_group"
+		or item.kind == "general_group"
+		or item.kind == "knowledge_group"
+	then
+		local open = item.kind == "scene_group" and state.scene_open ~= false
+			or item.kind == "scene" and item.expanded
+			or item.kind == "workspace_group" and state.workspace_open ~= false
 			or item.kind == "general_group" and state.general_open ~= false
 			or item.kind == "knowledge_group" and state.knowledge_open ~= false
 
@@ -1057,7 +1095,7 @@ function actions.rename()
 	end
 
 	if item.kind == "scene" then
-		return scenes.command({ "rename" })
+		return scenes.command({ "rename", item.scene.id })
 	elseif item.kind == "session" then
 		return require("aero.session.actions").rename(item.session, M.render)
 	end
@@ -1093,7 +1131,7 @@ function actions.delete()
 	end
 
 	if item.kind == "scene" then
-		return scenes.command({ "delete" })
+		return scenes.command({ "delete", item.scene.id })
 	end
 
 	if item.kind == "knowledge_note" or item.kind == "knowledge_source" or item.kind == "knowledge_folder" then

@@ -1,8 +1,9 @@
 -- Persist only explicit fold changes; defaults and unrelated runtime state stay local.
 local store = require("aero.store")
 local M = {}
-local headings = { "workspace_open", "general_open", "knowledge_open" }
+local headings = { "scene_open", "workspace_open", "general_open", "knowledge_open" }
 local sections = {
+	"scene_expanded",
 	"expanded",
 	"reports_expanded",
 	"reading_expanded",

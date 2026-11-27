@@ -69,8 +69,14 @@ function M.build(snapshot)
 	local lines, items, marks = {}, {}, {}
 	local icons = snapshot.icons
 	local knowledge_hidden = {}
+	local scene_children = false
 
 	local function add(segments, item, virt)
+		if scene_children and snapshot.scene then
+			segments = vim.deepcopy(segments)
+			table.insert(segments, 1, { "    " })
+		end
+
 		if
 			item
 			and (
@@ -114,35 +120,76 @@ function M.build(snapshot)
 			and ("  " .. snapshot.scene_attention .. " elsewhere · :Aero inbox")
 		or "  g? for help"
 	add({
-		{ snapshot.scene and (" Scene: " .. snapshot.scene.name) or " Aero", "AeroTitle" },
+		{ " Aero", "AeroTitle" },
 		{ attention, "AeroDim" },
-	}, snapshot.scene and { kind = "scene", id = "scene:" .. snapshot.scene.id } or nil)
+	})
 	add({})
 
 	if not snapshot.nested and not snapshot.grouped then
-		local workspace_open = snapshot.workspace_open ~= false
-		add(
-			{ { " " .. (workspace_open and icons.expanded or icons.collapsed) .. " " }, { "Workspace", "AeroTitle" } },
-			{ kind = "workspace_group", id = "workspace-group" }
-		)
+		if snapshot.scene then
+			add({
+				{ " " .. (snapshot.scene_open ~= false and icons.expanded or icons.collapsed) .. " " },
+				{ "Scene", "AeroTitle" },
+			}, { kind = "scene_group", id = "scene-group" })
+		end
 
-		if workspace_open then
-			local child = vim.tbl_extend("force", snapshot, { grouped = true })
-			local child_lines, child_items, child_marks = M.build(child)
+		local scenes = snapshot.scenes or { snapshot.scene or {} }
 
-			for index = 3, #child_lines do
-				local item, mark = child_items[index], child_marks[index]
-				table.insert(lines, "  " .. child_lines[index])
+		for _, scene in ipairs(scenes) do
+			if snapshot.scene and snapshot.scene_open == false then
+				break
+			end
 
-				if item and item.kind == "workspace" and item.id == "ws:" .. item.ws.root then
-					item.parent = "workspace-group"
+			local active = not snapshot.scene or scene.id == snapshot.scene.id
+			local expanded = active and (snapshot.scene_expanded or {})[scene.id] ~= false
+
+			if snapshot.scene then
+				add({
+					{ "   " .. (expanded and icons.expanded or icons.collapsed) .. " " },
+					{ scene.name, "AeroWorkspace" },
+				}, {
+					kind = "scene",
+					id = "scene:" .. scene.id,
+					parent = "scene-group",
+					scene = scene,
+					expanded = expanded,
+				})
+			end
+
+			if expanded then
+				scene_children = true
+				local workspace_open = snapshot.workspace_open ~= false
+				add({
+					{ " " .. (workspace_open and icons.expanded or icons.collapsed) .. " " },
+					{ "Workspace", "AeroTitle" },
+				}, {
+					kind = "workspace_group",
+					id = "workspace-group",
+					parent = snapshot.scene and "scene:" .. snapshot.scene.id or nil,
+				})
+
+				if workspace_open then
+					local child = vim.tbl_extend("force", snapshot, { grouped = true })
+					local child_lines, child_items, child_marks = M.build(child)
+
+					for index = 3, #child_lines do
+						local item, mark = child_items[index], child_marks[index]
+						local indent = snapshot.scene and "      " or "  "
+						table.insert(lines, indent .. child_lines[index])
+
+						if item and item.kind == "workspace" and item.id == "ws:" .. item.ws.root then
+							item.parent = "workspace-group"
+						end
+
+						items[#lines], marks[#lines] = item, mark
+
+						for _, highlight in ipairs(mark.hls) do
+							highlight[1], highlight[2] = highlight[1] + #indent, highlight[2] + #indent
+						end
+					end
 				end
 
-				items[#lines], marks[#lines] = item, mark
-
-				for _, highlight in ipairs(mark.hls) do
-					highlight[1], highlight[2] = highlight[1] + 2, highlight[2] + 2
-				end
+				scene_children = false
 			end
 		end
 

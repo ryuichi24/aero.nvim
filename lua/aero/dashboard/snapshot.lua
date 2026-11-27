@@ -192,6 +192,9 @@ function M.prepare(workspaces, state, on_repository_changed)
 	end
 
 	snapshot.workspace_open = state.workspace_open ~= false
+	snapshot.scene_open = state.scene_open ~= false
+	snapshot.scenes = require("aero.scenes").list()
+	snapshot.scene_expanded = state.scene_expanded
 	snapshot.scene = require("aero.scenes").find(require("aero.scenes").current())
 	snapshot.scene_attention = 0
 

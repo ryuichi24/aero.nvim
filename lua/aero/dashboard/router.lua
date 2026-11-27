@@ -1,8 +1,8 @@
 -- Semantic sidebar actions. View ownership and expansion changes are supplied by the dashboard.
 local M = {}
 local open = {
-	scene = function()
-		require("aero.scenes").open()
+	scene = function(_, _, view)
+		view.toggle()
 	end,
 	session = function(item, how, view)
 		if item.knowledge then
