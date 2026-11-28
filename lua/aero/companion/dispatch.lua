@@ -92,6 +92,8 @@ end
 
 function M.dispatch(method, params)
 	params = params or {}
+	-- The companion can outlive changes saved by another Neovim instance.
+	require("aero.store").load()
 	local sessions = require("aero.session").all()
 
 	if method == "snapshot" then

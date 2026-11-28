@@ -68,7 +68,15 @@ assert(snapshot.active_scene == "default" and snapshot.scenes[1].id == "default"
 assert(snapshot.sessions[1].in_scene == true)
 
 local scenes = require("aero.scenes")
+local store = require("aero.store")
+local cached = vim.deepcopy(store.data)
 local other = assert(scenes.create("Companion test"))
+store.data = cached -- Simulate a scene saved by another Neovim instance.
+local refreshed = bridge.dispatch("snapshot")
+
+assert(refreshed.scenes[2].id == other.id, "snapshot omitted an externally created scene")
+assert(refreshed.scenes[2].name == "Companion test")
+
 local switch = { epoch = snapshot.epoch, scene_id = other.id, operation_id = "scene-switch-test-0001" }
 local stale, stale_error = bridge.dispatch("scene_switch", {
 	epoch = "stale",
