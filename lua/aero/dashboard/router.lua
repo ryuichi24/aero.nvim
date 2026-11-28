@@ -94,7 +94,7 @@ function M.add(item, view)
 		return view.add_workspace()
 	end
 
-	if item.kind == "scene" then
+	if item.kind == "scene" or item.kind == "scene_group" then
 		require("aero.scenes").command({ "new" })
 	elseif item.general or item.kind == "general_group" then
 		require("aero.general").new()
